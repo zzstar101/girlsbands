@@ -1,0 +1,176 @@
+{
+  "generatedAt": "2026-10-04T08:16:57.289Z",
+  "logos": {
+    "girls-band-cry": {
+      "file": "girls-band-cry.png",
+      "source": "https://girls-band-cry.com/wp-content/themes/gbc_v1-1/assets/images/common/logo.png",
+      "sha256": "0f4176f4ef60ddb45503cbe4c9f9743b9d15c9600b18e3ce53f21c970590dfba",
+      "width": 1088,
+      "height": 164,
+      "inkLum": 0,
+      "onDark": false
+    },
+    "togenashi-togeari": {
+      "file": "togenashi-togeari.png",
+      "source": "https://girls-band-cry.com/wp-content/themes/gbc_v1-1/assets/images/common/character/logo_toge.png",
+      "sha256": "016dfb9b7e821c3b6deb1819fef1e0d3c82f99235941ab729fb0a49a297113de",
+      "width": 294,
+      "height": 131,
+      "inkLum": 0.3122,
+      "onDark": false
+    },
+    "bang-dream": {
+      "file": "bang-dream.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/images/common/common/logo_bangdream.png",
+      "sha256": "3eb35b05cd2c74760a373a89a05f14f3d96f6b3c36f93ba483b0ed23ed719796",
+      "width": 536,
+      "height": 112,
+      "inkLum": 0.1706,
+      "onDark": false
+    },
+    "mygo": {
+      "file": "mygo.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_mygo.webp",
+      "sha256": "332d7171668201a3eb13c3b79ce0bd956b1c80f160cc20bdd41ca63dfd5e314b",
+      "width": 1058,
+      "height": 498,
+      "inkLum": 0.23,
+      "onDark": false
+    },
+    "ave-mujica": {
+      "file": "ave-mujica.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_avemujica.webp",
+      "sha256": "28c45829cb21fa1dca333f5a3ef12d7ec20cbdfd2fed80f1c700981ae478c06c",
+      "width": 1062,
+      "height": 437,
+      "inkLum": 0.0994,
+      "onDark": false
+    },
+    "roselia": {
+      "file": "roselia.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_roselia.webp",
+      "sha256": "aa0212ca85d14af0d2be434c95068940cb82ad35a39ce46eae244be7421a572c",
+      "width": 728,
+      "height": 317,
+      "inkLum": 0.119,
+      "onDark": false
+    },
+    "kessoku-band": {
+      "file": "kessoku-band.png",
+      "source": "https://bocchi.rocks/kessokuband/assets/img/common/header/logo_kessoku.svg",
+      "sha256": "54008f93309f71b620fb1c1100aae55f6f5df9842d3de08a9b5df520e6818190",
+      "width": 1200,
+      "height": 140,
+      "inkLum": 0,
+      "onDark": false
+    },
+    "poppinparty": {
+      "file": "poppinparty.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_poppinparty.webp",
+      "sha256": "d85af4706f2301a1b3671411c0ec45d696ea7bea28cfae19e5e3db6b480156ac",
+      "width": 1178,
+      "height": 232,
+      "inkLum": 0.3537,
+      "onDark": false
+    },
+    "afterglow": {
+      "file": "afterglow.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_afterglow.webp",
+      "sha256": "0c238e12b834a791391bd632ec9b16c70c2399969a1db994416f0e348d26de5b",
+      "width": 932,
+      "height": 280,
+      "inkLum": 0.0053,
+      "onDark": false
+    },
+    "pastel-palettes": {
+      "file": "pastel-palettes.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_pastel-palettes.webp",
+      "sha256": "51e503d5fbd66bbf606a1594f01486e586e79303c1f08240a2fa88d636d978fc",
+      "width": 690,
+      "height": 304,
+      "inkLum": 0.4285,
+      "onDark": false
+    },
+    "hello-happy-world": {
+      "file": "hello-happy-world.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_hello-happy-world.webp",
+      "sha256": "70d4220acf8268122f1e0319438512a381704447ab8ed73ddcf2a5da534605b9",
+      "width": 958,
+      "height": 402,
+      "inkLum": 0.5336,
+      "onDark": false
+    },
+    "morfonica": {
+      "file": "morfonica.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_morfonica.webp",
+      "sha256": "5b9b2d480ff8c39bc33703ddec30370e46f7afcb24a8729aba03adfa4ddc253a",
+      "width": 812,
+      "height": 344,
+      "inkLum": 0.383,
+      "onDark": false
+    },
+    "raise-a-suilen": {
+      "file": "raise-a-suilen.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_raise-a-suilen.webp",
+      "sha256": "1273eaa043a5299060b2cdf9d7789e92156c0a2a8c7eec70a5bf768f1ed51cee",
+      "width": 786,
+      "height": 338,
+      "inkLum": 0.0549,
+      "onDark": false
+    },
+    "mugendai-mewtype": {
+      "file": "mugendai-mewtype.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_yumemita.webp",
+      "sha256": "922214cc6ba14e0fe87bb6cd130815eda54afba269bc475c732909ca7233d1ed",
+      "width": 921,
+      "height": 333,
+      "inkLum": 0.3296,
+      "onDark": false
+    },
+    "our-notes": {
+      "file": "our-notes.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/images/common/common/logo_ournotes.png",
+      "sha256": "4f0bdbc0453418d3f40a5c48e582978c21fcf9dcce16fbb6a6d77ead467c74e3",
+      "width": 564,
+      "height": 380,
+      "inkLum": 0.7228,
+      "onDark": true
+    },
+    "millsage": {
+      "file": "millsage.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_millsage.webp",
+      "sha256": "f5883fd2dccfe9267eca7de7801c25459fe2f7dfd8279bdee789792402734c78",
+      "width": 1030,
+      "height": 287,
+      "inkLum": 0.0535,
+      "onDark": false
+    },
+    "ikkadumbrock": {
+      "file": "ikkadumbrock.png",
+      "source": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_ikka-dumb-rock.webp",
+      "sha256": "eada5f27bca0c880cc2c56d373a30a1bfcded151e909495c66eb391c3f329a4b",
+      "width": 948,
+      "height": 333,
+      "inkLum": 0.3153,
+      "onDark": false
+    },
+    "kuzumimizuku": {
+      "file": "kuzumimizuku.png",
+      "source": "https://gbc-firstriff.com/wp-content/themes/gbc-firstriff_teaser/assets/images/band/kuzumimizuku/img_logo-band-kuzumimizuku.png",
+      "sha256": "779e75edae44d1393e51142f8dfb79d6af8db3735a7200c08b136b1f5e20bebd",
+      "width": 1002,
+      "height": 266,
+      "inkLum": 0.6675,
+      "onDark": true
+    },
+    "diamond-dust": {
+      "file": "diamond-dust.png",
+      "source": "https://girls-band-cry.com/wp-content/themes/gbc_v1-1/assets/images/common/character/logo_dd.png",
+      "sha256": "ae540bff960aa7ded78679bbb0c5a30af45f43b4b56bbe99209e06c2778c9032",
+      "width": 210,
+      "height": 194,
+      "inkLum": 0.6028,
+      "onDark": true
+    }
+  }
+}

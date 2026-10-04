@@ -27,6 +27,9 @@ export default [
   route("feedback", "routes/feedback.tsx"),
   route("more", "routes/more.tsx"),
   route("starred", "routes/starred.tsx"),
+  route("subscribe", "routes/subscribe.tsx"),
+  route("subscribe/confirmed", "routes/subscribe-confirmed.tsx"),
+  route("subscribe/manage", "routes/subscribe-manage.tsx"),
   route("agent", "routes/agent.tsx"),
   route("admin/login", "routes/admin-login.tsx"),
   layout("routes/admin/layout.tsx", { id: "admin-layout" }, [

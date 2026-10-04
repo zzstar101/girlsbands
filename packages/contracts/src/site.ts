@@ -272,6 +272,43 @@ export interface DeadlinesResponse {
   total: number;
 }
 
+/** What the subscribe form posts. */
+export interface SubscribeRequest {
+  email: string;
+  /** Band entity ids; an empty list means "every band" and is the default. */
+  bands: string[];
+  wantsDeadlines: boolean;
+  wantsDigest: boolean;
+}
+
+/**
+ * The answer is deliberately one shape and one word: an unauthenticated POST must not be usable to
+ * probe whether somebody else's address is already on the list. The page tells the reader to go and
+ * find the confirmation letter, which is also the truth when they were already subscribed.
+ */
+export interface SubscribeResponse {
+  ok: true;
+}
+
+/** The state behind /subscribe/manage. Only reachable with the token from the letter. */
+export interface SubscriptionState {
+  email: string;
+  bands: string[];
+  wantsDeadlines: boolean;
+  wantsDigest: boolean;
+  confirmed: boolean;
+}
+
+/** Preference changes and unsubscribing both need the token; nothing here works without it. */
+export interface SubscriptionUpdateRequest {
+  token: string;
+  bands: string[];
+  wantsDeadlines: boolean;
+  wantsDigest: boolean;
+  /** Read as "退订" instead of "保存". */
+  unsubscribe?: boolean;
+}
+
 export interface HeatPoint {
   hour: string;
   heat: number;

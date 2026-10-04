@@ -14,6 +14,7 @@ import { submitIndexNow } from "@aihot/backend/operations/indexnow";
 import { checkAlerts, sendDigest } from "@aihot/backend/operations/alerts";
 import { recoverStaleWork } from "@aihot/backend/operations/recover";
 import { forwardPendingFeedback } from "@aihot/backend/operations/feedback";
+import { sendDeadlineReminders, sendDigest as sendSubscriberDigest } from "@aihot/backend/subscriptions/notify";
 import { backupConfigured, runBackup } from "@aihot/backend/operations/backup";
 import { sourceHealthWeekly } from "@aihot/backend/operations/reports";
 
@@ -48,6 +49,10 @@ export const SCHEDULES: Scheduled[] = [
   { name: "ops.digest", cron: "0 9 * * *", missed: "once", run: () => sendDigest() },
   // Feedback that did not reach the internal Feishu chat when it was sent (off with FEISHU_INTERNAL_ENABLED).
   { name: "feedback.forward", cron: "*/10 * * * *", run: () => forwardPendingFeedback() },
+  // Reader mail (off with EMAIL_ENABLED; each run says why it sent nothing). The reminder only goes out
+  // when something is inside 48 hours, so two runs a day is about catching ballots before they close.
+  { name: "email.deadline", cron: "0 9,21 * * *", missed: "once", run: () => sendDeadlineReminders() },
+  { name: "email.digest", cron: "0 20 * * *", missed: "once", run: () => sendSubscriberDigest() },
   ...(backupConfigured() ? [{ name: "ops.backup", cron: "10 4 * * *", missed: "once" as const, run: () => runBackup() }] : []),
   { name: "reports.source-health", cron: "0 9 * * 1", missed: "once", run: () => sourceHealthWeekly() },
   ...(collecting

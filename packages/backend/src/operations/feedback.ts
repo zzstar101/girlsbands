@@ -10,7 +10,7 @@ import { Rejected, rateLimit, sourceFingerprint } from "./abuse.ts";
 import { sql } from "../db.ts";
 import { feishuInternalEnabled, forwardFeedbackToFeishu } from "../notify/feishu.ts";
 
-/** 反馈被拒绝的公开错误；路由层按 status/code 转成 problem+json。 */
+/** 反馈被拒绝的公开错误；与订阅共用同一套 429/400 语义。 */
 export { Rejected as FeedbackRejected } from "./abuse.ts";
 
 /** The picture's real type from its first bytes (what the browser claimed is not trusted). */

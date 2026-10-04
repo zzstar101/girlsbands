@@ -51,6 +51,13 @@ export const config = {
   // External-action valve: off unless the environment turns it on, like COLLECT_ENABLED (read by the
   // worker). .env.example turns both on.
   modelCallsEnabled: bool("MODEL_CALLS_ENABLED", false),
+  // Email subscriptions. Same shape as the valves above: off by default. With it off nothing touches
+  // SMTP, the subscribe endpoint says so plainly, and the two reminder schedules do not run.
+  emailEnabled: bool("EMAIL_ENABLED", false),
+  /** Dry run: render the whole message through nodemailer's json transport and deliver nothing. */
+  emailDryRun: bool("EMAIL_DRY_RUN", false),
+  /** Which look the mails use; the ids live in industry/email/styles/. */
+  emailStyle: str("EMAIL_STYLE", "cover"),
   devAdmin: env.DEV_AUTH_ROLE === "admin" ? { displayName: env.DEV_AUTH_DISPLAY_NAME || "Dev Admin" } : null,
   /** The admin password (at least 12 characters). Feishu sign-in below is optional. */
   adminPassword: env.ADMIN_PASSWORD || null,
