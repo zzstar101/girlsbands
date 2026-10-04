@@ -1,45 +1,53 @@
 
-【AI 领域翻译规则 — 本平台 100% 是 AI/ML/LLM 行业内容，严格遵守】
+【少女乐队领域翻译规则 — 本平台 100% 是少女乐队／2.5D 乐队企划情报，严格遵守】
 
-1. 歧义默认值：以下词在中文有非 AI 歧义，**一律按 AI 含义翻译**：
-   - LLM = 大语言模型（绝不译"法学硕士"/"Master of Laws"）
-   - Token / tokens = 模型 token（保留英文；绝不译"代币"/"令牌"）
-   - Transformer = Transformer 架构（保留英文；不译"变压器"）
-   - Diffusion = 扩散模型（AI 生成，不是物理扩散）
-   - Agent / Agentic = AI 智能体 / 智能体的（不译"代理人"/"中介"）
-   - Alignment = 对齐（AI 安全语境）
-   - Inference = 推理（模型生成）
-   - Reasoning = 推理（注意：与 inference 都译"推理"，必要时用"链式推理"区分 CoT；reasoning model 指 o1/o3/R1 这类思考型模型）
-   - Embedding = 嵌入向量（也可保留英文）
-   - Distillation = 知识蒸馏
-   - Hallucination = 模型幻觉
-   - Fine-tune / Fine-tuning = 微调
-   - Pretrain / Pretraining = 预训练
-   - Context window = 上下文窗口
-   - Prompt = 提示词
-   - Skill / Skills = 技能（Claude 等 Agent 框架的能力包，不译"特长"）
+1. 歧义默认值：以下词在中文有非乐队歧义，**一律按本行业含义翻译**：
+   - Live = 公演／现场演出（单用时不是“直播”；Live Streaming、生配信 才是直播）
+   - One-man / ワンマン = One-man（单独公演，保留 One-man，不译“单人”）
+   - 対バン = 对盘（两组对演，不译“对战”）
+   - Tour / ツアー = 巡演
+   - Serial / シリアル = 序列号（CD／BD 封入的抽选码，绝不译“连续剧”“串行”）
+   - 封入 = 封入（碟内附赠，保留“封入”）
+   - 特典 = 特典（店铺／购入赠品，保留“特典”）
+   - Goods / グッズ = 周边
+   - 物販 = 场贩（会场周边贩售）
+   - 抽選 = 抽选；抽選券 = 抽选券
+   - 先行 = 先行（提前受理）；受付 = 受理；受付期間 = 受理期间；受付終了 = 受理结束
+   - 締切 = 截止；まで = 到…为止；23:59 = 23:59
+   - 一般発売 = 一般贩售；追加席 = 追加席；当日券 = 当日券；リセール = 转售
+   - 先着 = 先到先得；受注生産 = 受注生产（按订单生产）
+   - 初回限定盤 = 初回限定盘；通常盤 = 通常盘
+   - 生配信 = 生配信／直播；アーカイブ = Archive 回放；見逃し配信 = 限时回放
+   - 会場 = 会场；振替 = 补演／改期；中止 = 中止；延期 = 延期
+   - 卒業 = 毕业；脱退 = 退出；休止 = 活动休止；復帰 = 复归；加入 = 加入
+   - FC / ファンクラブ = 官方粉丝俱乐部（FC）
+   - 開場 = 入场时间；開演 = 开演时间；キャパ = 容纳人数
 
-2. 以下专有名词**一律保留英文原文**，不翻译不加中文括注：
-   - AI 公司：OpenAI / Anthropic / Google DeepMind / xAI / Meta AI / Mistral / DeepSeek / Cohere / HuggingFace（HF）/ Runway / ElevenLabs / Suno / Pika / Midjourney / Perplexity
-   - 模型族（举例 + 通用规则）：GPT / Claude / Gemini / Llama / Qwen / Grok / o 系列 / DeepSeek / Mistral / Mixtral / Phi / Sora / Veo / Imagen
-     **规则**：任何大模型族名、产品代号一律保留英文
-   - 模型版本号（举例 + 通用规则）：GPT-5 / Claude 4.7 / Claude Sonnet 4.6 / Llama 4 / Gemini 3 / o3 / o4 / DeepSeek-V4 / Qwen3.7
-     **规则**：版本号一字不改（包括字母数字后缀如 4o / 4.7 / 405B / V4 / R1），绝不"翻译性扩写"（不要把 "405B" 译成 "4050 亿"，不要把 "V4" 译成 "第 4 代"）
-   - 技术缩写（举例 + 通用规则）：LLM / RAG / RLHF / DPO / LoRA / QLoRA / PEFT / MoE / CoT / ReAct / KV cache / SOTA / AGI / MCP / ADK / NPU / GPU / TPU
-     **规则**：任何 2-5 字母的全大写缩写，默认按 AI/ML 含义保留英文
-   - 评测基准（举例 + 通用规则）：MMLU / GPQA / HumanEval / SWE-bench / SWE-bench Verified / AIME / HLE / ARC-AGI / ARC-AGI 2 / MT-Bench / Chatbot Arena / Aider Polyglot / LiveCodeBench
-     **规则**：以 -bench / -eval 结尾或全大写的评测名一律保留英文
-   - AI 工具/产品：Cursor / Copilot / Codex / Aider / Devin / Cline / Claude Code / Windsurf / Zed / v0 / Bolt / Lovable / Replit Agent
-   - Agent 框架：LangChain / LangGraph / LlamaIndex / CrewAI / AutoGen / Pydantic AI / Vercel AI SDK / DSPy
-   - 推理/部署：Ollama / vLLM / SGLang / TensorRT / Triton / CUDA / ROCm
-   - 通用技术：API / SDK / CLI / IDE / SaaS / CDN / SSO / OAuth / JWT / WebSocket / SSE / gRPC
+2. 以下专有名词**一律保留原文**，不翻译、不加中文括注：
+   - 企划与乐队：GIRLS BAND CRY / ガールズバンドクライ / トゲナシトゲアリ / BanG Dream!（バンドリ！）/ MyGO!!!!! / Ave Mujica / Roselia / 結束バンド / ぼっち・ざ・ろっく！
+   - 公演名、专辑名、歌曲名、Blu-ray 名：一律照抄原文，绝不为了“中文通顺”另起名字（例如演出名「凛音の理」保持原样，不要写成“凛音之理”“凛音的真谛”；「8th ONE-MAN LIVE」保持原样，不要写成“第八次个人演唱会”）
+   - 会场（举例 + 通用规则）：Zepp Haneda / Zepp Osaka Bayside / TOKYO DOME CITY HALL / 日本武道館 / ぴあアリーナMM / Kアリーナ横浜 / 有明アリーナ / LINE CUBE SHIBUYA
+     **规则**：任何会场名都是专有名词，即使有常见中文叫法也保留原文，方便读者按原名搜索
+   - 票务平台：e+ / イープラス / チケットぴあ / ローソンチケット / U-CONNECT TICKET
+   - 商店：Animate / Gamers / Tower Records / HMV / Limista（リミスタ）
+   - 媒体：音楽ナタリー / Animate Times / LisAni!（リスアニ！）/ Billboard Japan / ORICON
+   - 席种、券种、序列号名、抽选名一律保留原文（全席指定 / 立見 / 注釈付き指定席 / シリアルコード）
+     **规则**：任何 2-5 字母的全大写缩写默认按本行业含义保留英文（FC / BD / CD / MV / JST / e+）
 
-3. 中国厂商**优先用官方中文品牌名**（首次出现可双标"千问（Qwen3）"，后续选一种保持一致）：
-   - 千问（Qwen）/ 文心一言 / 智谱（GLM）/ 月之暗面（Kimi）/ 深度求索（DeepSeek）/ 阶跃星辰（Step）/ 零一万物（Yi）/ 百川 / 豆包（字节）/ 混元（腾讯）/ 可灵（Kling，快手）/ 即梦（Jimeng，字节）/ MiniMax（不译）/ 美团 LongCat / 昆仑万维 Skywork / 面壁 MiniCPM / 华为昇腾 / 寒武纪
+3. 已有官方中文名的作品**优先用官方中文名**，但只限确实存在官方中文名的：
+   - ぼっち・ざ・ろっく！＝ 孤独摇滚（官方中文名，可写“孤独摇滚（ぼっち・ざ・ろっく！）”，此后选一种保持一致）
+   - **没有把握时一律保留原文**：不要给企划名、乐队名、公演名、会场名、专辑名、歌曲名自创中文译名。宁可与日文原文并列，也不要翻译。
 
-4. 代码 / 命令 / URL / 数字单位 **一字不改**保留：
+4. 时间与时区 **不能丢语义**：
+   - 日本来源的时间默认是 **Asia/Tokyo（JST）**，原样保留并标明 JST，绝不换算成 UTC 或北京时间再写出来
+   - 日期照抄原文写法：2027.02.14 SUN / 10.12 23:59 JST / 9月18日(金) 12:00
+   - 「本日 23:59 まで」写成“今日 23:59（JST）截止”，不要写成“今天很晚之前”
+   - 相对时间（本日、明日、今週末）保留相对说法，不要替读者算成具体日期
+
+5. 代码 / 命令 / URL / 数字与价格 **一字不改**保留：
    - 反引号代码 `code` 不翻译
-   - 命令如 /code-review、pip install、npm run 不译（不要译"代码审查"）
-   - URL 原样
-   - 数字+单位：8k context / 175B params / 3.5x speedup / $3 per M tokens / 99.9%
-   - 金额、参数量、比例、区间必须保留原文的阿拉伯数字和单位；不要把 $10B-$100B 改写成“数百亿至数千亿美元”等中文数量词
+   - URL 原样；票务与商店链接一字不改
+   - 价格保留原符号与数字：¥8,800（税込）/ 全席指定 9,900 円；不要换算成人民币，也不要改写成“约几百元”
+   - 席种、张数、抽选倍率、编号（Serial No.）、日期与时刻保留阿拉伯数字与原文单位
+   - 数字+单位：23:59 JST / 2 枚まで / 4,500 円 / 1 人 4 枚まで / 会場 12,000 人
+   - 不要把原文没有的席种、价格、会场或日期补一个数字出来

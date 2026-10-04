@@ -385,7 +385,7 @@ function ItemView({ item }: { item: SiteItemDetail }) {
           <p className="text-[13.5px] leading-[1.8] text-ink-2">{item.reason}</p>
         </RailSection>
       ) : (
-        verdict && <RailSection title="AI 评分">{verdict}</RailSection>
+        verdict && <RailSection title="关注度">{verdict}</RailSection>
       )}
       {item.topics.length > 0 && (
         <RailSection title="主题">

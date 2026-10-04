@@ -1,8 +1,5 @@
 // Cron-style schedules (Asia/Shanghai). Each run is recorded in job_runs; missed slots run once.
 import type { PgBoss } from "pg-boss";
-import { FEATURES } from "@aihot/industry/features";
-import { CODEX_RESET_SCAN_MINUTES } from "@aihot/contracts/monitor";
-import { credential } from "@aihot/backend/config";
 import { ensureQueue, recordRun } from "@aihot/backend/jobs/queue";
 import { sweepUnprocessed } from "@aihot/backend/jobs/content";
 import { translatePending } from "@aihot/backend/editorial/translate";
@@ -12,9 +9,6 @@ import { refreshSourceIcons } from "@aihot/backend/sources/icons";
 import { computeHotRanking, snapshotHeat } from "@aihot/backend/events/hot";
 import { linkRelatedStories } from "@aihot/backend/events/consolidate";
 import { composeDueReports } from "@aihot/backend/reports/compose";
-import { runLeaderboardRound } from "@aihot/backend/leaderboard/method/run";
-import { refreshLeaderboard } from "@aihot/backend/leaderboard/fetch/refresh";
-import { monitorTick } from "@aihot/backend/monitor/scan";
 import { dailyRetention } from "@aihot/backend/operations/retention";
 import { submitIndexNow } from "@aihot/backend/operations/indexnow";
 import { checkAlerts, sendDigest } from "@aihot/backend/operations/alerts";
@@ -56,26 +50,12 @@ export const SCHEDULES: Scheduled[] = [
   { name: "feedback.forward", cron: "*/10 * * * *", run: () => forwardPendingFeedback() },
   ...(backupConfigured() ? [{ name: "ops.backup", cron: "10 4 * * *", missed: "once" as const, run: () => runBackup() }] : []),
   { name: "reports.source-health", cron: "0 9 * * 1", missed: "once", run: () => sourceHealthWeekly() },
-  // Four upstream checks a day; a new run is published only when the evidence changed. With collection
-  // off only the computation runs, over the snapshots already stored.
-  ...(FEATURES.leaderboard
-    ? [{ name: "leaderboard.round", cron: "5 2,8,14,20 * * *", missed: "once" as const, run: () => (collecting ? refreshLeaderboard() : runLeaderboardRound()) }]
-    : []),
   ...(collecting
     ? [
         { name: "sources.schedule", cron: "* * * * *", run: () => scheduleDueSources() },
         { name: "sources.adapt-intervals", cron: "20 4 * * *", run: adaptIntervals },
         // WeChat official accounts (paid), each once per its interval.
         { name: "sources.mp-reconcile", cron: "*/15 * * * *", run: () => scheduleMpReconcile() },
-      ]
-    : []),
-  // Codex reset monitor: every ten minutes as the pages state, and the last 48 hours read again once a day;
-  // the 04:40 runs of both take turns (monitorTick). It reads X through SocialData, so without that key
-  // there is nothing to run.
-  ...(collecting && FEATURES.codexResetMonitor && credential("collectors", "SOCIALDATA_API_KEY")
-    ? [
-        { name: "monitor.tick", cron: `*/${CODEX_RESET_SCAN_MINUTES} * * * *`, run: () => monitorTick() },
-        { name: "monitor.lookback", cron: "40 4 * * *", run: () => monitorTick({ lookbackHours: 48 }) },
       ]
     : []),
 ];

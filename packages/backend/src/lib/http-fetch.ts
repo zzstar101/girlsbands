@@ -7,7 +7,7 @@ import { assertPublicUrl, guardedLookup } from "./url.ts";
 import { SITE } from "@aihot/industry/site";
 
 /**
- * Where a request leaves the host. "egress" (collection, bodies, images and leaderboard data) goes
+ * Where a request leaves the host. "egress" (collection, bodies and images) goes
  * through the egress proxy when EGRESS_PROXY_URL is set (for example a rule-based proxy that connects
  * .cn and .local names and Chinese or private addresses directly and sends the rest abroad); the names
  * and address literals such a proxy would connect directly are connected here instead, so the

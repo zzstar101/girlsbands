@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouteLoaderData } from "react-router";
 import { SITE } from "@aihot/industry/site";
-import { FEATURES } from "@aihot/industry/features";
 import type { loader as rootLoader } from "../root";
 import { useChangelogDot } from "../components/shell/Sidebar";
 import { PhoneBar } from "../components/shell/PhoneBar";
@@ -10,7 +9,7 @@ import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { useStarred } from "../lib/local-state";
 import { ThemeSwitch } from "../components/shell/ThemeSwitch";
-import { IconBookmark, IconChevronRight, IconGrid, IconHeart, IconHistory, IconMessage, IconMoon, IconPlug, IconSparkles } from "../components/icons";
+import { IconBookmark, IconChevronRight, IconGrid, IconHeart, IconMail, IconMessage, IconMoon, IconPlug, IconSparkles } from "../components/icons";
 
 export const handle: Screen = { tab: "me", name: "我的" };
 
@@ -29,7 +28,7 @@ export function meta() {
 type Row = { to: string; label: string; icon: ReactNode; detail?: ReactNode };
 
 const TOOLS: Row[] = [
-  ...(FEATURES.codexResetMonitor ? [{ to: "/codex-reset", label: "Tibo 重置监控", icon: <IconHistory size={20} /> }] : []),
+  { to: "/subscribe", label: "邮件订阅", icon: <IconMail size={20} />, detail: "截止提醒 · 精选摘要" },
   { to: "/topics", label: "主题", icon: <IconGrid size={20} /> },
   { to: "/agent", label: "Agent 接入", icon: <IconPlug size={20} />, detail: "MCP · RSS · API" },
 ];

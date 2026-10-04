@@ -13,7 +13,7 @@ import { Delta } from "../features/hot/Delta";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import type { Screen } from "../components/shell/screens";
 
-export const handle: Screen = { tab: "hot", name: "热点" };
+export const handle: Screen = { home: "featured", name: "热点" };
 
 export async function loader({ request }: { request: Request }) {
   return { hot: await loadOr404<HotResponse>("/api/site/hot", { signal: request.signal }) };

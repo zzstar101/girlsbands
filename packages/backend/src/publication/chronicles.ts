@@ -1,4 +1,4 @@
-// A company's chronicle band: its curated history in industry/chronicles/{slug}.json up to the month the
+// A subject's chronicle band: its curated history in industry/chronicles/{slug}.json up to the month the
 // file is curated through, then the milestones the site picked up itself after it; without a file, those
 // alone. The files ship with the site; one that does not follow the format fails the read.
 import type { TopicMilestone, TopicMonth } from "@aihot/contracts/site";
@@ -7,7 +7,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { REPO_ROOT } from "../config.ts";
-import { CHRONICLE_KINDS } from "./topic-chronicle.ts";
+import { CHRONICLE_KINDS, tracksAsSubject } from "./topic-chronicle.ts";
 import { findTopic } from "./topics.ts";
 
 export const CHRONICLES_DIR = path.join(REPO_ROOT, "industry/chronicles");
@@ -39,7 +39,7 @@ export function parseChronicle(json: unknown, slug: string): CuratedChronicle {
   const parsed = File.safeParse(json);
   if (!parsed.success) throw new Error(`${slug}.json: ${parsed.error.issues.map((i) => `${i.path.join(".") || "file"}: ${i.message}`).join("; ")}`);
   if (parsed.data.topic !== slug) throw new Error(`topic "${parsed.data.topic}" in a file named ${slug}.json`);
-  if (findTopic(slug)?.group !== "company") throw new Error(`${slug} is not a company topic`);
+  if (!tracksAsSubject(findTopic(slug)?.group ?? "field")) throw new Error(`${slug} is not a subject topic`);
   return parsed.data;
 }
 

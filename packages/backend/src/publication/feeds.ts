@@ -134,7 +134,7 @@ export async function itemFeed(kind: ItemFeedKind, category: PublicApiCategoryKe
   const scope = kind === "all"
     ? sql`${listedCondition(now)} AND coalesce(p.published_at, p.discovered_at) > ${now}::timestamptz - interval '7 days'
         AND coalesce(p.published_at, p.discovered_at) <= ${now}`
-    : sql`${seatedCondition(now)} ${categoryCondition(category, true)}
+    : sql`${seatedCondition(now)} ${categoryCondition(category)}
         ${category ? sql`AND coalesce(p.published_at, p.discovered_at) >= ${new Date(now.getTime() - 7 * 86400_000)}` : sql``}`;
   const rows = await sql<FeedRow[]>`
     WITH page AS MATERIALIZED (

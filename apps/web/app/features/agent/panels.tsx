@@ -4,9 +4,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { PUBLIC_INTERFACE_VERSION } from "@aihot/contracts/http-policy";
 import { MCP_TOOL_NAMES as T, MCP_TOOLS } from "@aihot/contracts/mcp";
-import { CODEX_RESET_SCAN_MINUTES } from "@aihot/contracts/monitor";
 import { CATEGORY_KEYS, CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
-import { FEATURES } from "@aihot/industry/features";
 import { SITE, subjectAfter, withSubject } from "@aihot/industry/site";
 import { CodeBlock, CopyButton } from "../../components/CodeBlock";
 import { PillTabs } from "../../components/ui/Tabs";
@@ -48,7 +46,6 @@ export function GuidePanel({ base }: { base: string }) {
             body: (
               <Bullets items={[
                 "原生时间窗只有过去 24 小时和最近 7 天；更早的历史搜索暂不保证。",
-                ...(FEATURES.leaderboard ? ["模型榜目前只有网页。"] : []),
                 `能拿到摘要、推荐理由、站内阅读页和原文链接；单篇全文在 ${SITE.name} 阅读页看。`,
               ]} />
             ),
@@ -104,7 +101,6 @@ export function McpPanel({ base }: { base: string }) {
             [<Mono>{T.daily}</Mono>, subjectAfter("最新或指定日期的", "日报"), "给我今天的日报。"],
             [<Mono>{T.weekly}</Mono>, subjectAfter("最新或指定一周的", "周报"), `${subjectAfter("这周", "圈")}有哪些大事？`],
             [<Mono>{T.monthly}</Mono>, subjectAfter("最新或指定月份的", "月报"), `${subjectAfter("9 月", "圈")}发生了什么？`],
-            ...(FEATURES.codexResetMonitor ? [[<Mono>{T.codexResets}</Mono>, "Tibo 的 Codex 额度重置与发卡，分清预告和已确认", "Codex 额度最近重置了吗？"]] : []),
           ]}
         />
       </Block>
@@ -192,7 +188,6 @@ export function RssPanel({ base }: { base: string }) {
 const RECIPES = [
   { key: "latest", label: "盯最新资讯" },
   { key: "sync", label: "同步全部精选" },
-  ...(FEATURES.codexResetMonitor ? [{ key: "resets", label: "盯 Tibo 重置" }] : []),
 ];
 
 export function ApiPanel({ base }: { base: string }) {
@@ -238,11 +233,6 @@ export function ApiPanel({ base }: { base: string }) {
             [<Mono>/api/v1/monthlies/latest</Mono>, "最新一期月报", "每月 1 日 10:30 后一次"],
             [<Mono>{"/api/v1/monthlies/{month}"}</Mono>, "指定月份，如 2026-09", "缓存过期后使用前验证 ETag"],
             [<Mono>/api/v1/monthlies</Mono>, "月报索引", "每月一次"],
-            ...(FEATURES.codexResetMonitor ? [
-              { group: "Tibo 重置监控" },
-              [<Mono>/api/v1/codex-resets/recent</Mono>, "最近 7 天和尚未落地的预告，几 KB", `${CODEX_RESET_SCAN_MINUTES} 分钟一次`],
-              [<Mono>/api/v1/codex-resets</Mono>, "完整历史，逐月变大", "只在要看历史时"],
-            ] : []),
             { group: "给 AI 助手" },
             [<Mono>/api/v1/agent</Mono>, "给 Agent 的使用说明，列出的地址返回整理好的中文 Markdown", "需要时"],
             { group: "完整精选同步" },
@@ -264,12 +254,6 @@ export function ApiPanel({ base }: { base: string }) {
           <>
             <CodeBlock className="mb-3 mt-3" lang="bash" code={`# 第一次：分页拿全。保存第一页响应里的 cursor（每页都一样）\n${curl} '${base}/api/v1/selected/snapshot?fields=minimal&limit=500'\n# hasMore 为 true 就带上 nextPage 继续翻，直到翻完\n${curl} '${base}/api/v1/selected/snapshot?fields=minimal&limit=500&page=<上一页的 nextPage>'\n# 之后：原样传回 cursor，只拿新增、修改和撤选\n${curl} '${base}/api/v1/selected/changes?cursor=<第一页的 cursor>&limit=100'`} />
             <p>每页成功写进本地后再保存新的 cursor。cursor 是流水账水位，放多久都不会过期；返回 409 <Mono>snapshot_required</Mono> 时重新取一次快照，不会悄悄漏数据。</p>
-          </>
-        )}
-        {recipe === "resets" && (
-          <>
-            <CodeBlock className="mb-3 mt-3" lang="bash" code={`# 每 ${CODEX_RESET_SCAN_MINUTES} 分钟一次；保存 ETag，下次带上\n${curl} -i '${base}/api/v1/codex-resets/recent'\n${curl} -i -H 'If-None-Match: <上次的 ETag>' '${base}/api/v1/codex-resets/recent'`} />
-            <p>结构和完整快照一样，只包含最近 7 天的事件和原帖，以及所有还没落地的预告。完整历史只在要看历史时读 <Mono>/api/v1/codex-resets</Mono>。</p>
           </>
         )}
       </Block>

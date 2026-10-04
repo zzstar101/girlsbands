@@ -14,13 +14,13 @@ import { SELECTION } from "@aihot/industry/selection";
 import { sql } from "../db.ts";
 import { chatJson, MODELS, ModelOutputError, type ContentPart } from "../providers/llm.ts";
 import { completeReceipt, ProviderRejectedError, ReceiptUnknownError } from "../providers/receipts.ts";
-import { collapseWhitespace } from "../lib/text.ts";
+import { collapseWhitespace, looksChinese } from "../lib/text.ts";
 import { modelFor } from "./models.ts";
 import { buildMaterial, firstImagePart, loadAnalyzeInput, type AnalyzeInputArticle } from "./input.ts";
 import { pageFetchable } from "../content/extract.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import {
-  buildArticlePrompt, buildLongTweetPrompt, buildShortTweetPrompt, finalizeCopy, isShortTweetInput, looksZh, MAX_BODY_CHARS, missingEvidence,
+  buildArticlePrompt, buildLongTweetPrompt, buildShortTweetPrompt, finalizeCopy, isShortTweetInput, MAX_BODY_CHARS, missingEvidence,
   needsShortTweetTranslation, parseTranslateOutput, PREFILTER_SYSTEM, prefilterUser, translateInputOf, UNDERSTAND_SYSTEM, understandUser,
   type IdentityGuard,
 } from "./writing.ts";
@@ -104,6 +104,11 @@ export function buildScoreInput(a: AnalyzeInputArticle): string {
 
 // Step outputs
 
+/** What a dated event in the original is, for the deadline radar. */
+export const DEADLINE_KINDS = ["lottery_start", "lottery_end", "sale_start", "event", "stream_end", "result", "other"] as const;
+/** A date, or a date with a JST time. Anything else is dropped before it reaches a reader. */
+const DEADLINE_AT = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/;
+
 const PrefilterSchema = z.object({
   label: z.preprocess((v) => String(v ?? "").trim().toUpperCase(), z.enum(["PASS", "BLOCK", "UNKNOWN"])),
   reason: z.string().max(200).catch(""),
@@ -120,6 +125,13 @@ const FactSchema = z
     conditions: z.array(z.object({
       // Older reusable receipts may also contain a paraphrase. New extraction only copies evidence.
       text: z.string().trim().min(1).max(200).optional().catch(undefined),
+      quote: z.string().trim().min(1).max(400),
+    }).nullable().catch(null)).catch([]),
+    // The deadline radar's raw material: only entries whose quote is found verbatim in the original survive.
+    deadlines: z.array(z.object({
+      kind: z.enum(DEADLINE_KINDS).catch("other"),
+      at: z.string().trim().min(1).max(20),
+      note: z.string().trim().max(60).nullable().optional().catch(null),
       quote: z.string().trim().min(1).max(400),
     }).nullable().catch(null)).catch([]),
   })
@@ -178,6 +190,11 @@ export function normalizeStructure(data: z.infer<typeof StructureSchema>, a: Ana
       const quote = grounded(c.quote);
       return quote ? [{ text: c.text ?? quote, quote }] : [];
     }).slice(0, 4),
+    deadlines: (data.fact.deadlines ?? []).flatMap((d) => {
+      if (!d || !DEADLINE_AT.test(d.at)) return [];
+      const quote = grounded(d.quote);
+      return quote ? [{ kind: d.kind, at: d.at, note: d.note ?? null, quote }] : [];
+    }).slice(0, 6),
   };
   return {
     category: data.category, tags: normalizeTags(data.tags),
@@ -377,7 +394,7 @@ async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
   const plain = { reasonZh: null, receiptIds: [] as number[], reused: true };
   // A short post already in Chinese is its own copy, and too little text is not written up from a title.
   if (short && !needsShortTweetTranslation(main)) return { kind: "verbatim", model: null, titleZh: main, summaryZh: main, ...plain };
-  if (!short && t.text.trim().length < 20) return { kind: "none", model: null, titleZh: looksZh(t.title) ? t.title : "", summaryZh: "", ...plain };
+  if (!short && t.text.trim().length < 20) return { kind: "none", model: null, titleZh: looksChinese(t.title) ? t.title : "", summaryZh: "", ...plain };
   const model = await modelFor("summarize");
   checkAnalysisRunning();
   const res = await chatJson({
@@ -396,10 +413,10 @@ async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
   });
   const p = res.data;
   const draft = short
-    ? { titleZh: p.titleZh || (looksZh(main) ? main : ""), summaryZh: p.bodyZh || p.summaryZh }
+    ? { titleZh: p.titleZh || (looksChinese(main) ? main : ""), summaryZh: p.bodyZh || p.summaryZh }
     : isX
       ? { titleZh: p.titleZh, summaryZh: p.summaryZh || p.bodyZh }
-      : { titleZh: p.titleZh || (looksZh(t.title) ? t.title : ""), summaryZh: p.summaryZh };
+      : { titleZh: p.titleZh || (looksChinese(t.title) ? t.title : ""), summaryZh: p.summaryZh };
   const copy = finalizeCopy(t, draft);
   return { kind: "summarize", model: res.model, titleZh: copy.titleZh, summaryZh: copy.summaryZh, reasonZh: null, identityGuard: copy.identityGuard, receiptIds: [res.receiptId], reused: res.reused };
 }

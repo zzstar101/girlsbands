@@ -49,3 +49,24 @@ export function guessLanguage(s: string): "zh" | "en" | "other" {
   if (/[a-z]/i.test(s)) return "en";
   return "other";
 }
+
+/** Hiragana and katakana, including the katakana phonetic extensions. */
+const KANA = /[\u3040-\u30ff\u31f0-\u31ff]/;
+/** Hangul syllables: a Korean line that borrows Hanja is not Chinese either. */
+const HANGUL = /[\uac00-\ud7af]/;
+
+/**
+ * Whether text already reads as Chinese, so a Chinese translation of it would repeat itself.
+ *
+ * Han characters without kana are Chinese; Han characters with kana are Japanese. This site collects
+ * Japanese sources, so a plain Han test would read every Japanese headline as Chinese and skip its
+ * translation. `guessLanguage` cannot answer this: its ratio counts kana as non-CJK letters, so a
+ * Japanese sentence written mostly in kanji still comes back as "zh".
+ *
+ * This is the single implementation of that rule: the analysis (`editorial/analyze.ts`,
+ * `editorial/writing.ts`), the translator (`editorial/translate.ts`) and the read layer
+ * (`publication/items.ts`, `publication/publish.ts`) all ask it, so they cannot drift apart.
+ */
+export function looksChinese(s: string): boolean {
+  return /[㐀-鿿豈-﫿]/.test(s) && !KANA.test(s) && !HANGUL.test(s);
+}

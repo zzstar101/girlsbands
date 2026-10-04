@@ -33,7 +33,7 @@
 - `ENTITIES`：行业里的主要公司或机构，用于“公司”类主题页。`aliases` 给结构化的模型看；`otherNames` 是公司自己的其他称呼（官方账号名、子品牌），把新闻的主体对到公司、判断标题有没有点名这家公司时也认它们。`IDENTITY_LEXICON`、`PUBLISHER_DOMAINS` 用来防止模型在标题摘要里写进原文没提到的公司，别的行业没有这个需要可以清空。
 - `ITEM_TYPES`：内容类型，和评分提示词里的权重表对应，改了要一起改提示词。
 - `topics.json`：主题目录（`/topics`）。站点启动时读取，改完重新构建（`docker compose up -d --build`）才生效。分三组：`company`（公司与机构）、`field`（方向）、`genre`（内容形态）。`slug` 上线后不要改。
-  - `company` 主题用 `entityId`（`ENTITIES` 的 id）收以这家公司为主体的报道；一篇报道的主体有几家公司时，标题里点了它的名才算。可选：`aliases`（搜索框里只搜这个词，也能找出这家公司的报道）、`orgNames`（公司公告开头的组织名，大事记的事件名里省掉）、`leaderboardProvider`（开着模型榜时，用这家厂商最好的模型的标志）。
+  - `company` 主题用 `entityId`（`ENTITIES` 的 id）收以这家公司为主体的报道；一篇报道的主体有几家公司时，标题里点了它的名才算。可选：`aliases`（搜索框里只搜这个词，也能找出这家公司的报道）、`orgNames`（公司公告开头的组织名，大事记的事件名里省掉）。
   - `field` 和 `genre` 主题用 `tags` 收打了这些标签的报道。`field` 主题写了 `chronicleTerms` 才有大事记，只收标题里出现这些词的进展。
 
 ### 大事记：`industry/chronicle.ts`
@@ -108,7 +108,7 @@
 
 ## 5. 门槛与校准：`industry/selection.ts`
 
-两次评分之和 ≥ 2 × 门槛才够分（够分的还要过归组时的去重，见 [精选与校准](selection.md)）。默认门槛（T1 60、T1_5 65、T2 76）是 AIHOT 在 AI 领域校准出来的，换了行业和提示词，需要重新校准：
+两次评分之和 ≥ 2 × 门槛才够分（够分的还要过归组时的去重，见 [精选与校准](selection.md)）。本仓库的门槛（T1 54、T1_5 65、T2 72）已按少女乐队语料校准过一次：上游 AIHOT 沿用下来的 T1 60 / T2 76 在同一批 42 条标注样本上漏掉了 8 条该选的、误选 0 条，收紧方向明确；`T1_5` 因为一条样本都没有而保持原值。换行业和提示词，需要重新校准：
 
 1. 从你的信源里挑 100–200 条资料，自己标“该选 / 不该选”，存成 `.data/gold.jsonl`（格式见 [精选与校准](selection.md)，`industry/gold.example.jsonl` 有两条示例）。
 2. 运行 `node --env-file=.env scripts/eval-selection.ts --gold .data/gold.jsonl`，看准确率、查准率、查全率，和不同门槛下的结果。
@@ -116,14 +116,16 @@
 
 这一步决定了你的站“选得准不准”。
 
-## 6. 只对 AI 有意义的两个模块：`industry/features.ts`
+## 6. 可选模块：`industry/features.ts`
+
+上游框架里有两个只对 AI 行业有意义、由 `industry/features.ts` 开关的模块：
 
 - `leaderboard`：模型榜（`/leaderboard`）。
 - `codexResetMonitor`：Codex 重置监控（`/codex-reset`）。
 
-别的行业把两项都设为 `false`：导航入口、定时任务、接口、MCP 工具和站点地图都会跟着关掉。手机底栏关掉模型榜后剩四个标签（精选、热点、日报、我的）；“我的”里的 Tibo 重置监控入口跟着 `codexResetMonitor`。
+上游的做法是在 `industry/features.ts` 里把两项都设为 `false`：导航入口、定时任务、接口、MCP 工具和站点地图都会跟着关掉。本仓库直接删掉了，删完底栏是五个标签（首页、动态、Live、票务、我的）。
 
-想彻底删掉代码，删这些目录和文件并处理掉编译错误即可：`packages/backend/src/leaderboard/`、`packages/backend/src/monitor/`、`apps/web/app/features/leaderboard/`、`apps/web/app/features/monitor/`、`apps/web/app/routes/leaderboard*.tsx`、`apps/web/app/routes/codex-reset.tsx`、`apps/web/app/routes/admin/monitor.tsx`、`apps/api/src/routes/leaderboard.ts`、`scripts/lb-*.ts`、`scripts/import-leaderboard-prices.ts`、`database/seeds/lb-*.json`、`assets/model-providers/`、`assets/leaderboard-sources/`。主题页的公司标志借用了模型榜：`packages/backend/src/publication/topics.ts` 里的 `providerMark` 要去掉，`apps/web/app/features/leaderboard/BrandMark.tsx` 要留下或挪走（没有模型榜时它画公司名的首字母）。
+**本仓库（AniBand Radar）已经把这两个模块整块删掉了，`industry/features.ts` 也一起删了**（它不再被任何代码引用，`industry/package.json` 的通配导出不需要改动）。要在别的 fork 里做同样的彻底删除，删这些目录和文件并处理掉编译错误即可：`packages/backend/src/leaderboard/`、`packages/backend/src/monitor/`、`packages/backend/src/admin/monitor.ts`、`packages/backend/src/publication/monitor.ts`、`packages/contracts/src/leaderboard.ts`、`packages/contracts/src/monitor.ts`、`apps/web/app/features/leaderboard/`、`apps/web/app/features/monitor/`、`apps/web/app/routes/leaderboard*.tsx`、`apps/web/app/routes/codex-reset.tsx`、`apps/web/app/routes/admin/monitor.tsx`、`apps/api/src/routes/leaderboard.ts`、`scripts/lb-*.ts`、`scripts/import-leaderboard-prices.ts`、`database/seeds/lb-*.json`、`assets/model-providers/`、`assets/leaderboard-sources/`。主题页的实体标志借用了模型榜：`packages/backend/src/publication/topics.ts` 里的 `providerMark` 去掉，`BrandMark` 组件从 `apps/web/app/features/leaderboard/BrandMark.tsx` 挪到 `apps/web/app/components/ui/BrandMark.tsx`（没有模型榜时它画名字的首字母），`packages/contracts/src/site.ts` 里的 `LbBrand` 换成自带类型。存下的状态用一条新迁移删掉：模型榜和监控的表（`lb_*`、`monitor_*`）以及只有价格导入用到的 `fx_rates`；本仓库的这条迁移是 `database/migrations/0053_drop_leaderboard_monitor.sql`。
 
 ## 7. 品牌：`industry/brand/`
 
@@ -138,7 +140,22 @@
 
 请不要使用 AIHOT 的名字和 Logo。
 
-## 8. 页面文案：`industry/pages/`、`industry/changelog.json`
+## 8. 邮件订阅：`industry/email/`
+
+邮件模板和站点品牌同属行业配置层，改行业时一起改：
+
+- `theme.ts`：信里用的那一套颜色（对应网页的浅色主题）。
+- `types.ts`：三封信的数据契约（确认信、截止提醒、精选摘要）。**模板只消费这里的数据，不查库、不拼 URL。**
+- `layout.ts`：**排版标尺**（间距 / 字号 / 行高 / 圆角 / 宽度）与两个颜色助手（`soften` / `inkOn`），所有外观都只能从这里取数字，写死的 px 会被 `tests/email-templates.test.ts` 拦下。
+- `hero.ts`：头图的**规格**（画布 1200×450、颜色校验、token 编解码）与**官方 logo 的入库契约**（`HeroSpec.logo` 是乐队 id，不是 URL）。画面本身在 `apps/api/src/og/hero.ts`（版式、装饰、挑底），标题牌与日期牌在 `apps/api/src/og/title.ts`，正文用的句柄在 `industry/email/title.ts`；判据与实测见 [邮件订阅](subscribe.md#头图是这一版的核心装置)。
+- `assets/band-logos/`：各乐队官方字标的**入库副本**（`<乐队 id>.png` + `manifest.json`），由 `node scripts/fetch-band-logos.ts` 抓一次生成；加了新乐队就补一条直链再跑一次，**平时渲染不出网**。它是顶层 `assets/`，不在行业包里——logo 是艺术资源，不是配置。
+- `assets/og-fonts/`：OG 图与头图用的 5 个子集字体（Noto Sans SC 两档、Noto Sans JP 两档、显示字体 Dela Gothic One），由 `node scripts/og/build-og-jp-font.ts` 生成，版权与许可见该目录的 `LICENSE`。**改文案用字（新乐队名、新标签）后要重跑这个脚本**，否则 satori 只会画出豆腐块。
+- `styles/*.ts`：外观。现在只有 `cover`（封面：通栏头图 + 最短正文），用 `.env` 的 `EMAIL_STYLE` 选，默认 `cover`。加一套新外观见 [邮件订阅](subscribe.md#加一套新外观)。
+- 信件正文里的措辞（“抽选什么时候截止”“今天有哪些值得看的”）在 `packages/backend/src/subscriptions/content.ts`，因为那里才知道数据长什么样。
+
+订阅默认关闭，配 SMTP 的步骤见 [部署](deploy.md#邮件订阅smtp)。
+
+## 9. 页面文案：`industry/pages/`、`industry/changelog.json`
 
 - `pages/terms.md`、`pages/privacy.md`：使用规则和隐私说明。**现在是模板**，上线前按你的实际情况改写，必要时请专业人士看一下。
 - `changelog.json`：更新日志。新条目写在最前面，把 `latestVersion` 改成它的日期和时间。`kind` 是“更新”“优化”“公告”“下线”之一；要读者一定看到的加 `"urgent": true`（红色，标“重要”）。

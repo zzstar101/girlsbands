@@ -10,6 +10,7 @@ import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity
 import { compositeCondition, evidenceCondition, listedCondition, storyReportCondition } from "./scope.ts";
 import { publicSourceName } from "./rules.ts";
 import { latestHotRanking, rankingExtras } from "./hot.ts";
+import { upcomingDeadlines } from "./deadlines.ts";
 import { storyTexts } from "./story-text.ts";
 import { topicsOfStory } from "./topics.ts";
 import { itemUrl, storyApiUrl, storyUrl } from "./links.ts";
@@ -154,7 +155,10 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
     ? await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM ${currentSignals()} cs WHERE story_id = ${storyId} AND source_id = ANY(${behind}::text[])
                                   AND observed_at > ${now}::timestamptz - interval '48 hours' AND observed_at <= ${now}`
     : [{ n: 0 }];
-  const [related, topics, texts] = await Promise.all([relatedStories(storyId, now), topicsOfStory(storyId, now), storyTexts([storyId], now)]);
+  const [related, topics, texts, dates] = await Promise.all([
+    relatedStories(storyId, now), topicsOfStory(storyId, now), storyTexts([storyId], now),
+    upcomingDeadlines(now, { storyId, horizonDays: 365, limit: 60 }),
+  ]);
   const text = texts.get(storyId)!;
   // Shown beside the latest development, so its time; without one, the timeline's newest report.
   const latestAt = text.latest?.at ?? latestReport.at;
@@ -182,6 +186,7 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
       rank: entry?.rank ?? null,
     },
     developments: developments.map((d) => ({ ...d, representative: reportView(d.representative) })),
+    dates: dates.days.flatMap((d) => d.items),
     officialReports: reports.filter((r) => r.role !== "mention" && r.first_party).slice(0, 12).map(reportView),
     timeline: reports.slice(0, 100).map(reportView),
     heat: heat.map((h): HeatPoint => ({ hour: h.hour.toISOString(), heat: Number(h.heat), participants: h.participants })),

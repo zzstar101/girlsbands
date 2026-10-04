@@ -77,7 +77,7 @@ test("empty older gaps cannot starve a later daily, weekly or monthly, and failu
   // An older issue carried an item; the days after it are empty. Weeklies and monthlies are compiled from dailies.
   const early = await item("2024-01-22T12:00:00Z");
   await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at)
-    VALUES ('daily', '2024-01-23', now(), now(), ${sql.json({ sections: [{ label: "行业动态", items: [{ itemId: early, title: early }] }] })}, now())`;
+    VALUES ('daily', '2024-01-23', now(), now(), ${sql.json({ sections: [{ label: "Live 与活动", items: [{ itemId: early, title: early }] }] })}, now())`;
   await item("2024-02-01T12:00:00Z");
   await assert.rejects(composeDueReports(new Date("2024-02-02T03:00:00Z")), /reports:/);
   for (const [kind, key] of [["daily", "2024-02-02"], ["weekly", "2024-W04"], ["monthly", "2024-01"]]) {

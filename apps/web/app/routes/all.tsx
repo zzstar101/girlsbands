@@ -17,7 +17,7 @@ import { isPhone, type Screen } from "../components/shell/screens";
 import { openSearch } from "../features/search/SearchOverlay";
 import { addRecentSearch } from "../lib/local-state";
 
-export const handle: Screen = { tab: "featured", name: "全部" };
+export const handle: Screen = { tab: "feed", name: "全部动态" };
 
 const ALL_TITLE = subjectAfter("全部", "动态");
 

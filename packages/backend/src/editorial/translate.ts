@@ -12,7 +12,7 @@ import { z } from "zod";
 import { sql } from "../db.ts";
 import { sanitizeBody, textToHtml } from "../content/sanitize.ts";
 import { chatJson } from "../providers/llm.ts";
-import { collapseWhitespace } from "../lib/text.ts";
+import { collapseWhitespace, looksChinese } from "../lib/text.ts";
 import { sha256 } from "../lib/ids.ts";
 import { modelFor } from "./models.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
@@ -45,7 +45,7 @@ export interface TranslateResult {
   reason?: string;
 }
 
-const isChinese = (language: string | null, sample: string) => language === "zh" || (/[一-鿿]/.test(sample.slice(0, 400)) && language !== "en");
+const isChinese = (language: string | null, sample: string) => language === "zh" || (looksChinese(sample.slice(0, 400)) && language !== "en");
 
 /** Leaf text blocks of a sanitised body, in document order, skipping code. */
 function segmentsOf($: cheerio.CheerioAPI): Element[] {
@@ -220,10 +220,11 @@ async function store(articleId: string, revision: number, title: string, html: s
     WHERE translations.origin <> 'source' AND translations.revision <= EXCLUDED.revision`;
 }
 
-/** A quoted post worth translating: at least a few letters beyond its links, and not already Chinese. */
+/** A quoted post worth translating: at least a few letters beyond its links, and not already Chinese
+ *  (`looksChinese`: a Japanese quote is full of Han characters and still needs translating). */
 function quoteTranslatable(text: string): boolean {
   const words = collapseWhitespace(text.replace(/https?:\/\/\S+/g, " "));
-  return words.length >= 10 && (words.match(/\p{L}/gu) ?? []).length >= 2 && !/[一-鿿]/.test(words);
+  return words.length >= 10 && (words.match(/\p{L}/gu) ?? []).length >= 2 && !looksChinese(words);
 }
 
 /**

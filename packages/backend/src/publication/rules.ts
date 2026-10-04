@@ -60,9 +60,14 @@ export function isIndexable(p: { visibility: string; hasSummary: boolean; select
   return p.visibility === "public" && p.hasSummary && p.seoExcludedAt === null && (p.selected || p.seoIndexedAt !== null);
 }
 
-/** Display tags exclude internal entity markers. */
+/** Display tags exclude internal entity markers; `entityIds` recovers them for the reader-facing entity field. */
 export function displayTags(tags: string[]): string[] {
   return tags.filter((t) => !t.startsWith("entity:"));
+}
+
+/** The entity ids a stored tag list was filed under, in order and without duplicates. */
+export function entityIds(tags: string[]): string[] {
+  return [...new Set(tags.filter((t) => t.startsWith("entity:")).map((t) => t.slice("entity:".length)).filter(Boolean))];
 }
 
 /**

@@ -1,24 +1,22 @@
-// Topics: stable slugs in three groups (companies, directions, content forms), defined by the industry
+// Topics: stable slugs in three groups (subjects, directions, content forms), defined by the industry
 // pack (industry/topics.json) and read from there when the process starts. Which reports a topic takes
-// is one SQL predicate, `membership`: a direction or a form takes its tags; a company takes the reports
-// it is a subject of, but not those that only mention it — among several subject companies, its name must
-// appear in the Chinese or the original title. Lists, counts and the chronicle read the selected set
-// one report per fact, as v1 and RSS do.
-import type { LbBrand } from "@aihot/contracts/leaderboard";
+// is one SQL predicate, `membership`: a direction or a form takes its tags; a subject (a company, a band,
+// a project) takes the reports it is a subject of, but not those that only mention it — among several
+// subject companies, its name must appear in the Chinese or the original title. Lists, counts and the
+// chronicle read the selected set one report per fact, as v1 and RSS do.
+import type { BrandMarkRef } from "@aihot/contracts/site";
 import type { CategoryKey } from "@aihot/contracts/taxonomy";
 import type {
   TopicGroup, TopicGroupKey, TopicLink, TopicPage, TopicSummary, TopicsResponse,
 } from "@aihot/contracts/site";
-import { FEATURES } from "@aihot/industry/features";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { REPO_ROOT } from "../config.ts";
 import { sql } from "../db.ts";
 import { ENTITIES } from "../editorial/vocabulary.ts";
-import { providerMark } from "../leaderboard/read.ts";
 import { cached, type Cached } from "../lib/cache.ts";
 import { companyMilestones, curatedChronicle } from "./chronicles.ts";
-import { CHRONICLE_KINDS, chronicleReadReports, selectTopicChronicle, selectTopicHighlights, type ChronicleReport } from "./topic-chronicle.ts";
+import { CHRONICLE_KINDS, chronicleReadReports, selectTopicChronicle, selectTopicHighlights, tracksAsSubject, type ChronicleReport } from "./topic-chronicle.ts";
 import { factSources } from "./coverage.ts";
 import { ITEM_COLUMNS, ITEM_FROM, toFeedItemSummary, type ItemRow } from "./items.ts";
 import { evidenceCondition, listedCondition, ownFactEvidenceCondition, seatedCondition, selectedCondition, storyReportCondition } from "./scope.ts";
@@ -30,8 +28,6 @@ export interface Topic {
   definition: string;
   /** Companies: the subject id (industry/taxonomy.ts ENTITIES). */
   entityId: string | null;
-  /** Companies: the provider slug of its models on the leaderboard. */
-  provider: string | null;
   /** Tags that put a report in the topic: a company's subject tag, a direction's or a form's tags. */
   tags: string[];
   /** Companies: a title naming the company by any of its names (a PostgreSQL regular expression). */
@@ -46,7 +42,7 @@ export interface Topic {
 
 interface TopicFile {
   groups: TopicGroup[];
-  topics: Array<{ slug: string; name: string; group: TopicGroupKey; entityId?: string; leaderboardProvider?: string; aliases?: string[]; tags?: string[]; chronicleTerms?: string[]; orgNames?: string[]; definition: string }>;
+  topics: Array<{ slug: string; name: string; group: TopicGroupKey; entityId?: string; aliases?: string[]; tags?: string[]; chronicleTerms?: string[]; orgNames?: string[]; definition: string }>;
 }
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -75,7 +71,6 @@ export const TOPICS: Topic[] = file.topics.map((t) => ({
   group: t.group,
   definition: t.definition,
   entityId: t.entityId ?? null,
-  provider: t.leaderboardProvider ?? null,
   tags: t.entityId ? [`entity:${t.entityId}`] : (t.tags ?? []),
   pattern: t.entityId ? titlePattern(t.name, t.entityId) : null,
   aliases: t.entityId ? [t.slug, t.name, ...nameParts(t.name), ...(t.aliases ?? [])] : [],
@@ -207,13 +202,11 @@ const RECENT_DAYS = 30;
 export const TOPIC_PAGE_SIZE = 20;
 
 /**
- * Every company's mark: that of its best model on the leaderboard (when the site has one), or its
- * initial when it has none there.
+ * Every entity topic's mark: its initial. `band` behaves like `company`: both are tracked as one subject.
  */
-async function companyBrands(): Promise<Map<string, LbBrand>> {
-  const companies = TOPICS.filter((t) => t.group === "company");
-  const marks = await Promise.all(companies.map((t) => (FEATURES.leaderboard && t.provider ? providerMark(t.provider) : null)));
-  return new Map(companies.map((t, i) => [t.slug, marks[i] ?? { src: null, monogram: t.name.replace(/[^\p{L}\p{N}]/gu, "").slice(0, 1).toUpperCase(), raster: false }]));
+async function companyBrands(): Promise<Map<string, BrandMarkRef>> {
+  const companies = TOPICS.filter((t) => t.group === "company" || t.group === "band");
+  return new Map(companies.map((t) => [t.slug, { src: null, monogram: t.name.replace(/[^\p{L}\p{N}]/gu, "").slice(0, 1).toUpperCase(), raster: false }]));
 }
 
 const recentCount = (seats: Seat[], now: Date) => seats.filter((s) => s.at.getTime() > now.getTime() - RECENT_DAYS * DAY).length;
@@ -233,7 +226,7 @@ async function currentSeats(ids: string[], now: Date, topics: Topic[] = TOPICS):
   return new Map((await readSeats(now, ids, topics)).map((s) => [s.id, s]));
 }
 
-function summarize(t: Topic, seats: Seat[], now: Date, brands: Map<string, LbBrand>, live: Map<string, Seat>): TopicSummary {
+function summarize(t: Topic, seats: Seat[], now: Date, brands: Map<string, BrandMarkRef>, live: Map<string, Seat>): TopicSummary {
   const recent = recentCount(seats, now);
   const latest = seats.slice(0, LATEST_CANDIDATES).map((s) => live.get(s.id)).find((s) => s?.topics.includes(t.slug));
   return {
@@ -307,7 +300,7 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
   const ids = seats.slice((page - 1) * TOPIC_PAGE_SIZE, page * TOPIC_PAGE_SIZE).map((s) => s.id);
   const first = page === 1;
   const at = now ?? new Date();
-  const history = first && topic.group === "company" ? curatedChronicle(topic.slug) : undefined;
+  const history = first && tracksAsSubject(topic.group) ? curatedChronicle(topic.slug) : undefined;
   const window = { now: at, through: history?.through };
   const named = first ? chronicleReadReports(seats.map((s) => chronicleReport(s, index.sources)), window) : [];
   const [rows, pool, brands, live] = await Promise.all([
@@ -328,8 +321,8 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
   return {
     topic: { ...summarize(topic, seats, index.at, brands, live), groupName, poolTotal: pool },
     kinds: CHRONICLE_KINDS,
-    chronicle: first && topic.group !== "company" ? picked : [],
-    milestones: first && topic.group === "company" ? companyMilestones(history, picked) : [],
+    chronicle: first && !tracksAsSubject(topic.group) ? picked : [],
+    milestones: first && tracksAsSubject(topic.group) ? companyMilestones(history, picked) : [],
     highlights: first ? selectTopicHighlights(topic, shown, window) : [],
     items: rows.map(toFeedItemSummary),
     page,

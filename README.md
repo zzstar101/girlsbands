@@ -1,8 +1,8 @@
+<h1 align="center">AniBand Radar</h1>
+
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.png">
-    <img src="docs/assets/banner-light.png" alt="AIHOT：每个行业，都可以有自己的 AIHOT。很多条信源流进中间的精选，再分给法律、人力资源、金融等各个行业" width="100%">
-  </picture>
+  <b>少女乐队领域的情报雷达：Live / 票务 / 抽选 / 发售，一页看清。</b><br>
+  基于 <a href="https://github.com/KKKKhazix/AIHOT">AIHOT</a> 开源框架改造，行业差异全部落在 <code>industry/</code>。
 </p>
 
 <p align="center">
@@ -10,12 +10,6 @@
   <img src="https://img.shields.io/badge/Node.js-24-176b75?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js 24">
   <img src="https://img.shields.io/badge/PostgreSQL-17-176b75?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL 17">
   <img src="https://img.shields.io/badge/Docker-Compose-176b75?style=flat-square&logo=docker&logoColor=white" alt="Docker Compose">
-  <a href="https://aihot.news"><img src="https://img.shields.io/badge/demo-aihot.news-202a30?style=flat-square" alt="aihot.news"></a>
-</p>
-
-<p align="center">
-  <b>一个自己找热点、自己写日报的网站框架。</b><br>
-  把信源换成你的，把精选标准换成你的 KnowHow，它就是你的行业热点站。
 </p>
 
 <p align="center">
@@ -23,10 +17,19 @@
   <a href="docs/customize.md">改成你的行业</a> ·
   <a href="#它是怎么工作的">它是怎么工作的</a> ·
   <a href="#文档">文档</a> ·
-  <a href="https://github.com/KKKKhazix/AIHOT/discussions">社区交流</a>
+  <a href="https://github.com/KKKKhazix/AIHOT">上游框架</a>
 </p>
 
 <br>
+
+## 本仓库相对上游的改动
+
+上游框架默认是一个 AI 行业的示例站，本仓库把它改成了少女乐队情报站，改动边界如下：
+
+- **纯配置（不碰 Core）**：站名与文案（`industry/site.ts`）、类别与词表（`industry/taxonomy.ts`）、主题页（`industry/topics.json`）、信源（`industry/sources.json`）、全部提示词（`industry/prompts/`）、入选门槛（`industry/selection.ts`）、编年史规则（`industry/chronicle.ts`）、品牌与图标（`industry/brand/`）、条款模板（`industry/pages/`）。
+- **Core 改动（都很小，逐条可回退）**：删掉两个只服务 AI 行业的可选模块（模型榜 `leaderboard/`、Codex 重置监控 `monitor/`）并追加迁移 `0053_drop_leaderboard_monitor.sql`；把品牌标记组件从 `features/leaderboard/` 移到 `components/ui/`；`packages/contracts` 里的来源标签改为从行业配置读取；主题分组新增 `band` 一类；公开读取层为卡片补上 `subjects` 字段（乐队实体，来自原本只留在库内的 `entity:` 标记）；修正「日文被当成中文而跳过翻译」的判断（`packages/backend/src/lib/text.ts` 的 `looksChinese`）。**新增截止雷达**：结构步骤从公告原文里读出带日期的节点（`industry/prompts/structure.md` 的 `deadlines`，逐条保留原句作凭据），`packages/backend/src/publication/deadlines.ts` 按日本时间分桶读出，由 `/api/site/deadlines` 与 `/deadlines` 页面呈现——原文没写日期的节点不会出现，我们不会替官方推算。
+- **刻意不改**：`@aihot/*` 包名、环境变量名、后台 cookie 名、备份文件名等内部标识保留原样——它们不是读者可见的品牌，改名只会让上游同步和已存数据变难。
+- **Phase 1 不做**：账号、App、推送、完整票务库，以及 `/calendar` 页面。
 
 ## 这是什么
 
@@ -48,7 +51,7 @@
 
 - **我不是专业的开发者。** 我是设计师出身，半年前还看不太懂代码。这套代码是我和 AI 一起重写的，比以前干净了很多，但一定还有写得不好的地方。发现问题欢迎提 Issue，我不一定能很快回复，先说声抱歉。
 - **这是一份快照。** 它来自 AIHOT 正在线上跑的代码，不是精心打磨的通用框架。以后 AIHOT 的更新，我会尽量同步过来，但没法保证每一次都同步。
-- **里面没有 AIHOT 的信源名单和运营数据。** 仓库带了 18 个公开的海外 AI 资讯源做示范，够你跑起来看效果；真正的信源，要换成你自己行业的。
+- **里面没有 AIHOT 的信源名单和运营数据。** 仓库带了 16 个公开信源做示范（默认配置是一个少女乐队情报站），够你跑起来看效果；真正的信源，要换成你自己行业的。
 - **请不要用 AIHOT 的名字和 Logo。** 换上你自己的名字，它就是你的站。
 
 ## 它是怎么工作的
@@ -89,9 +92,9 @@
 | **热点** | 按事件算热度：独立来源越多越靠前，X 上的讨论也算进来；和 6 小时前比，涨得快的标上升，新出现的标“新” |
 | **日报、周报、月报** | 每天 08:00 出日报，按规则编出当天要闻：一件事一条，报过的事只在有新进展时跟进，不调模型。每周一出周报、每月 1 日出月报，从日报里汇编，模型只写总述和栏目导读 |
 | **主题与搜索** | 公司、方向、内容形态三类主题页，带近 12 个月的大事记（公司是横向编年史）；标题摘要搜索和全文相关搜索 |
+| **邮件订阅** | 按乐队订阅：抽选与先行受理截止前 48 小时提醒，每天一封精选摘要；双重确认、一键退订，四套邮件外观（号外 / 简报 / 历书 / 活版）任选，默认关闭 |
 | **给 Agent 用** | RSS（精选、全部、全文、日报、周报、月报）、公开 API、MCP、Agent Markdown、`llms.txt`，同一份内容给人看也给 Agent 用 |
 | **后台** | 信源管理与试抓、内容诊断、精选评测、每一步单独换模型、付费服务的预算熔断、运行记录与告警 |
-| **AI 专属模块** | 模型榜（汇总多家公开评测，方法公开）和 Codex 重置监控。别的行业一个开关关掉 |
 
 ## 看一眼
 
@@ -100,12 +103,7 @@
   <img src="docs/assets/shots-light.png" alt="首页的当前热点与精选，关于页的信源河" width="100%">
 </picture>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/board-dark.png">
-  <img src="docs/assets/board-light.png" alt="模型榜" width="100%">
-</picture>
-
-<p align="center"><sub>截图来自用示范信源跑起来的本地站，站名是默认的 MyHOT。</sub></p>
+<p align="center"><sub>截图来自用示范信源跑起来的本地站，站名是默认的 AniBand Radar。</sub></p>
 
 ## 跑起来
 
@@ -145,7 +143,6 @@ docker compose up -d --build
 | `sources.json` | 首次启动时导入的信源 |
 | `prompts/` | 精选标准和写作要求。**你的行业 KnowHow，就写在这里** |
 | `selection.ts` | 入选门槛 |
-| `features.ts` | 模型榜、Codex 重置监控的开关 |
 | `brand/`、`pages/` | 图标、使用规则和隐私说明 |
 
 最值得花时间的是评分标准（`prompts/selection-score.md`）和门槛：拿一两百条你自己标注过的资料，用 `scripts/eval-selection.ts` 跑一遍，看它选得准不准，再回去改。怎么做写在 [精选与校准](docs/selection.md) 里。
@@ -158,9 +155,9 @@ docker compose up -d --build
 | [信源](docs/sources.md) | 六种信源怎么配，分级和全文，外部推送接口 |
 | [精选与校准](docs/selection.md) | 一条资料怎么变成精选、怎么编进日报周报月报，怎么用自己的样本校准 |
 | [事件归组与关系评测](docs/grouping.md) | 事件关系怎么判断，怎么用自己的 pairwise gold set 评测 |
+| [邮件订阅](docs/subscribe.md) | 截止提醒与精选摘要怎么发、SMTP 怎么配、四套邮件外观、退订与合规 |
 | [部署](docs/deploy.md) | Docker、域名和 HTTPS、中国大陆、更新、备份、花多少钱 |
 | [架构](docs/architecture.md) | 三个进程、几条不变的规则、目录、对外出口 |
-| [模型榜与 Codex 重置监控](docs/leaderboard.md) | 两个 AI 专属模块 |
 
 技术栈：Node.js 24 · TypeScript · React Router（服务端渲染）· Fastify · PostgreSQL · pg-boss · Tailwind CSS · Docker Compose。
 

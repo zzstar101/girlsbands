@@ -116,7 +116,7 @@ export const EDITION: Record<ReportKind, string> = { daily: "每天 08:00 出刊
 
 /**
  * The masthead's figures, in the order a reader wants them. Releases of the pack's headline launch kind
- * (RELEASE, "个新模型" for AI) count only where the pack has one; zero is left out.
+ * (`RELEASE`'s unit — 条票务消息 here) count only where the pack has one; zero is left out.
  */
 const METRICS: Array<[key: string, unit: string]> = [
   ["totalEvents", "件大事"],

@@ -30,7 +30,7 @@ export interface RedirectRule {
 export const REDIRECTS: RedirectRule[] = [
   {
     match: "regex",
-    path: "^/(all|about|agent|changelog|codex-reset|feedback|starred|more|privacy|terms)/+$",
+    path: "^/(all|about|agent|changelog|feedback|starred|more|privacy|terms)/+$",
     status: 301,
     location: "/$1",
     keepQuery: true,
@@ -43,9 +43,6 @@ export const REDIRECTS: RedirectRule[] = [
     keepQuery: true,
     why: "RSS reader aliases",
   },
-  { match: "exact", path: "/leaderboard/methodology", status: 308, location: "/leaderboard/sources" },
-  { match: "regex", path: "^/leaderboard/category/(aesthetics|writing)$", status: 307, location: "/leaderboard", why: "categories without a board" },
-  { match: "exact", path: "/leaderboard/category/overall", status: 404, why: "the overall board lives at /leaderboard" },
   { match: "prefix", path: "/sources", status: 302, location: "/admin/sources*", why: "admin bookmarks" },
 ];
 
@@ -105,7 +102,7 @@ export const API_OWNED_PATTERNS: RegExp[] = [
   /^\/sitemaps\//,
   /^\/\.well-known\//,
   /^\/(favicon\.ico|icon\.png|icon-192\.png|apple-icon\.png|logo\.svg)$/,
-  /^\/(model-providers|leaderboard-sources|og|contact)\//,
+  /^\/(og|contact)\//,
   /^\/[0-9a-f]{32}\.txt$/,
   /^\/items\/[^/]+\/markdown$/,
 ];

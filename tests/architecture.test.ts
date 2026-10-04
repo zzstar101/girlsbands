@@ -49,10 +49,10 @@ test("packages never import the apps, and nothing below the admin imports it", (
   assert.deepEqual(found, [], "admin/ is the top layer: move what others need to the module that owns it");
 });
 
-// Public routes read through the public read faces; the rest are the reader's own writes (feedback) and
-// the image proxy. Admin and ingest routes may call any backend use case.
+// Public routes read through the public read faces; the rest are the reader's own writes (feedback and
+// email subscriptions) and the image proxy. Admin and ingest routes may call any backend use case.
 const PRIVATE_ROUTES = new Set(["admin.ts", "admin-auth.ts", "ingest.ts"]);
-const PUBLIC_READS = [/^publication\//, /^leaderboard\/read\.ts$/, /^monitor\/read\.ts$/, /^site\//, /^lib\//, /^config\.ts$/, /^operations\/feedback\.ts$/, /^media\//, /^jobs\/queue\.ts$/];
+const PUBLIC_READS = [/^publication\//, /^site\//, /^lib\//, /^config\.ts$/, /^operations\/(feedback|abuse)\.ts$/, /^media\//, /^jobs\/queue\.ts$/, /^subscriptions\//];
 
 test("public routes read content only through the public read layer", () => {
   const routes = sources("apps/api/src/routes").filter(({ file }) => !PRIVATE_ROUTES.has(path.basename(file)));
@@ -71,7 +71,7 @@ const OWNERS: Record<string, string> = {
   deliveries: "notify/",
   facts: "events/", fact_articles: "events/", stories: "events/", story_signals: "events/", story_aliases: "events/", story_links: "events/",
   story_digests: "events/", grouping_decisions: "events/", grouping_overrides: "events/",
-  audit_log: "audit.ts", lb_calibrations: "leaderboard/method/",
+  audit_log: "audit.ts",
 };
 
 test("the tables that carry a rule are written only by the module that owns it", () => {
@@ -144,7 +144,7 @@ test("every environment variable the code reads is listed in a template, and eve
 
 test("every field of the website's own interfaces is read by the website", () => {
   const web = words(production().filter(({ file }) => file.startsWith("apps/web/")).map(({ text }) => text).join("\n"));
-  const unread = ["packages/contracts/src/site.ts", "packages/contracts/src/leaderboard.ts"].flatMap((file) =>
+  const unread = ["packages/contracts/src/site.ts"].flatMap((file) =>
     assigned(file, /^\s+(?:readonly\s+)?([A-Za-z_][A-Za-z0-9_]*)\??:\s/gm).filter((field) => !web.has(field)).map((field) => `${file}: ${field}`));
   assert.deepEqual(unread, [], "drop the field from the contract and from the read that fills it, or show it");
 });

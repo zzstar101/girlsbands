@@ -1,11 +1,29 @@
-这两个 ttf 是 Noto Sans CJK SC（Noto Sans SC）的子集化产物，仅用于 AI HOT 的 OG
-分享图渲染（GB2312 + 拉丁 + 标点子集，见 scripts/og/build-og-font.mjs）。
+本目录里的 5 个 ttf 都是开源字体的子集化产物，只用于 AniBand Radar 的
+OG 分享图与邮件头图渲染，由 scripts/og/build-og-jp-font.ts 生成：
 
-原字体：Noto Sans CJK / Noto Sans SC
-版权：Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name
-      'Source'. （Google Noto 项目分发）
-许可：SIL Open Font License, Version 1.1 (OFL-1.1)
-      https://scripts.sil.org/OFL  ·  https://github.com/notofonts/noto-cjk
+  noto-sans-sc-400.ttf / noto-sans-sc-700.ttf   简体正文与中文标签
+  noto-sans-jp-400.ttf / noto-sans-jp-700.ttf   日文字形（乐队名、日期）
+  dela-gothic-one.ttf                           显示字体（乐队名与数字）
 
+子集范围是「本项目实际会用到的字」：表里的 19 支乐队/企划名、固定文案、假名、
+拉丁字母与常用标点。没有收进去的字不会出现在产物里，因为渲染层不会用到它们。
+
+--------------------------------------------------------------------------
+Noto Sans SC（2 个文件）／ Noto Sans JP（2 个文件）
+  原字体：Noto Sans CJK（SC 与 JP 两个字族）
+  版权：Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved
+        Font Name 'Source'.（Google Noto 项目分发）
+  许可：SIL Open Font License, Version 1.1 (OFL-1.1)
+        https://scripts.sil.org/OFL  ·  https://github.com/notofonts/noto-cjk
+
+Dela Gothic One（dela-gothic-one.ttf）
+  原字体：Dela Gothic One v1.005
+  版权：Copyright 2020 The Dela Gothic Project Authors
+        (https://github.com/syakuzen/DelaGothic)
+  设计：artakana（https://twitter.com/artakana）
+  许可：SIL Open Font License, Version 1.1 (OFL-1.1)
+        https://scripts.sil.org/OFL
+
+--------------------------------------------------------------------------
 OFL 允许嵌入、子集化与再分发，要求保留版权与许可声明（本文件即为此）。子集化字体
 不得单独售卖，可随软件/产品自由分发。完整 OFL 全文见上方链接。

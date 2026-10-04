@@ -7,7 +7,7 @@ import { registerExtractionJobs } from "./content.ts";
 
 export async function registerSourceJobs(boss: PgBoss) {
   await work(boss, QUEUES.fetchSource, { localConcurrency: 8, pollingIntervalSeconds: 2 }, ({ sourceId, force }) => collectSource(sourceId, { force }));
-  // One search per shard of X accounts; the SocialData per-minute budget is shared with the reset monitor.
+  // One search per shard of X accounts; the SocialData per-minute budget is shared across shards.
   await work(boss, QUEUES.fetchXShard, { localConcurrency: 2, pollingIntervalSeconds: 2 }, ({ key, sourceIds }) => collectXShard(key, sourceIds));
   // Dajiala allows a few requests per second; two accounts at a time stays well under it.
   await work(boss, QUEUES.mpCheck, { localConcurrency: 2, pollingIntervalSeconds: 2 }, ({ sourceId, reason }) => checkMpAccount(sourceId, reason ?? "schedule"));

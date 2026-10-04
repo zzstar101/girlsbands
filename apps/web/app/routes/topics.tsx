@@ -7,11 +7,11 @@ import { breadcrumbLd, pageMeta, siteUrl } from "../lib/seo";
 import { relativeTime } from "../lib/format";
 import { IconChevronRight } from "../components/icons";
 import { IntentLink } from "../components/ui/IntentLink";
-import { BrandMark } from "../features/leaderboard/BrandMark";
+import { BrandMark } from "../components/ui/BrandMark";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import type { Screen } from "../components/shell/screens";
 
-export const handle: Screen = { home: "me", name: "主题" };
+export const handle: Screen = { home: "feed", name: "主题" };
 
 export async function loader({ request }: { request: Request }) {
   return apiGet<TopicsResponse>("/api/site/topics", { signal: request.signal });

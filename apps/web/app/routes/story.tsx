@@ -8,6 +8,7 @@ import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
 import { beijingDate, beijingTime } from "@aihot/contracts/time";
 import { monthDay, monthDayTime, relativeTime } from "../lib/format";
 import { HeatChart } from "../features/story/HeatChart";
+import { DEADLINE_KINDS, clock, md } from "../features/feed/deadlines";
 import { sessionCache } from "../lib/session-cache";
 import { isReload } from "../lib/restore";
 import { Badge, SelectedBadge } from "../components/ui/Badge";
@@ -17,7 +18,7 @@ import { IconArrowLeft, IconChevronRight, IconClock, IconDoc, IconUsers } from "
 import { PhoneBar } from "../components/shell/PhoneBar";
 import type { Screen } from "../components/shell/screens";
 
-export const handle: Screen = { home: "hot" };
+export const handle: Screen = { home: "featured" };
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   const story = await loadOr404<StoryDetail>(`/api/site/stories/${encodeURIComponent(params.publicId)}`, { signal: request.signal, merged: (id) => `/story/${id}` });
@@ -287,6 +288,34 @@ export default function StoryPage() {
                 ) : (
                   <p className="mt-1.5 text-[14px] leading-[1.7] text-ink-2">{story.latest}</p>
                 )}
+              </div>
+            )}
+            {story.dates.length > 0 && (
+              <div className="-mx-5 mt-5 border-t border-line-soft px-5 pt-4 lg:-mx-6 lg:px-6">
+                <div className="flex items-center gap-2 text-[12px]">
+                  <IconClock size={13} className="shrink-0 text-ink-4" aria-hidden="true" />
+                  <span className="font-semibold text-ink">关键日期</span>
+                  <span className="text-ink-4">按日本时间，读自官方原文</span>
+                </div>
+                <ul className="mt-2.5 space-y-2">
+                  {story.dates.map((d) => {
+                    const kind = DEADLINE_KINDS[d.kind];
+                    const time = clock(d.at);
+                    return (
+                      <li key={`${d.at}-${d.itemId}-${d.kind}`} className="flex items-baseline gap-3">
+                        <span className={`num w-[86px] shrink-0 text-[12px] font-bold tracking-[0.04em] ${kind.className}`}>
+                          {md(d.day)}{time ? ` ${time}` : ""}
+                        </span>
+                        <span className="min-w-0">
+                          <span className={`mr-1.5 text-[12px] font-semibold ${kind.className}`}>{kind.label}</span>
+                          <Link viewTransition to={`/items/${d.itemId}`} className="text-[13.5px] leading-[1.6] text-ink-2 transition-colors hover:text-accent">
+                            {d.note ?? d.title}
+                          </Link>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             )}
           </Panel>

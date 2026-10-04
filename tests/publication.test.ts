@@ -48,7 +48,7 @@ async function article(): Promise<string> {
     sourceId: SOURCE, url: `https://example.com/${T}-${n}`, title: `Test ${n}`, bodyText: BODY, bodyHtml: `<p>${BODY}</p>`, bodyStatus: "ok", via: "fetch", publishedAt: new Date(),
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, reason_zh, score, selected)
-            VALUES (${articleId}, 1, 'rule', 'pass', 'ai-models', ${`标题${n}-${T}`}, ${`SUMMARY-${n}-${T}`}, '理由', 90, true)`;
+            VALUES (${articleId}, 1, 'rule', 'pass', 'live', ${`标题${n}-${T}`}, ${`SUMMARY-${n}-${T}`}, '理由', 90, true)`;
   return articleId;
 }
 
@@ -72,20 +72,20 @@ async function get(url: string, headers: Record<string, string> = {}) {
 // headings/merged cells, lost numeric units, and full text leaking after a licence reduction.
 test("Markdown preserves a table's headings, caption, links, alignment and multiline cells in both languages", async () => {
   const id = await article();
-  const table = '<table><caption>Benchmark results</caption><thead><tr><th>Model</th><th align="right">Score</th></tr></thead><tbody><tr><td><a href="https://example.com/model">A|B</a></td><td>90<br>±1</td></tr></tbody></table>';
+  const table = '<table><caption>Tour results</caption><thead><tr><th>Live</th><th align="right">Tickets</th></tr></thead><tbody><tr><td><a href="https://example.com/live">A|B</a></td><td>90<br>±1</td></tr></tbody></table>';
   await sql`UPDATE articles SET language = 'en', body_html = ${table} WHERE id = ${id}`;
-  await sql`INSERT INTO translations (article_id, revision, body_html, body_text, origin) VALUES (${id}, 1, ${table.replace('Benchmark results', '基准结果').replace('Model', '模型').replace('Score', '分数')}, '基准结果', 'source')`;
+  await sql`INSERT INTO translations (article_id, revision, body_html, body_text, origin) VALUES (${id}, 1, ${table.replace('Tour results', '巡演结果').replace('Live', 'Live 场次').replace('Tickets', '门票')}, '巡演结果', 'source')`;
   await publishArticle(id, released());
   const response = await get(`/items/${id}/markdown`);
   assert.equal(response.status, 200);
   const $ = cheerio.load(marked.parse(response.body, { async: false, gfm: true }));
   assert.equal($('table').length, 2, 'both original and translated tables survive export');
-  assert.deepEqual($('table th').toArray().map((node) => $(node).text()), ['模型', '分数', 'Model', 'Score']);
+  assert.deepEqual($('table th').toArray().map((node) => $(node).text()), ['Live 场次', '门票', 'Live', 'Tickets']);
   assert.equal($('table th').last().attr('align'), 'right');
   assert.equal($('table td a').last().text(), 'A|B');
-  assert.equal($('table td a').last().attr('href'), 'https://example.com/model');
+  assert.equal($('table td a').last().attr('href'), 'https://example.com/live');
   assert.equal($('table td').last().find('br').length, 1);
-  assert.ok($.text().includes('基准结果') && $.text().includes('Benchmark results'));
+  assert.ok($.text().includes('巡演结果') && $.text().includes('Tour results'));
 });
 
 test("Markdown retains tables that cannot be represented without changing their meaning", async () => {
@@ -174,7 +174,7 @@ test("a withdrawn item leaves every report exit", async () => {
   const id = await article();
   await publishArticle(id, released());
   const content = {
-    sections: [{ label: "模型", items: [{ itemId: id, title: `LEAD-${T}`, summary: `QUOTED-${T}`, sourceUrl: `https://example.com/original-${T}`, sourceName: "Test" }] }],
+    sections: [{ label: "Live", items: [{ itemId: id, title: `LEAD-${T}`, summary: `QUOTED-${T}`, sourceUrl: `https://example.com/original-${T}`, sourceName: "Test" }] }],
     flashes: [],
   };
   await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, origin)
@@ -274,7 +274,7 @@ test("item pages follow one rule: unsummarised editorial items keep one, hot_sig
   await publishArticle(plain);
   const { articleId: signal } = await material(SIGNAL, "signal");
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected)
-            VALUES (${signal}, 1, 'replay', 'pass', 'industry', ${`信号-${T}`}, ${`SIGNAL-SUMMARY-${T}`}, 80, false)`;
+            VALUES (${signal}, 1, 'replay', 'pass', 'release', ${`信号-${T}`}, ${`SIGNAL-SUMMARY-${T}`}, 80, false)`;
   await publishArticle(signal);
 
   const page = await get(`/api/site/items/${plain}`);

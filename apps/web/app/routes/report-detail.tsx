@@ -10,7 +10,7 @@ import { ReportPaper, reportOutline } from "../features/report/ReportPaper";
 import { KIND_LABEL, feedLink, kindFromPath } from "../features/report/format";
 import type { Screen } from "../components/shell/screens";
 
-export const handle: Screen = { tab: "daily", name: "日报" };
+export const handle: Screen = { home: "featured", name: "日报" };
 
 const PATTERN: Record<ReportKind, RegExp> = {
   daily: /^\d{4}-\d{2}-\d{2}$/,

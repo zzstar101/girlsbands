@@ -27,13 +27,13 @@ const provider = await stub(async (_hit, req) => {
   }
   const t = segments.map((s) => {
     // A block with a link and an image: the first answer drops the link, the second keeps everything.
-    if (s.includes("Neuroglancer")) {
+    if (s.includes("特設サイト")) {
       const n = (asks.get(s) ?? 0) + 1;
       asks.set(s, n);
-      return n === 1 ? "解释 Neuroglancer 的文字 ⟦0⟧。" : '解释 <a id="L0">Neuroglancer</a> 的文字 ⟦0⟧。';
+      return n === 1 ? "解释 凛音の理 特設サイト 的文字 ⟦0⟧。" : '解释 <a id="L0">凛音の理 特設サイト</a> 的文字 ⟦0⟧。';
     }
     if (s.includes("never keeps")) return "丢了链接。";
-    if (s.includes("Introducing")) return "隆重推出 Sonnet 5.5。";
+    if (s.includes("開催決定")) return "8th ONE-MAN LIVE『凛音の理』举办决定。";
     return s.includes("twenty") ? "价格是二十美元。" : s.includes("ten") ? "价格是十美元。" : "译文";
   });
   return { id: "stub", choices: [{ message: { content: JSON.stringify({ t }) } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
@@ -70,7 +70,7 @@ after(async () => {
 test("a text corrected while its translation was running is translated again, and the old translation is not shown", async () => {
   const { articleId: id } = await material("ten");
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, reason_zh, score, selected)
-            VALUES (${id}, 1, 'rule', 'pass', 'ai-models', ${`价格更新-${T}`}, '摘要', '理由', 90, true)`;
+            VALUES (${id}, 1, 'rule', 'pass', 'live', ${`价格更新-${T}`}, '摘要', '理由', 90, true)`;
   await publishArticle(id, { releasedAt: new Date(Date.now() - 60_000) });
 
   // The model is asked about revision 1; the source corrects the price before it answers.
@@ -103,19 +103,19 @@ test("a text corrected while its translation was running is translated again, an
 });
 
 test("links and images inside a paragraph survive the translation, or the paragraph stays in the original", async () => {
-  // Google's fly-brain post lost its link to the Neuroglancer docs; a GPU price post lost two charts.
-  const html = `<p>Explaining <a href="https://neuroglancer.dev/docs">Neuroglancer</a> in text ${T} <img src="https://example.com/chart-${T}.png" alt="B200 prices"></p>` +
+  // The band's live page lost its link to the ticket site; a ticket price post lost two charts.
+  const html = `<p>Explaining <a href="https://togenashi-togeari.example/live">凛音の理 特設サイト</a> in text ${T} <img src="https://example.com/chart-${T}.png" alt="チケット価格"></p>` +
     `<p>A paragraph the model <a href="https://example.com/kept">never keeps</a> whole ${T}.</p>`;
   const { articleId: id } = await upsertMaterial({
-    sourceId: SOURCE, url: `${URL_}-links`, title: `Links ${T}`, language: "en", bodyText: `Explaining Neuroglancer. ${T}`, bodyHtml: html,
+    sourceId: SOURCE, url: `${URL_}-links`, title: `Links ${T}`, language: "en", bodyText: `Explaining 凛音の理. ${T}`, bodyHtml: html,
     bodyStatus: "ok", via: "fetch", publishedAt: new Date(), discoveredAt: new Date(Date.now() + 1_200_000),
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, reason_zh, score, selected)
-            VALUES (${id}, 1, 'rule', 'pass', 'ai-models', ${`链接-${T}`}, '摘要', '理由', 90, true)`;
+            VALUES (${id}, 1, 'rule', 'pass', 'live', ${`链接-${T}`}, '摘要', '理由', 90, true)`;
   await publishArticle(id, { releasedAt: new Date(Date.now() - 60_000) });
   await translatePending({ limit: 1 });
   const [tr] = await sql<{ body_html: string; complete: boolean }[]>`SELECT body_html, complete FROM translations WHERE article_id = ${id}`;
-  assert.ok(tr!.body_html.includes('<a href="https://neuroglancer.dev/docs">Neuroglancer</a>'), tr!.body_html);
+  assert.ok(tr!.body_html.includes('<a href="https://togenashi-togeari.example/live">凛音の理 特設サイト</a>'), tr!.body_html);
   assert.ok(tr!.body_html.includes(`chart-${T}.png`), "the chart stays");
   assert.ok(tr!.body_html.includes('<a href="https://example.com/kept">never keeps</a>'), "a paragraph that loses its link stays in the original");
   assert.equal(tr!.complete, false);
@@ -124,20 +124,20 @@ test("links and images inside a paragraph survive the translation, or the paragr
 test("the post a selected X post quotes is translated once and shown with the item", async () => {
   const tweetId = `7${Date.now()}`;
   const { articleId: id } = await upsertMaterial({
-    sourceId: SOURCE, url: `https://x.com/bcherny/status/8${Date.now()}`, title: `Sonnet ${T}`, language: "en", bodyText: "Try it!", bodyStatus: "ok",
+    sourceId: SOURCE, url: `https://x.com/tgtg_staff/status/8${Date.now()}`, title: `開催決定 ${T}`, language: "en", bodyText: "Try it!", bodyStatus: "ok",
     via: "fetch", publishedAt: new Date(), discoveredAt: new Date(Date.now() + 1_800_000),
-    xPost: { tweetId: `8${Date.now()}`, authorName: "Boris", handle: "bcherny", text: "Try it!", quoted: { authorName: "Anthropic", handle: "AnthropicAI", text: `Introducing Claude Sonnet 5.5 ${T}`, url: `https://x.com/AnthropicAI/status/${tweetId}` } },
+    xPost: { tweetId: `8${Date.now()}`, authorName: "Staff", handle: "tgtg_staff", text: "Try it!", quoted: { authorName: "トゲナシトゲアリ", handle: "togenashitogeari", text: `8th ONE-MAN LIVE『凛音の理』開催決定 ${T}`, url: `https://x.com/togenashitogeari/status/${tweetId}` } },
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, reason_zh, score, selected)
-            VALUES (${id}, 1, 'rule', 'pass', 'ai-models', ${`引用-${T}`}, '摘要', '理由', 90, true)`;
+            VALUES (${id}, 1, 'rule', 'pass', 'live', ${`引用-${T}`}, '摘要', '理由', 90, true)`;
   await publishArticle(id, { releasedAt: new Date(Date.now() - 60_000) });
   const run = await translatePending({ limit: 1 });
   assert.ok(run.quotes >= 1);
   const [q] = await sql<{ text_zh: string; origin: string }[]>`SELECT text_zh, origin FROM quote_translations WHERE tweet_id = ${tweetId}`;
-  assert.deepEqual({ ...q }, { text_zh: "隆重推出 Sonnet 5.5。", origin: "model" });
+  assert.deepEqual({ ...q }, { text_zh: "8th ONE-MAN LIVE『凛音の理』举办决定。", origin: "model" });
   const res = await app.inject({ method: "GET", url: `/api/site/items/${id}` });
   const item = JSON.parse(res.body) as { x: { quoted: { text: string; translation: string | null } } };
-  assert.deepEqual([item.x.quoted.text, item.x.quoted.translation], [`Introducing Claude Sonnet 5.5 ${T}`, "隆重推出 Sonnet 5.5。"]);
+  assert.deepEqual([item.x.quoted.text, item.x.quoted.translation], [`8th ONE-MAN LIVE『凛音の理』開催決定 ${T}`, "8th ONE-MAN LIVE『凛音の理』举办决定。"]);
   await translatePending({ limit: 1 });
   const receipts = await sql`SELECT 1 FROM receipts WHERE purpose = 'translate_quoted' AND subject = ${`quote:${tweetId}`}`;
   assert.equal(receipts.length, 1, "translated once");

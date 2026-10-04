@@ -1,10 +1,10 @@
 # 给 Agent 的说明
 
-这是一个行业热点网站的框架：采集信源、用模型筛选和写作、归组事件、出日报周报月报，并通过网站、RSS、公开 API、Agent Markdown 和 MCP 对外提供。默认配置是一个 AI 行业的示例站。先读 README，再按任务读 `docs/` 里对应的文档。
+这是一个行业热点网站的框架：采集信源、用模型筛选和写作、归组事件、出日报周报月报，并通过网站、RSS、公开 API、Agent Markdown 和 MCP 对外提供。上游框架的默认配置是一个 AI 行业的示例站；**本仓库已经改成少女乐队情报站（AniBand Radar）**，`industry/` 里装的是乐队行业的分类、主题、信源与提示词。先读 README，再按任务读 `docs/` 里对应的文档。
 
 ## 最常见的任务：改成另一个行业
 
-按 `docs/customize.md` 的顺序做。行业相关的一切都在 `industry/`：站名文案（`site.ts`）、分类标签（`taxonomy.ts`）、主题（`topics.json`）、主题页大事记的规则（`chronicle.ts`）、示范信源（`sources.json`）、提示词（`prompts/`）、门槛（`selection.ts`）、模块开关（`features.ts`）、品牌（`brand/`）、条款页（`pages/`）。通常不需要改 `apps/` 和 `packages/`。
+按 `docs/customize.md` 的顺序做。行业相关的一切都在 `industry/`：站名文案（`site.ts`）、分类标签（`taxonomy.ts`）、主题（`topics.json`）、主题页大事记的规则（`chronicle.ts`）、示范信源（`sources.json`）、提示词（`prompts/`）、门槛（`selection.ts`）、品牌（`brand/`）、条款页（`pages/`）。通常不需要改 `apps/` 和 `packages/`。上游框架里那两个只对 AI 行业有意义的可选模块（模型榜、Codex 重置监控）在本仓库已经整块删掉，连开关文件 `industry/features.ts` 一起。
 
 这些事要问使用者本人，不要替他决定：站名；要盯哪些信源；什么消息重要、什么是噪声；分类怎么分；条款和隐私说明的内容（`industry/pages/` 是模板，上线前需要他本人确认）。
 

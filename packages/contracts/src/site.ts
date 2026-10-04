@@ -1,7 +1,17 @@
 // First-party site API (/api/site/*). Not a public API: it may evolve with the website,
 // but it is served from the same public read layer as v1, RSS and MCP.
-import type { LbBrand } from "./leaderboard.ts";
 import type { CategoryKey, ChannelKey } from "./taxonomy.ts";
+
+/**
+ * A mark drawn beside a topic's name: an image when the site has one for it, a monogram otherwise.
+ */
+export interface BrandMarkRef {
+  /** Site-relative logo path, or null when only a monogram is available. */
+  src: string | null;
+  monogram: string;
+  /** Raster marks get a light backing plate in dark mode. */
+  raster: boolean;
+}
 
 export interface SourceRef {
   /** The name readers see (publication/rules.ts publicSourceName), as is every source name here. */
@@ -51,6 +61,12 @@ export interface ItemSummary {
   timelineAt: string;
   category: CategoryKey | null;
   tags: string[];
+  /**
+   * The bands and projects the item was filed under, as `industry/taxonomy.ts` entity ids. `tags` keeps
+   * only reader-facing labels, so the entity markers are surfaced here instead — a card can then name the
+   * band, and a band page can find its own reports, without the reader ever seeing `entity:` on screen.
+   */
+  subjects: string[];
   score: number | null;
   selected: boolean;
   channel: "news" | "x";
@@ -58,7 +74,7 @@ export interface ItemSummary {
 }
 
 /** The fields rendered by a site feed card; full original text lives in the item detail. */
-export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "source" | "publishedAt" | "timelineAt" | "category" | "tags" | "score" | "selected" | "channel"> {
+export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "source" | "publishedAt" | "timelineAt" | "category" | "tags" | "subjects" | "score" | "selected" | "channel"> {
   x: (Pick<XPostView, "authorName" | "handle" | "avatarUrl" | "avatarSrcSet" | "media"> & {
     quoted: Omit<NonNullable<XPostView["quoted"]>, "url"> | null;
   }) | null;
@@ -201,6 +217,61 @@ export interface HotResponse {
   entries: HotEntryView[];
 }
 
+/**
+ * A dated event a report's own text states, for the deadline radar. `at` is Japan wall-clock — the
+ * date the announcement itself gives — never converted to the reader's calendar, so a deadline that
+ * closes at 23:59 JST still reads as that day.
+ */
+export type DeadlineKind = "lottery_start" | "lottery_end" | "sale_start" | "event" | "stream_end" | "result" | "other";
+
+/**
+ * How a dated point is worded. The wording stays on the action ("受理截止", "开卖") rather than on the
+ * announcement, because a date is only shown when it is something to do or to wait for. The website
+ * and the reminder emails both read this, so the two can never call the same deadline different things.
+ */
+export const DEADLINE_LABELS: Record<DeadlineKind, { label: string; hint: string }> = {
+  lottery_end: { label: "受理截止", hint: "抽选 / 先行受理的最后一天" },
+  lottery_start: { label: "受理开始", hint: "抽选 / 先行受理开始" },
+  sale_start: { label: "一般发售", hint: "一般发售开卖" },
+  event: { label: "演出当天", hint: "Live / 活动当天" },
+  stream_end: { label: "配信截止", hint: "配信或回看的观看期限" },
+  result: { label: "结果公布", hint: "抽选结果或名单公布" },
+  other: { label: "其他", hint: "其他有明确日期的节点" },
+};
+
+export interface DeadlineView {
+  /** `YYYY-MM-DD`, or `YYYY-MM-DDTHH:mm` when the original stated a time. */
+  at: string;
+  /** The `YYYY-MM-DD` half of `at`, which buckets the radar's days. */
+  day: string;
+  kind: DeadlineKind;
+  /** The short label the extraction gave it ("FC先行", "二次先行", "一般発売"), else null. */
+  note: string | null;
+  /** The report this deadline was stated in; the reader opens it for the original wording. */
+  itemId: string;
+  title: string;
+  url: string;
+  category: CategoryKey | null;
+  subjects: string[];
+  source: SourceRef;
+  /** When the report carrying this date was published; null on a publication that carries none. */
+  publishedAt: string | null;
+  /** The report cleared the editorial selection bar; the radar keeps unselected pool items too. */
+  selected: boolean;
+  /** Falls within 48 hours of `computedAt`: the radar's action rows. */
+  soon: boolean;
+}
+
+export interface DeadlinesResponse {
+  computedAt: string;
+  /** The JST day the window opens on, and the last day it covers. */
+  from: string;
+  to: string;
+  /** Only the days that have something due, oldest first. */
+  days: Array<{ date: string; items: DeadlineView[] }>;
+  total: number;
+}
+
 export interface HeatPoint {
   hour: string;
   heat: number;
@@ -249,6 +320,8 @@ export interface StoryDetail {
     rank: number | null;
   };
   developments: StoryFactView[];
+  /** The dated points this event's own reports state, from today forward — the same entries the radar reads. */
+  dates: DeadlineView[];
   officialReports: StoryReportView[];
   timeline: StoryReportView[];
   heat: HeatPoint[];
@@ -400,7 +473,14 @@ export interface ReportNavigationEntry { key: string; issueNumber?: number; titl
 
 // Topics
 
-export type TopicGroupKey = "company" | "field" | "genre";
+export type TopicGroupKey = "band" | "company" | "field" | "genre";
+
+/**
+ * A topic that tracks one subject (a band, a project, a company) rather than a direction or a content
+ * form. Subjects get the chronicle band with curated history and take only their own news; the pages
+ * render them differently.
+ */
+export const tracksAsSubject = (group: TopicGroupKey) => group === "company" || group === "band";
 
 export interface TopicGroup {
   key: TopicGroupKey;
@@ -416,8 +496,8 @@ export interface TopicLink {
 export interface TopicSummary extends TopicLink {
   group: TopicGroupKey;
   definition: string;
-  /** Companies: the mark of their best model on the leaderboard when it is on, else their initial. */
-  brand: LbBrand | null;
+  /** Companies: the company's own mark, else its initial. */
+  brand: BrandMarkRef | null;
   /** Selected reports, one per fact (as v1 and RSS count the selected set). */
   total: number;
   /** Of those, in the last 30 days. */

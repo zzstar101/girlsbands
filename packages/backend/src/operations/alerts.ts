@@ -8,8 +8,6 @@ import { beijingDate, beijingTime } from "@aihot/contracts/time";
 import { sql } from "../db.ts";
 import { beijingDay, beijingStamp, duration, formatAlert, formatRecovery, sendAlert, type Finding, type Level } from "../notify/feishu.ts";
 import { backupConfigured } from "./backup.ts";
-import { unmarkedBoardModels } from "../leaderboard/read.ts";
-import { awaitingReviewCondition } from "../monitor/read.ts";
 import { GROUPING_WARN_AFTER_MS, waitingSelectedNews } from "./grouping.ts";
 
 const REPEAT_MS: Record<Exclude<Level, "digest">, number> = { now: 3600_000, today: 24 * 3600_000 };
@@ -114,40 +112,10 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
       key: "deliveries.failed",
       level: "today",
       title: "飞书内容群有推送没发出去",
-      impact: `过去 24 小时 ${refused!.n} 条精选或重置通知没进${refused!.target ?? "内容群"}`,
+      impact: `过去 24 小时 ${refused!.n} 条精选推送没进${refused!.target ?? "内容群"}`,
       heals: "不会自动重发",
       action: "转给 AI 处理；如果推送机器人被移出了群，需要你把它加回去",
       detail: refused!.response ?? "",
-    });
-  }
-
-  // Reset monitor: posts are recognized in order, so one that keeps failing holds up every later one.
-  const [stuck] = await sql<{ url: string; collected_at: Date; failures: { count: number; error?: string } | null }[]>`
-    SELECT p.url, p.collected_at, s.value AS failures FROM monitor_posts p LEFT JOIN monitor_state s ON s.key = 'failures:' || p.id
-    WHERE p.processed_at IS NULL ORDER BY p.published_at, p.id LIMIT 1`;
-  if (stuck && now - stuck.collected_at.getTime() > 60 * 60_000) {
-    out.push({
-      key: "monitor.stuck",
-      level: "today",
-      title: "Codex 重置监控卡住了",
-      impact: "新的重置消息确认不了，内容群收不到重置通知",
-      heals: "暂时没有",
-      action: "转给 AI 处理",
-      detail: `${stuck.url} 等待 ${duration(now - stuck.collected_at.getTime())}${stuck.failures ? `，识别失败 ${stuck.failures.count} 次：${stuck.failures.error ?? ""}` : ""}；后台“Codex 重置 → 帖子与识别 → 待识别”可跳过`,
-      since: stuck.collected_at,
-    });
-  }
-  // Posts whose claims wait for a person (an unsure reading, a quote not in the post).
-  const review = await sql<{ url: string }[]>`SELECT url FROM monitor_posts WHERE ${awaitingReviewCondition()} ORDER BY published_at DESC LIMIT 5`;
-  if (review.length) {
-    out.push({
-      key: "monitor.review",
-      level: "today",
-      title: "有 Codex 重置消息需要你确认",
-      impact: "系统对这几条帖子的判断没把握，结论暂时没有生效，也没有推送",
-      heals: "不会",
-      action: "到后台“Codex 重置 → 帖子与识别 → 需复核”看一下；确认后需要的话在群里说明",
-      detail: review.map((h) => h.url).join(" "),
     });
   }
 
@@ -198,27 +166,6 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
     }
   }
 
-  // A leaderboard source keeps its last snapshot while failing.
-  const [lb] = await sql<{ value: { sources?: Record<string, { ok: boolean; lastOkAt: string | null; error?: string }> } }[]>`SELECT value FROM settings WHERE key = 'leaderboard.fetch'`;
-  const stale = Object.entries(lb?.value.sources ?? {}).filter(([, s]) => !s.ok && s.lastOkAt && now - Date.parse(s.lastOkAt) > 26 * 3600_000);
-  if (stale.length) {
-    out.push({
-      key: "leaderboard.fetch",
-      level: "digest",
-      title: `模型榜有 ${stale.length} 个评测来源超过一天没抓到，榜单暂用上一份数据`,
-      detail: stale.slice(0, 6).map(([k, s]) => `${k}：${s.error ?? "失败"}（上次成功 ${beijingStamp(s.lastOkAt!)}）`).join("；"),
-    });
-  }
-
-  const unmarked = await unmarkedBoardModels().catch(() => [] as string[]);
-  if (unmarked.length) {
-    out.push({
-      key: "leaderboard.marks",
-      level: "digest",
-      title: `模型榜有 ${unmarked.length} 个模型没有厂商标志，暂时显示首字母`,
-      detail: `${unmarked.slice(0, 8).join("、")}；标志文件放 assets/model-providers，映射在 packages/backend/src/leaderboard/registry.ts`,
-    });
-  }
   return out;
 }
 

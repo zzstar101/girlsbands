@@ -1,8 +1,8 @@
 // A listing that names one article more than once stores it once, a feed whose entries are sections
 // of one page (release notes #september-24-2026 …) keeps one article per section when the source says
 // so, and a feed that garbles different characters on every load keeps one version. Before the
-// fixes all three became revisions of one article on every fetch. A changelog whose updates sit under
-// date headings (api-docs.deepseek.com/zh-cn/updates) yields its updates, not the headings.
+// fixes all three became revisions of one article on every fetch. A label's updates page whose posts sit
+// under date headings yields its updates, not the headings.
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import http from "node:http";
@@ -22,29 +22,29 @@ const DAY = 86_400_000;
 const item = (title: string, link: string, daysAgo: number) =>
   `<item><title>${title}</title><link>${link}</link><guid>${link}</guid><pubDate>${new Date(Date.now() - daysAgo * DAY).toUTCString()}</pubDate><description>${title} summary</description></item>`;
 const feeds: Record<string, string> = {
-  // developers.openai.com lists one video twice, under two titles.
-  "/dup.xml": [item(`DevDay — optimization breakout ${T}`, `https://example.org/watch-${T}`, 0.1), item(`Balance accuracy, latency, and cost ${T}`, `https://example.org/watch-${T}`, 0.1)].join(""),
+  // an official channel lists one live stream twice, under two titles.
+  "/dup.xml": [item(`8th ONE-MAN LIVE 開催決定 — 特設サイト公開 ${T}`, `https://example.org/watch-${T}`, 0.1), item(`『凛音の理』8th ONE-MAN LIVE 特設サイトを公開 ${T}`, `https://example.org/watch-${T}`, 0.1)].join(""),
   "/notes.xml": ["september-24", "september-23", "september-22"].map((d, i) => item(`Release notes — ${d} ${T}`, `https://example.org/notes-${T}/overview#${d}`, 0.1 + i)).join(""),
 };
 // A feed that loses a character here and there on every load, sent as two or three U+FFFD, in titles and
 // in descriptions longer than the excerpt kept from them.
-const story = "9月25日，维多利亚的秘密上海淮海旗舰店开业，这是维密在中国市场运营十周年之际对线下门店的一次重新布局。".repeat(50);
+const story = "9月25日，トゲナシトゲアリ が 8th ONE-MAN LIVE『凛音の理』の開催を発表した。ぴあアリーナMM での公演は 2026 年 3 月、FC 先行受付は本日 12 時から始まる。".repeat(50);
 const lose = (s: string, at: number, n: number) => s.slice(0, at) + "\uFFFD".repeat(n) + s.slice(at + 1);
-const title = `维密重回上海淮海路，中国市场进入扩店阶段 ${T}`;
+const title = `トゲナシトゲアリ 8th ONE-MAN LIVE 開催決定，FC 先行受付開始 ${T}`;
 const garbledLoads = [[title, story], [title, lose(story, 120, 3)], [lose(title, 2, 2), lose(story, 700, 2)]];
 let garbledLoad = 0;
-// A trimmed copy of the DeepSeek API changelog (Docusaurus): each date heading, in either of the two
+// A trimmed copy of a band label's updates page (Docusaurus): each date heading, in either of the two
 // label styles the page uses, is followed by the update headings that belong to it.
 const heading = (level: number, id: string, text: string) =>
   `<h${level} class="anchor" id="${id}">${text}<a href="#${id}" class="hash-link" title="${text}的直接链接">\u200b</a></h${level}>`;
-const changelog = `<!doctype html><html><body><article><div class="theme-doc-markdown markdown"><div class="row"><div class="col"><h1>更新日志</h1><hr>
+const changelog = `<!doctype html><html><body><article><div class="theme-doc-markdown markdown"><div class="row"><div class="col"><h1>更新情報</h1><hr>
 ${heading(2, "时间-2026-09-10", "时间: 2026-09-10")}
-${heading(3, "deepseek-v41-flash-发布", `DeepSeek-V4.1-Flash 发布 ${T}`)}<p>今天，我们正式发布 DeepSeek-V4.1-Flash 模型。</p>
+${heading(3, "8th-one-man-live", `8th ONE-MAN LIVE『凛音の理』開催決定 ${T}`)}<p>本日、8th ONE-MAN LIVE『凛音の理』の開催を発表しました。</p>
 ${heading(2, "时间-2025-12-01", "时间: 2025-12-01")}
-${heading(3, "deepseek-v32", `DeepSeek-V3.2 ${T}`)}<p>DeepSeek-V3.2 正式版上线。</p>
-${heading(3, "deepseek-v32-speciale", `DeepSeek-V3.2-Speciale ${T}`)}<p>DeepSeek-V3.2-Speciale 临时接口上线。</p>
+${heading(3, "single-nameless-song", `新シングル「名前のない歌」リリース決定 ${T}`)}<p>新シングル「名前のない歌」を配信リリースします。</p>
+${heading(3, "video-budokan-bluray", `Blu-ray『Live at 日本武道館』発売 ${T}`)}<p>日本武道館公演の Blu-ray を発売します。</p>
 ${heading(2, "时间2024-05-17", "时间：2024-05-17")}
-${heading(3, "deepseek-chat-4", `deepseek-chat ${T}`)}<p>deepseek-chat 模型升级为 DeepSeek-V2-0517。</p>
+${heading(3, "fc-presale", `FC 先行受付開始 ${T}`)}<p>FC 先行受付を開始しました。</p>
 </div></div></div></article></body></html>`;
 const server = http.createServer((req, res) => {
   if (req.url === "/updates/") {
@@ -85,7 +85,7 @@ test("an article a feed lists twice is stored once and stays put across fetches"
   for (let run = 0; run < 3; run++) assert.equal((await collectSource(DUP_SOURCE, { force: true })).status, "ok");
   const rows = await articles(DUP_SOURCE);
   assert.equal(rows.length, 1);
-  assert.deepEqual([rows[0]!.title, rows[0]!.revision], [`DevDay — optimization breakout ${T}`, 1], "the first entry, never revised");
+  assert.deepEqual([rows[0]!.title, rows[0]!.revision], [`8th ONE-MAN LIVE 開催決定 — 特設サイト公開 ${T}`, 1], "the first entry, never revised");
 });
 
 test("sections of one page are separate articles when the source keeps fragments", async () => {
@@ -110,10 +110,10 @@ test("a changelog's date headings date its updates and are no articles themselve
   assert.deepEqual(
     rows.map((r) => [decodeURIComponent(r.url.replace(/^.*#/, "#")), r.title.replace(` ${T}`, ""), r.published_at?.toISOString()]),
     [
-      ["#deepseek-v41-flash-发布", "DeepSeek-V4.1-Flash 发布", "2026-09-09T16:00:00.000Z"],
-      ["#deepseek-v32", "DeepSeek-V3.2", "2025-11-30T16:00:00.000Z"],
-      ["#deepseek-v32-speciale", "DeepSeek-V3.2-Speciale", "2025-11-30T16:00:00.000Z"],
-      ["#deepseek-chat-4", "deepseek-chat", "2024-05-16T16:00:00.000Z"],
+      ["#8th-one-man-live", "8th ONE-MAN LIVE『凛音の理』開催決定", "2026-09-09T16:00:00.000Z"],
+      ["#single-nameless-song", "新シングル「名前のない歌」リリース決定", "2025-11-30T16:00:00.000Z"],
+      ["#video-budokan-bluray", "Blu-ray『Live at 日本武道館』発売", "2025-11-30T16:00:00.000Z"],
+      ["#fc-presale", "FC 先行受付開始", "2024-05-16T16:00:00.000Z"],
     ],
   );
 });

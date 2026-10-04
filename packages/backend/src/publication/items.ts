@@ -3,8 +3,9 @@
 import type { CategoryKey, ChannelKey } from "@aihot/contracts/taxonomy";
 import type { FeedItemSummary, ItemSummary, MediaView, XPostView } from "@aihot/contracts/site";
 import { sql, type Db } from "../db.ts";
+import { looksChinese } from "../lib/text.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
-import { displayTags, publicSourceName } from "./rules.ts";
+import { displayTags, entityIds, publicSourceName } from "./rules.ts";
 import { seatedCondition } from "./scope.ts";
 
 export interface ItemRow {
@@ -73,10 +74,8 @@ export function channelCondition(channel: ChannelKey | null | undefined) {
   return sql`AND p.channel = ${channel}`;
 }
 
-export function categoryCondition(category: CategoryKey | null | undefined, v1 = false) {
+export function categoryCondition(category: CategoryKey | null | undefined) {
   if (!category) return sql``;
-  // v1 and RSS publish opinion as tip.
-  if (v1 && category === "tip") return sql`AND p.category IN ('tip', 'opinion')`;
   return sql`AND p.category = ${category}`;
 }
 
@@ -143,6 +142,7 @@ export function toItemSummary(row: ItemRow): ItemSummary {
     timelineAt: row.timeline_at.toISOString(),
     category: (row.category as CategoryKey | null) ?? null,
     tags: displayTags(row.tags),
+    subjects: entityIds(row.tags),
     score: row.score === null ? null : Math.round(Number(row.score)),
     selected: row.selected,
     channel: row.channel,
@@ -158,7 +158,7 @@ export function toFeedItemSummary(row: ItemRow): FeedItemSummary {
   return {
     id: item.id, title: item.title, summary: item.summary, reason: item.reason,
     source: item.source, publishedAt: item.publishedAt, timelineAt: item.timelineAt,
-    category: item.category, tags: item.tags, score: item.score, selected: item.selected, channel: item.channel,
+    category: item.category, tags: item.tags, subjects: item.subjects, score: item.score, selected: item.selected, channel: item.channel,
     x: x ? {
       authorName: x.authorName, handle: x.handle, avatarUrl: x.avatarUrl,
       ...(x.avatarSrcSet ? { avatarSrcSet: x.avatarSrcSet } : {}), media: x.media,
@@ -168,11 +168,13 @@ export function toFeedItemSummary(row: ItemRow): FeedItemSummary {
 }
 
 /**
- * An article written in Chinese: its language says so, or its text opens in Chinese and it is not marked
- * English (the translator's rule, editorial/translate.ts). Every exit shows such a body as it is.
+ * An article written in Chinese: its language says so, or its text opens in Chinese without kana and it
+ * is not marked English (the translator's rule, editorial/translate.ts; lib/text.ts `looksChinese`).
+ * Every exit shows such a body as it is. Japanese shares the Han characters, so kana is what tells the
+ * two apart and keeps a Japanese body from being served untranslated.
  */
 export function isChineseBody(a: { language?: string | null; body_text?: string | null }): boolean {
-  return a.language === "zh" || (/[一-鿿]/.test(a.body_text?.slice(0, 400) ?? "") && a.language !== "en");
+  return a.language === "zh" || (looksChinese(a.body_text?.slice(0, 400) ?? "") && a.language !== "en");
 }
 
 /** The complete Chinese translation an export (Markdown, full RSS) carries; a page also shows a partial one. */

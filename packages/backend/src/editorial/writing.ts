@@ -2,6 +2,7 @@
 // title/summary prompts for everything else, the output parsing and the deterministic guards. The
 // wording lives in the industry pack (industry/prompts/); a failed guard falls back without a repair call.
 import { IDENTITY_CONTEXT_ALIASES, IDENTITY_LEXICON, PUBLISHER_DOMAINS } from "@aihot/industry/taxonomy";
+import { looksChinese } from "../lib/text.ts";
 import { onlyXArticleLink } from "../sources/x.ts";
 import type { AnalyzeInputArticle } from "./input.ts";
 import { promptText } from "./prompts.ts";
@@ -18,13 +19,6 @@ const capBody = (s: string) => (s.length > MAX_BODY_CHARS ? s.slice(0, MAX_BODY_
 export function clampText(s: string, maxChars: number): string {
   const codepoints = Array.from(s);
   return codepoints.length <= maxChars ? s : codepoints.slice(0, maxChars).join("") + "…";
-}
-
-export function looksZh(s: string): boolean {
-  if (!/[一-鿿]/.test(s)) return false;
-  if (/[぀-ヿ]/.test(s)) return false; // Japanese kana
-  if (/[가-힯]/.test(s)) return false; // Hangul
-  return true;
 }
 
 /** Short tweet: under 100 characters of Chinese, under 500 of other text. */
@@ -64,7 +58,7 @@ const stripNoise = (s: string) => s.replace(/https?:\/\/\S+/g, " ").replace(/@[A
 /** A short tweet in Chinese needs no translation; mixed or English ones do. */
 export function needsShortTweetTranslation(text: string): boolean {
   const clean = stripNoise(text);
-  if (!looksZh(clean)) return true;
+  if (!looksChinese(clean)) return true;
   if (chineseDensity(clean) < 0.65) return true;
   const englishRuns = clean.match(/[A-Za-z][A-Za-z0-9+.#/-]*(?:\s+[A-Za-z][A-Za-z0-9+.#/-]*)+/g) ?? [];
   return englishRuns.some((run) => run.replace(/\s+/g, "").length >= 10);
@@ -220,7 +214,7 @@ export function enforceIdentity(input: TranslateInput, copy: { titleZh: string; 
   const unsupportedTitleEntityIds = matchEntityIds([copy.titleZh]).filter((id) => !allowed.has(id));
   const unsupportedSummaryEntityIds = matchEntityIds([copy.summaryZh]).filter((id) => !allowed.has(id));
   return {
-    titleZh: unsupportedTitleEntityIds.length ? (looksZh(input.title) ? input.title : "") : copy.titleZh,
+    titleZh: unsupportedTitleEntityIds.length ? (looksChinese(input.title) ? input.title : "") : copy.titleZh,
     summaryZh: unsupportedSummaryEntityIds.length ? "" : copy.summaryZh,
     identityGuard: {
       outcome: unsupportedTitleEntityIds.length || unsupportedSummaryEntityIds.length ? "fallback" : "pass",

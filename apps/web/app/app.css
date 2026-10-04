@@ -1,9 +1,18 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Design tokens: warm off-white paper, ink text, one teal accent (cyan in
-   dark), hairline borders, no gradients.
+   LIVEBOARD design tokens.
+
+   The site reads like a livehouse board, a band poster and a record shop: dark,
+   editorial, typography-driven, high contrast, hairlines instead of decoration.
+   The light theme is the same system on paper. One warm signal accent (gold)
+   carries interaction; red means "act now", green means "officially confirmed".
+   Never pink-and-purple, never glassmorphism, never a wall of rounded corners
+   (the radius scale below stops at 16px).
+
    Components use the semantic names below; values change per theme only.
+   Band accents are data-driven: a band page sets `--band-accent` inline and
+   everything that highlights uses it, falling back to the site accent.
    --------------------------------------------------------------------------- */
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
@@ -45,11 +54,18 @@
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
   --color-ok-ink: var(--ok-ink);
-  --color-cal-plain: var(--cal-plain);
-  --color-cal-confirmed: var(--cal-confirmed);
-  --color-cal-announced: var(--cal-announced);
-  --color-cal-key-confirmed: var(--cal-key-confirmed);
-  --color-cal-key-announced: var(--cal-key-announced);
+  /* Intel status vocabulary (OFFICIAL / CONFIRMED / DEVELOPING / RUMOR). The badge is rendered only
+     once the read layer carries a confidence signal; the tokens exist so it needs no new colours. */
+  --color-status-official: var(--status-official);
+  --color-status-confirmed: var(--status-confirmed);
+  --color-status-developing: var(--status-developing);
+  --color-status-rumor: var(--status-rumor);
+  --color-status-official-soft: var(--status-official-soft);
+  --color-status-confirmed-soft: var(--status-confirmed-soft);
+  --color-status-developing-soft: var(--status-developing-soft);
+  --color-status-rumor-soft: var(--status-rumor-soft);
+  /* A band's own accent, set inline by the band page; the site accent until then. */
+  --color-band: var(--band-accent);
   --color-panel-quiet: var(--panel-quiet);
   --color-rank-1: var(--rank-1);
   --color-rank-2: var(--rank-2);
@@ -89,42 +105,45 @@
   --gutter-l: max(16px, env(safe-area-inset-left));
   --gutter-r: max(16px, env(safe-area-inset-right));
   color-scheme: light;
-  --bg: #faf9f6;
-  --bg-sunk: #f3f3ef;
-  --bg-muted: #e9ede9;
-  --surface: #ffffff;
-  --surface-2: #fdfdfb;
+  --bg: #f6f4ef;
+  --bg-sunk: #efece4;
+  --bg-muted: #e6e2d8;
+  --surface: #fffefb;
+  --surface-2: #fbfaf6;
   --raised: #ffffff;
-  --sidebar: #fdfdfb;
-  --daybar: #f0f2ee;
-  --field: #eef1ed;
-  --ink: #202a30;
-  --ink-2: #303c42;
-  --ink-3: #59656b;
-  --ink-4: #657176;
-  --line: #dfe4e1;
-  --line-strong: #d1d9d5;
-  --line-soft: #e9ede9;
-  --accent: #176b75;
-  --accent-ink: #145f68;
-  --accent-soft: rgba(23, 107, 117, 0.08);
-  --accent-softer: rgba(23, 107, 117, 0.05);
+  --sidebar: #fbfaf6;
+  --daybar: #efece4;
+  --field: #f0ede5;
+  --ink: #14141a;
+  --ink-2: #2c2c34;
+  --ink-3: #5b5b66;
+  --ink-4: #6e6e79;
+  --line: #ddd8cc;
+  --line-strong: #cec7b8;
+  --line-soft: #e9e5db;
+  --accent: #8a5c07;
+  --accent-ink: #6f4a05;
+  --accent-soft: rgba(138, 92, 7, 0.09);
+  --accent-softer: rgba(138, 92, 7, 0.05);
   --accent-contrast: #ffffff;
-  --note: #526f72;
-  --hot: #b3402a;
-  --hot-soft: rgba(179, 64, 42, 0.08);
-  --amber: #b8873a;
-  --amber-ink: #7c5a24;
-  --amber-soft: rgba(184, 135, 58, 0.1);
-  --ok: #2f7d5c;
-  --ok-soft: rgba(47, 125, 92, 0.1);
-  --ok-ink: #2a6e51;
-  /* Reset monitor: days mixed from the landed (green) and announced (amber) tones over the surface. */
-  --cal-plain: rgba(28, 39, 51, 0.024);
-  --cal-confirmed: color-mix(in srgb, var(--ok-ink) 12%, var(--surface));
-  --cal-announced: color-mix(in srgb, var(--amber-ink) 14%, var(--surface));
-  --cal-key-confirmed: color-mix(in srgb, var(--ok-ink) 30%, var(--surface));
-  --cal-key-announced: color-mix(in srgb, var(--amber-ink) 30%, var(--surface));
+  --note: #5f6350;
+  --hot: #b3241a;
+  --hot-soft: rgba(179, 36, 26, 0.08);
+  --amber: #b0560e;
+  --amber-ink: #8f4409;
+  --amber-soft: rgba(176, 86, 14, 0.1);
+  --ok: #1f6b4a;
+  --ok-soft: rgba(31, 107, 74, 0.1);
+  --ok-ink: #1b5c40;
+  --status-official: #1f6b4a;
+  --status-official-soft: rgba(31, 107, 74, 0.1);
+  --status-confirmed: #2c2c34;
+  --status-confirmed-soft: rgba(44, 44, 52, 0.07);
+  --status-developing: #8f4409;
+  --status-developing-soft: rgba(176, 86, 14, 0.1);
+  --status-rumor: #6e6e79;
+  --status-rumor-soft: rgba(110, 110, 121, 0.1);
+  --band-accent: var(--accent);
   --panel-quiet: color-mix(in srgb, var(--bg) 48%, var(--surface));
   --rank-1: #b3402a;
   --rank-2: #a3642f;
@@ -154,38 +173,46 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #13191c;
-  --bg-sunk: #182024;
-  --bg-muted: #202a2f;
-  --surface: #1a2226;
-  --surface-2: #1d272b;
-  --raised: #202a2f;
-  --sidebar: #161e21;
-  --daybar: #182024;
-  --field: rgba(255, 255, 255, 0.06);
-  --ink: #e7eceb;
-  --ink-2: #d2dada;
-  --ink-3: #a5b0b3;
-  --ink-4: #89979d;
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.12);
-  --line-soft: rgba(255, 255, 255, 0.06);
-  --accent: #12ccd8;
-  --accent-ink: #2ce2e8;
-  --accent-soft: rgba(18, 204, 216, 0.12);
-  --accent-softer: rgba(18, 204, 216, 0.06);
-  --accent-contrast: #000000;
-  --note: #8fb8a8;
-  --hot: #d86a52;
-  --hot-soft: rgba(216, 106, 82, 0.12);
-  --amber: #d3b26a;
-  --amber-ink: #d3b26a;
-  --amber-soft: rgba(211, 178, 106, 0.12);
-  --ok: #5fc79a;
-  --ok-soft: rgba(95, 199, 154, 0.12);
-  --ok-ink: #7fd1ad;
-  --cal-plain: rgba(255, 255, 255, 0.03);
-  --rank-1: #d86a52;
+  --bg: #0b0b0f;
+  --bg-sunk: #08080b;
+  --bg-muted: #16161c;
+  --surface: #14141a;
+  --surface-2: #17171e;
+  --raised: #22222b;
+  --sidebar: #0e0e13;
+  --daybar: #101015;
+  --field: rgba(255, 255, 255, 0.055);
+  --ink: #f4f4f6;
+  --ink-2: #d8d8de;
+  --ink-3: #a2a2ad;
+  --ink-4: #7c7c88;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --line-soft: rgba(255, 255, 255, 0.055);
+  --accent: #e8b53c;
+  --accent-ink: #f0c65f;
+  --accent-soft: rgba(232, 181, 60, 0.13);
+  --accent-softer: rgba(232, 181, 60, 0.07);
+  --accent-contrast: #14141a;
+  --note: #b3b3a4;
+  --hot: #ff5a52;
+  --hot-soft: rgba(255, 90, 82, 0.14);
+  --amber: #e0862f;
+  --amber-ink: #eb9a4c;
+  --amber-soft: rgba(224, 134, 47, 0.14);
+  --ok: #4fbf8b;
+  --ok-soft: rgba(79, 191, 139, 0.14);
+  --ok-ink: #6fd0a3;
+  --status-official: #4fbf8b;
+  --status-official-soft: rgba(79, 191, 139, 0.14);
+  --status-confirmed: #e8e8ee;
+  --status-confirmed-soft: rgba(232, 232, 238, 0.1);
+  --status-developing: #eb9a4c;
+  --status-developing-soft: rgba(224, 134, 47, 0.14);
+  --status-rumor: #9a9aa6;
+  --status-rumor-soft: rgba(154, 154, 166, 0.12);
+  --band-accent: var(--accent);
+  --rank-1: #ff5a52;
   --rank-2: #d18a5e;
   --rank-3: #d3b26a;
   --rank-rest: #7b869a;
@@ -202,7 +229,7 @@
   --code-title: #ab9df2;
   --code-variable: #fc9867;
   --code-meta: #ff6188;
-  --selection: rgba(18, 204, 216, 0.22);
+  --selection: rgba(232, 181, 60, 0.22);
 }
 
 @layer base {
@@ -292,6 +319,22 @@
   }
   .disclosure > summary::-webkit-details-marker {
     display: none;
+  }
+  /* Poster metadata: small, tracked-out, quiet — the label under a big date or event name. */
+  .meta {
+    font-size: 11px;
+    line-height: 1.4;
+    letter-spacing: 0.09em;
+    font-weight: 600;
+    color: var(--ink-4);
+    font-variant-numeric: tabular-nums;
+  }
+  /* Poster numerals: the date, the deadline countdown, a price. */
+  .numeral {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -584,23 +627,4 @@
    the archive column is halfway between the site sidebar and white. */
 :root:not([data-theme="dark"]) body:has(.report-shell) {
   background: color-mix(in srgb, var(--bg) 60%, var(--surface));
-}
-/* Reset monitor status card: a 135° wash of the state's tone (amber pending, green landed, rose alert). */
-.cr-wash {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--tone, var(--ink-4)) 7%, var(--surface)), var(--surface) 60%);
-}
-/* The state dot carries a soft halo that breathes while something is pending. */
-.cr-dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 9999px;
-  background: currentColor;
-  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 18%, transparent);
-}
-.cr-dot-live {
-  animation: cr-pulse 2s ease-in-out infinite;
-}
-@keyframes cr-pulse {
-  50% { box-shadow: 0 0 0 7px color-mix(in srgb, currentColor 6%, transparent); }
 }

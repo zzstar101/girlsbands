@@ -10,7 +10,7 @@ import { runAnalysis } from "@aihot/backend/editorial/analyze";
 const steps: string[] = [];
 const provider = await stub((_hit, request) => {
   const system = String(JSON.parse(request.body).messages[0]?.content ?? "");
-  const step = system.includes("宽召回的AI相关性预筛") ? "prefilter"
+  const step = system.includes("宽召回的行业相关性预筛") ? "prefilter"
     : system.includes("事件注意力评分器") ? "score"
     : system.includes("资料结构化助手") ? "structure" : "writing";
   steps.push(step);

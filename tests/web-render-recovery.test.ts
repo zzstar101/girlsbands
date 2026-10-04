@@ -16,7 +16,7 @@ afterEach(() => {
   else Reflect.deleteProperty(globalThis, "window");
 });
 
-function browser(path = "/topics/openai?page=2#chronicle", stored = new Map<string, string>()) {
+function browser(path = "/topics/togenashi-togeari?page=2#chronicle", stored = new Map<string, string>()) {
   const location = { href: `${ORIGIN}${path}`, reload: mock.fn() };
   const sessionStorage = {
     getItem: mock.fn((key: string) => stored.get(key) ?? null),
@@ -28,7 +28,7 @@ function browser(path = "/topics/openai?page=2#chronicle", stored = new Map<stri
   return { location, sessionStorage, stored, fetch, log };
 }
 
-function errorInfo(path = "/topics/openai?page=2#chronicle", render = true) {
+function errorInfo(path = "/topics/togenashi-togeari?page=2#chronicle", render = true) {
   const url = new URL(path, ORIGIN);
   return {
     location: { pathname: url.pathname, search: url.search, hash: url.hash, state: null, key: "topic" },
@@ -48,7 +48,7 @@ test("an old document render failure checks its build and reloads its exact URL 
   assert.equal(b.fetch.mock.calls[0]!.arguments[1]?.method, "HEAD");
   assert.equal(b.fetch.mock.calls[0]!.arguments[1]?.cache, "no-store");
   assert.equal(b.location.reload.mock.calls.length, 1);
-  assert.equal(b.location.href, `${ORIGIN}/topics/openai?page=2#chronicle`);
+  assert.equal(b.location.href, `${ORIGIN}/topics/togenashi-togeari?page=2#chronicle`);
   assert.equal(b.stored.get(KEY), MANIFEST);
   assert.equal(b.log.mock.calls[0]!.arguments[0], error, "the original failure remains in the console");
   await onError(error, info);
@@ -85,7 +85,7 @@ test("route responses, loader/network failures, admin pages and documents withou
     b.location.href = `${ORIGIN}${path}`;
     await onError(new Error("admin render failed"), errorInfo(path));
   }
-  b.location.href = `${ORIGIN}/topics/openai?page=2#chronicle`;
+  b.location.href = `${ORIGIN}/topics/togenashi-togeari?page=2#chronicle`;
   for (const manifest of [null, ""]) {
     await createRenderErrorHandler(manifest)(new Error("render failed"), errorInfo());
   }

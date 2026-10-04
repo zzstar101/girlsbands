@@ -1,9 +1,12 @@
 // Site navigation in one place: the desktop sidebar's sections and the phone tab bar's tabs.
+//
+// The order follows what a fan needs, not what a news site shows: the timeline first, then the
+// tracking views (Live, tickets, releases) that answer "what am I about to miss", then the archive
+// and the site's own pages. Every target here is a real page.
 import type { ReactNode } from "react";
 import { subjectAfter, withSubject } from "@aihot/industry/site";
-import { FEATURES } from "@aihot/industry/features";
 import {
-  IconBolt, IconBookmark, IconChart, IconDoc, IconFlame, IconGrid, IconHeart, IconHistory, IconList, IconMessage, IconPlug, IconUser,
+  IconBell, IconBolt, IconBookmark, IconCalendar, IconClock, IconDisc, IconDoc, IconFlame, IconGrid, IconHeart, IconHistory, IconList, IconMail, IconMessage, IconPlug, IconTicket, IconUser,
 } from "../icons";
 
 export interface NavItem {
@@ -18,34 +21,34 @@ export interface NavItem {
 
 export const SIDEBAR: Array<{ title: string; items: NavItem[] }> = [
   {
-    title: "内容",
+    title: "情报",
     items: [
-      { to: "/", label: "精选", icon: IconBolt, end: true },
+      { to: "/", label: "首页", icon: IconBolt, end: true },
       { to: "/all", label: subjectAfter("全部", "动态"), icon: IconList },
       { to: "/hot", label: "热点榜", icon: IconFlame },
       { to: "/daily", label: withSubject("日报"), icon: IconDoc },
-      { to: "/topics", label: "主题", icon: IconGrid },
       { to: "/starred", label: "收藏", icon: IconBookmark },
     ],
   },
-  // The optional AI-only modules (industry/features.ts).
-  ...(FEATURES.leaderboard || FEATURES.codexResetMonitor
-    ? [
-        {
-          title: "模型",
-          items: [
-            ...(FEATURES.leaderboard ? [{ to: "/leaderboard", label: "模型榜", icon: IconChart }] : []),
-            ...(FEATURES.codexResetMonitor ? [{ to: "/codex-reset", label: "Tibo重置监控", icon: IconHistory }] : []),
-          ],
-        },
-      ]
-    : []),
+  // The tracking views. Each is a topic page over one 情报领域, so the taxonomy drives navigation.
+  {
+    title: "追踪",
+    items: [
+      { to: "/deadlines", label: "截止雷达", icon: IconClock },
+      { to: "/topics/live", label: "Live 与活动", icon: IconCalendar },
+      { to: "/topics/ticket", label: "票务与抽选", icon: IconTicket },
+      { to: "/topics/release", label: "发售与周边", icon: IconDisc },
+      { to: "/topics/notice", label: "官方通知", icon: IconBell },
+    ],
+  },
   {
     title: "更多",
     items: [
+      { to: "/topics", label: "全部主题", icon: IconGrid },
       { to: "/agent", label: "Agent 接入", icon: IconPlug },
       { to: "/about", label: "关于", icon: IconHeart },
       { to: "/changelog", label: "更新日志", icon: IconHistory, changelog: true },
+      { to: "/subscribe", label: "邮件订阅", icon: IconMail },
       { to: "/feedback", label: "反馈", icon: IconMessage },
     ],
   },
@@ -55,15 +58,17 @@ export const SIDEBAR: Array<{ title: string; items: NavItem[] }> = [
 export function sidebarIsActive(item: NavItem, pathname: string): boolean {
   if (item.end) return pathname === item.to;
   if (item.to === "/daily") return /^\/(daily|weekly|monthly)(\/|$)/.test(pathname);
+  // 全部主题 must not stay lit on the tracking views (/topics/live, /topics/ticket, …).
+  if (item.to === "/topics") return pathname === "/topics" || /^\/topics\/[^/]+\/page\/\d+$/.test(pathname);
   return pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 
 /**
- * The phone tab bar: 全部 lives beside 精选 as a switch, 热点 and 模型榜 are tabs, and "我的" at /more
- * holds 收藏, 外观, the tools and the site's own pages. Without the leaderboard the bar has four tabs.
- * Which tab a page sits under is declared by the page itself (components/shell/screens.ts).
+ * The phone tab bar: the timeline, everything published, then the two views a fan opens on the train
+ * — Live and 票务 — and "我的" at /more. Which tab a page sits under is declared by the page itself
+ * (components/shell/screens.ts); pages that carry no tab of their own fall back to `tabForPath`.
  */
-export type TabKey = "featured" | "hot" | "daily" | "leaderboard" | "me";
+export type TabKey = "featured" | "feed" | "live" | "ticket" | "me";
 
 export interface Tab {
   key: TabKey;
@@ -74,9 +79,19 @@ export interface Tab {
 }
 
 export const TABS: Tab[] = [
-  { key: "featured", to: "/", label: "精选", icon: IconBolt },
-  { key: "hot", to: "/hot", label: "热点", icon: IconFlame },
-  { key: "daily", to: "/daily", label: "日报", icon: IconDoc },
-  ...(FEATURES.leaderboard ? [{ key: "leaderboard" as const, to: "/leaderboard", label: "模型榜", icon: IconChart }] : []),
+  { key: "featured", to: "/", label: "首页", icon: IconBolt },
+  { key: "feed", to: "/all", label: "动态", icon: IconList },
+  { key: "live", to: "/topics/live", label: "Live", icon: IconCalendar },
+  { key: "ticket", to: "/topics/ticket", label: "票务", icon: IconTicket },
   { key: "me", to: "/more", label: "我的", icon: IconUser, changelog: true },
 ];
+
+/**
+ * The bar tab for a path whose page cannot declare one: one route renders every topic, so only the
+ * pathname says whether it is the Live view or the ticket view.
+ */
+export function tabForPath(pathname: string): TabKey | undefined {
+  const bare = pathname.replace(/\/page\/\d+$/, "");
+  const tab = TABS.find((t) => t.to === bare);
+  return tab && tab.key !== "me" ? tab.key : undefined;
+}

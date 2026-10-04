@@ -45,10 +45,10 @@ export default function NewSource() {
         <Card title="信源定义">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="ID" hint="小写字母、数字和连字符，创建后不可改">
-              <Input value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value.toLowerCase() })} placeholder="openai-blog" />
+              <Input value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value.toLowerCase() })} placeholder="tgtg-official" />
             </Field>
             <Field label="名称">
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="OpenAI 博客" />
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="トゲナシトゲアリ 官方" />
             </Field>
             <Field label="类型">
               <Select

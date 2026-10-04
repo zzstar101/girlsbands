@@ -34,7 +34,7 @@ docker compose up -d --build
 
 - 构建时 npm 走国内镜像：`docker compose build --build-arg NPM_REGISTRY=https://registry.npmmirror.com`，然后 `docker compose up -d`。
 - 拉取 Docker 镜像慢，先给 Docker 配置镜像加速。
-- 海外信源抓不到时，在 `.env` 里设置 `EGRESS_PROXY_URL`：抓信源、图片和模型榜数据时走这个代理，调用模型接口不走。
+- 海外信源抓不到时，在 `.env` 里设置 `EGRESS_PROXY_URL`：抓信源和图片时走这个代理，调用模型接口不走。
 - 对外提供网站服务需要先完成 ICP 备案，备案号填在 `industry/site.ts` 的 `icp`。
 
 ### 配域名和 HTTPS
@@ -82,10 +82,19 @@ docker compose run --rm setup && docker compose up -d
 - **主题只读 `industry/topics.json`**：迁移会删掉数据库里的 `topics` 表。只改过数据库、没改文件的主题，升级前先写进文件。公司主题只看 `entityId`，`related` 不再使用。
 - **日报不再调用模型**：日报按规则编排，周报月报从日报汇编，模型只写总述和栏目导读；已经出过的各期不重写。
 - **提示词有改动**：`industry/prompts/` 里的 `structure.md`、`group-*.md`、`story-digest.md`、`report-period.md` 换成了新的写法，`report-daily-lead.md` 删掉了，新加了 `report-period-sections.md`。改过这些提示词的，对照着把自己的改动搬过去。
-- **模型榜方法 v17**：每项评测的参照尺度第一次算出后就冻结，以后不再变。升级时 `setup` 先从模型名录导入冻结好的尺度（只补本站还没有的），所以要先跑 `scripts/seed.ts` 再启动 worker，Docker 的 `setup` 已经这样做。位次和分数与旧版不同；Artificial Analysis 只作交叉参考。
 - **删掉的脚本**：`scripts/delete-sources.ts`、`scripts/regroup-events.ts`、`scripts/enqueue-analysis.ts`。不要的信源在后台暂停；单篇的重新评估、重新归组在后台内容页。
 - **`/agent` 默认打开 Agent Markdown**，MCP 的接入说明在 `/agent?tab=mcp`。
 - **飞书内容群只推 `T1`、`T1_5` 信源的精选。**
+
+#### 删掉模型榜与 Codex 重置监控（迁移 `0053`）
+
+这两个模块只对 AI 行业有意义，本站已经把它们整块删掉：代码、测试、文档和存下的状态一起消失。迁移 `0053` 删掉它们的表，**数据不可恢复**（只能从整库备份里恢复），升级前先按下一节备份：
+
+- 模型榜：`lb_models`、`lb_aliases`、`lb_snapshots`、`lb_scores`、`lb_runs`、`lb_rankings`、`lb_prices`、`lb_calibrations`。
+- 重置监控：`monitor_posts`、`monitor_events`、`monitor_event_posts`、`monitor_state`。
+- 只有模型榜价格导入用到的 `fx_rates`，以及 `settings` 里的 `leaderboard.fetch`（模型榜抓取状态）和 `models.monitor`（重置识别用的模型覆盖）。
+
+定时任务 `leaderboard.round`、`monitor.tick`、`monitor.lookback` 不再登记，worker 启动时会注销同名的 `cron.*` 任务。`.env` 里的 `MONITOR_MODEL`、`ARTIFICIAL_ANALYSIS_API_KEY` 不再被读取，可以删掉；`SOCIALDATA_API_KEY` 保留，普通 X 信源还在用它。页面 `/leaderboard*`、`/codex-reset`、后台“Codex 重置”页和公开接口 `/api/v1/codex-resets*` 一并消失，引用过它们的程序要改。
 
 ### 管理员会话与配置变更
 
@@ -118,6 +127,29 @@ docker compose logs -f --tail 100 api worker web
 ```
 
 后台的“运行”页能看到每个定时任务最近的结果，“信源”页能看到每个信源的抓取状况。
+
+### 邮件订阅（SMTP）
+
+订阅默认关着：`.env` 里 `EMAIL_ENABLED=false`，`/api/site/subscribe` 会明确回答“邮件订阅暂未开放”，两个定时任务直接返回，连 SMTP 都不连。
+
+打开它需要一组 SMTP 凭据（`integrations` 组，写在 `.env` 或 `AIHOT_CREDENTIALS_DIR/integrations.env`）：
+
+```bash
+EMAIL_ENABLED=true
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587            # 465 会自动走 TLS
+SMTP_USER=apikey         # 本机或内网中继可以留空，留空就不认证
+SMTP_PASS=...
+EMAIL_FROM="AniBand Radar <radar@example.com>"   # 必填，发信人
+EMAIL_REPLY_TO=reply@example.com                 # 选填
+EMAIL_STYLE=cover        # 目前只有 cover，见 docs/subscribe.md
+```
+
+`EMAIL_DRY_RUN=true` 会把整封信交给 nodemailer 的 json 传输渲染出来但不投递，用来核对内容；发送记录照常写进 `email_sends`，所以别拿它当“预览”反复跑定时任务。
+
+两个定时任务：`email.deadline`（每天 09:00 和 21:00，只发 48 小时内到期的节点）和 `email.digest`（每天 20:00，只发过去 24 小时的精选）。没有要紧事的那一轮会记成“0 封”，这是正常结果，不是故障。
+
+发信域名要自己配好 SPF / DKIM / DMARC，否则确认信多半进垃圾箱。每封提醒和摘要都带 RFC 8058 的一键退订头（`List-Unsubscribe` + `List-Unsubscribe-Post`）。
 
 ## 花多少钱
 

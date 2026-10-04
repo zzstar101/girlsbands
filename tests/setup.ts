@@ -25,7 +25,7 @@ process.env.COLLECT_ENABLED ??= "true";
 const PRESETS: Record<string, string> = {
   PREFILTER_MODEL: "qwen3.7-flash", SCORE_MODEL: "glm-5.3-flash-selection", UNDERSTAND_MODEL: "glm-5.3-flash", SUMMARIZE_MODEL: "deepseek-flash",
   STRUCTURE_MODEL: "qwen3.8-flash", GROUP_MODEL: "deepseek-flash", GROUP_REVIEW_MODEL: "mimo-v2.6-flash", DIGEST_MODEL: "deepseek-flash",
-  REPORT_MODEL: "deepseek-flash", TRANSLATE_MODEL: "deepseek-flash", MONITOR_MODEL: "deepseek-flash",
+  REPORT_MODEL: "deepseek-flash", TRANSLATE_MODEL: "deepseek-flash",
 };
 for (const [name, model] of Object.entries(PRESETS)) process.env[name] ??= model;
 

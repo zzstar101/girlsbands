@@ -1,18 +1,48 @@
 {
-  "$comment": "示范信源：首次启动时导入（scripts/seed.ts），已存在的不会被覆盖。之后在后台“信源”里新建、修改和暂停。字段说明见 docs/customize.md。",
+  "$comment": "示范信源：首次启动时导入（scripts/seed.ts），已存在的不会被覆盖。之后在后台“信源”里新建、修改和暂停。字段说明见 docs/customize.md，各 kind 的配置项见 docs/sources.md。tier：T1 官方一手（官网、唱片公司）／T1_5 官方社交账号（企划、乐队、成员本人）／T2 专业媒体与商业平台。注意：数据库的 tier 只有这四个字面值，没有 “T3”；本仓库说的“T3 热点信号”用 participation_mode=“hot_signal” 表达（只做热度证据，不单独展示）。每条 URL 都在 2026 年实测过：只收录返回正常 RSS/Atom 的订阅源，以及用 curl 取回原始 HTML、再用 cheerio 真实解析确认过结构的列表页（选择器来自真实标记，未凭猜测填写）。这一轮实测被排除的：音楽ナタリー（AWS WAF，连 /robots.txt 都返回 405 Human Verification）、Animate Times（RSS 返回 0 字节、列表页 404）、ORICON（按 IP 限流，密集请求后 429）、Billboard Japan 与 THE FIRST TIMES／アニメアニメ／声グラ／VoiS（Feed 都能取到，但一次窗口里少女乐队命中率为 0/30、0/30、0/50、0/10、0/30，而框架没有“只保留命中关键词”的白名单过滤，收录只会灌入无关条目）、BARKS（10 条里命中 1 条，暂未收录）、イープラス等票务平台（列表由 JS 渲染，服务端 HTML 里没有条目链接）。x_search 需要 SOCIALDATA_API_KEY，未配置时整个 T1_5 官方社交层都收不到内容。hot_signal 源（はてなブックマーク／Reddit／Zepp・LOFT・CLUB CITTA' 场馆日程／イープラス）只做热度证据：它们不进分析队列（不花模型钱），公开页面的取数条件要求 participation_mode='editorial'，所以也不会单独出现在时间线上，只能作为事件热度或被 T1 官方源认领后的旁证。三项已知限制写在这里以免后人踩坑：①场馆日程的日期拆在多个标签里，publishedAt 一定是空，时间线只能回落到 discovered_at；②イープラス 走的是搜索页内嵌 JSON（/sf/search 在它的 robots.txt 里被明确 Disallow，是否采集由站主拍板），且受付时间是 14 位 YYYYMMDDHHMMSS，框架不认，同样没有 publishedAt，并需在后台错峰开关；③Reddit 匿名 IP 约每分钟只能请求一次，两条 Reddit 源必须错峰，否则后一条会拿到 429 并被退避到 6 小时。后台每个信源都能先预览再启用。 X 采集的落地方式（2026-10 决定）：不用需要 SOCIALDATA_API_KEY 的 x_search，改用 Nitter 镜像的按账号 RSS（kind=rss），再用 itemUrlPrefixRewrite 把镜像域名改写成 x.com，所以拿到的是可点击、可被 T1 认领的推文原链；summaryIsBody=true 是因为推文正文就在 RSS 的 description 里，不需要再抓页面。两条已实测可用的镜像是 nitter.kareem.one 与 nitter.meowing.monster（各 200、各 20 条），11 个账号在两个实例间轮流分配以分摊限流。镜子是志愿者实例，随时可能下线：挂掉时改 feedUrl 的域名和同一条的 itemUrlPrefixRewrite.from 即可（两处必须一致）。三条实测得到的运维常识：①镜像在密集请求下会偶发 HTTP 404，同一账号隔几分钟重试就恢复 200，手动补抓要留 25–30 秒间隔；②镜像条目里约 45% 是转推，标题带 “RT by @xxx:” 前缀、链接与 dc:creator 都指向原作者，所以官方账号会带进被它转推的其他账号（既包括官方兄弟账号，也包括粉丝号与周边店）——这与旧 x_search（同样的 -filter:replies 查询其实也含转推）行为一致，靠预筛和评分压掉，暂不额外过滤；③短于 280 字的推文会命中 rss.ts 里“摘要超过 280 字才算正文”的规则，落到 body_status=pending 并触发两次注定失败的正文抓取（x.com 抓不到），但摘要里已经是完整推文，判定不受影响，代价只是每条多等约 20 分钟。",
   "sources": [
     {
-      "id": "rss-openai-news",
-      "name": "OpenAI News",
-      "kind": "rss",
+      "id": "web-gbc-news",
+      "name": "GIRLS BAND CRY 官网 News",
+      "kind": "web_list",
       "config": {
-        "feedUrl": "https://openai.com/news/rss.xml",
+        "url": "https://girls-band-cry.com/news/",
+        "itemSelector": "ul.news-List li.item",
+        "linkSelector": "a",
+        "titleSelector": "div.ttl",
+        "publishedAtSelector": "time.time",
+        "publishedAtUtcOffset": "+09:00",
         "_aihot": {
-          "initialBackfillLimit": 8
+          "initialBackfillLimit": 10
         }
       },
       "tier": "T1",
-      "owner_entity_id": "openai",
+      "owner_entity_id": "girls-band-cry",
+      "participation_mode": "editorial",
+      "interval_minutes": 90,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "web-kessoku-band-info",
+      "name": "結束バンド 官网 INFO",
+      "kind": "web_list",
+      "config": {
+        "url": "https://bocchi.rocks/kessokuband/info/",
+        "itemSelector": "ul.info__list > li.info__list__item",
+        "linkSelector": "a.c-ico",
+        "titleSelector": "p.info__list__cont span",
+        "publishedAtSelector": "time",
+        "publishedAtUtcOffset": "+09:00",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1",
+      "owner_entity_id": "kessoku-band",
       "participation_mode": "editorial",
       "interval_minutes": 120,
       "tags": [
@@ -22,17 +52,94 @@
       "syndicate_fulltext": false
     },
     {
-      "id": "rss-google-deepmind",
-      "name": "Google DeepMind",
-      "kind": "rss",
+      "id": "web-bang-dream-news",
+      "name": "BanG Dream! 官网 News",
+      "kind": "web_list",
       "config": {
-        "feedUrl": "https://deepmind.google/blog/rss.xml",
+        "url": "https://bang-dream.com/news/",
+        "itemSelector": "article.p-news-list__item",
+        "linkSelector": "a.p-news-list__item-link",
+        "titleSelector": "h3.p-news-list__item-title",
+        "publishedAtSelector": "div.p-news-list__item-date",
+        "publishedAtUtcOffset": "+09:00",
         "_aihot": {
-          "initialBackfillLimit": 8
+          "initialBackfillLimit": 20
         }
       },
       "tier": "T1",
-      "owner_entity_id": "google",
+      "owner_entity_id": "bang-dream",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-togenashi-togeari",
+      "name": "トゲナシトゲアリ（UNIVERSAL MUSIC JAPAN）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.universal-music.co.jp/togenashitogeari/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 15
+        }
+      },
+      "tier": "T1",
+      "owner_entity_id": "togenashi-togeari",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-girlsbandcry",
+      "name": "GIRLS BAND CRY 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.kareem.one/girlsbandcry/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.kareem.one/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "girls-band-cry",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-gbc-firstriff",
+      "name": "ガールズバンドクライ ゲーム 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/gbc_firstriff/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "girls-band-cry",
       "participation_mode": "editorial",
       "interval_minutes": 120,
       "tags": [
@@ -42,326 +149,491 @@
       "syndicate_fulltext": false
     },
     {
-      "id": "rss-google-research",
-      "name": "Google Research",
+      "id": "rss-nitter-bang-dream-info",
+      "name": "BanG Dream! 企划 官方 X",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://research.google/blog/rss/",
+        "feedUrl": "https://nitter.kareem.one/bang_dream_info/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.kareem.one/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
         "_aihot": {
-          "initialBackfillLimit": 8
+          "initialBackfillLimit": 5
         }
       },
-      "tier": "T1",
-      "owner_entity_id": "google",
+      "tier": "T1_5",
+      "owner_entity_id": "bang-dream",
+      "participation_mode": "editorial",
+      "interval_minutes": 45,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-bang-dream-mygo",
+      "name": "MyGO!!!!! 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/bang_dream_mygo/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mygo",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-bdp-avemujica",
+      "name": "Ave Mujica 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.kareem.one/BDP_AveMujica/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.kareem.one/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "ave-mujica",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-btr-anime",
+      "name": "ぼっち・ざ・ろっく！ 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/BTR_anime/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "kessoku-band",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-rina-togetoge",
+      "name": "理名（トゲナシトゲアリ Vo）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.kareem.one/rina_togetoge/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.kareem.one/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "togenashi-togeari",
       "participation_mode": "editorial",
       "interval_minutes": 120,
       "tags": [
         "官方",
-        "研究"
+        "成员"
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false
     },
     {
-      "id": "rss-hugging-face",
-      "name": "Hugging Face Blog",
+      "id": "rss-nitter-yuri-togetoge",
+      "name": "夕莉（トゲナシトゲアリ Gt）X",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://huggingface.co/blog/feed.xml",
+        "feedUrl": "https://nitter.meowing.monster/yuri_togetoge/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
         "_aihot": {
-          "initialBackfillLimit": 8
+          "initialBackfillLimit": 5
         }
       },
-      "tier": "T1",
-      "owner_entity_id": "hugging-face",
+      "tier": "T1_5",
+      "owner_entity_id": "togenashi-togeari",
       "participation_mode": "editorial",
       "interval_minutes": 120,
       "tags": [
         "官方",
-        "开源"
+        "成员"
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false
     },
     {
-      "id": "rss-microsoft-research",
-      "name": "Microsoft Research",
+      "id": "rss-nitter-mirei-togetoge",
+      "name": "美怜（トゲナシトゲアリ Dr）X",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://www.microsoft.com/en-us/research/feed/",
+        "feedUrl": "https://nitter.kareem.one/mirei_togetoge/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.kareem.one/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
         "_aihot": {
-          "initialBackfillLimit": 8
+          "initialBackfillLimit": 5
         }
       },
-      "tier": "T1",
-      "owner_entity_id": "microsoft",
+      "tier": "T1_5",
+      "owner_entity_id": "togenashi-togeari",
       "participation_mode": "editorial",
       "interval_minutes": 120,
       "tags": [
         "官方",
-        "研究"
+        "成员"
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false
     },
     {
-      "id": "rss-nvidia-blog",
-      "name": "NVIDIA Blog",
+      "id": "rss-nitter-natsu-togetoge",
+      "name": "凪都（トゲナシトゲアリ Key）X",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://blogs.nvidia.com/feed/",
+        "feedUrl": "https://nitter.meowing.monster/natsu_togetoge/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
         "_aihot": {
-          "initialBackfillLimit": 8
+          "initialBackfillLimit": 5
         }
       },
-      "tier": "T1",
-      "owner_entity_id": "nvidia",
-      "participation_mode": "editorial",
-      "interval_minutes": 120,
-      "tags": [
-        "官方"
-      ],
-      "site_fulltext": false,
-      "syndicate_fulltext": false
-    },
-    {
-      "id": "rss-aws-ml",
-      "name": "AWS Machine Learning Blog",
-      "kind": "rss",
-      "config": {
-        "feedUrl": "https://aws.amazon.com/blogs/machine-learning/feed/",
-        "_aihot": {
-          "initialBackfillLimit": 8
-        }
-      },
-      "tier": "T1",
-      "owner_entity_id": null,
+      "tier": "T1_5",
+      "owner_entity_id": "togenashi-togeari",
       "participation_mode": "editorial",
       "interval_minutes": 120,
       "tags": [
         "官方",
-        "教程"
+        "成员"
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false
     },
     {
-      "id": "rss-github-ai",
-      "name": "GitHub Blog · AI & ML",
+      "id": "rss-nitter-shuri-togetoge",
+      "name": "朱李（トゲナシトゲアリ Ba）X",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://github.blog/ai-and-ml/feed/",
+        "feedUrl": "https://nitter.kareem.one/shuri_togetoge/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.kareem.one/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
         "_aihot": {
-          "initialBackfillLimit": 8
+          "initialBackfillLimit": 5
         }
       },
-      "tier": "T1",
-      "owner_entity_id": null,
+      "tier": "T1_5",
+      "owner_entity_id": "togenashi-togeari",
       "participation_mode": "editorial",
       "interval_minutes": 120,
       "tags": [
-        "官方"
+        "官方",
+        "成员"
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false
     },
     {
-      "id": "rss-mistral",
-      "name": "Mistral AI",
+      "id": "rss-lisani",
+      "name": "リスアニ！",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://mistral.ai/rss.xml",
+        "feedUrl": "https://www.lisani.jp/feed/",
         "_aihot": {
           "initialBackfillLimit": 8
         }
       },
-      "tier": "T1",
-      "owner_entity_id": null,
-      "participation_mode": "editorial",
-      "interval_minutes": 120,
-      "tags": [
-        "官方"
-      ],
-      "site_fulltext": false,
-      "syndicate_fulltext": false
-    },
-    {
-      "id": "rss-bair",
-      "name": "Berkeley AI Research",
-      "kind": "rss",
-      "config": {
-        "feedUrl": "https://bair.berkeley.edu/blog/feed.xml",
-        "_aihot": {
-          "initialBackfillLimit": 8
-        }
-      },
-      "tier": "T1",
+      "tier": "T2",
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 180,
       "tags": [
-        "研究"
-      ],
-      "site_fulltext": false,
-      "syndicate_fulltext": false
-    },
-    {
-      "id": "rss-the-verge-ai",
-      "name": "The Verge · AI",
-      "kind": "rss",
-      "config": {
-        "feedUrl": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
-        "_aihot": {
-          "initialBackfillLimit": 8
-        }
-      },
-      "tier": "T2",
-      "owner_entity_id": null,
-      "participation_mode": "editorial",
-      "interval_minutes": 60,
-      "tags": [
         "媒体"
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false
     },
     {
-      "id": "rss-techcrunch-ai",
-      "name": "TechCrunch · AI",
-      "kind": "rss",
+      "id": "web-gbc-firstriff-news",
+      "name": "ガールズバンドクライ First Riff 官网 News",
+      "kind": "web_list",
       "config": {
-        "feedUrl": "https://techcrunch.com/category/artificial-intelligence/feed/",
+        "url": "https://gbc-firstriff.com/news/",
+        "itemSelector": "li.c-news-item",
+        "linkSelector": "a.c-news-item__inner",
+        "titleSelector": "span.c-news-item__title",
+        "publishedAtSelector": "span.c-news-item__date",
+        "publishedAtUtcOffset": "+09:00",
         "_aihot": {
-          "initialBackfillLimit": 8
+          "initialBackfillLimit": 10
         }
       },
-      "tier": "T2",
-      "owner_entity_id": null,
-      "participation_mode": "editorial",
-      "interval_minutes": 60,
-      "tags": [
-        "媒体"
-      ],
-      "site_fulltext": false,
-      "syndicate_fulltext": false
-    },
-    {
-      "id": "rss-ars-technica-ai",
-      "name": "Ars Technica · AI",
-      "kind": "rss",
-      "config": {
-        "feedUrl": "https://arstechnica.com/ai/feed/",
-        "_aihot": {
-          "initialBackfillLimit": 8
-        }
-      },
-      "tier": "T2",
-      "owner_entity_id": null,
-      "participation_mode": "editorial",
-      "interval_minutes": 60,
-      "tags": [
-        "媒体"
-      ],
-      "site_fulltext": false,
-      "syndicate_fulltext": false
-    },
-    {
-      "id": "rss-mit-tech-review-ai",
-      "name": "MIT Technology Review · AI",
-      "kind": "rss",
-      "config": {
-        "feedUrl": "https://www.technologyreview.com/topic/artificial-intelligence/feed",
-        "_aihot": {
-          "initialBackfillLimit": 8
-        }
-      },
-      "tier": "T2",
-      "owner_entity_id": null,
+      "tier": "T1",
+      "owner_entity_id": "girls-band-cry",
       "participation_mode": "editorial",
       "interval_minutes": 120,
       "tags": [
-        "媒体"
+        "官方"
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false
     },
     {
-      "id": "rss-the-decoder",
-      "name": "The Decoder",
+      "id": "rss-anime-yumemita",
+      "name": "TVアニメ「バンドリ！ ゆめ∞みた」官网",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://the-decoder.com/feed/",
+        "feedUrl": "https://anime.bang-dream.com/yumemita/feed/",
         "_aihot": {
-          "initialBackfillLimit": 8
+          "initialBackfillLimit": 10
         }
       },
-      "tier": "T2",
-      "owner_entity_id": null,
-      "participation_mode": "editorial",
-      "interval_minutes": 60,
-      "tags": [
-        "媒体"
-      ],
-      "site_fulltext": false,
-      "syndicate_fulltext": false
-    },
-    {
-      "id": "rss-simon-willison",
-      "name": "Simon Willison",
-      "kind": "rss",
-      "config": {
-        "feedUrl": "https://simonwillison.net/atom/everything/",
-        "_aihot": {
-          "initialBackfillLimit": 8
-        }
-      },
-      "tier": "T2",
-      "owner_entity_id": null,
-      "participation_mode": "editorial",
-      "interval_minutes": 120,
-      "tags": [
-        "个人"
-      ],
-      "site_fulltext": false,
-      "syndicate_fulltext": false
-    },
-    {
-      "id": "rss-import-ai",
-      "name": "Import AI",
-      "kind": "rss",
-      "config": {
-        "feedUrl": "https://importai.substack.com/feed",
-        "_aihot": {
-          "initialBackfillLimit": 8
-        }
-      },
-      "tier": "T2",
-      "owner_entity_id": null,
+      "tier": "T1",
+      "owner_entity_id": "mugendai-mewtype",
       "participation_mode": "editorial",
       "interval_minutes": 180,
       "tags": [
-        "个人",
-        "周刊"
+        "官方"
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false
     },
     {
-      "id": "rss-latent-space",
-      "name": "Latent Space",
+      "id": "rss-hatena-togetoge-text",
+      "name": "はてなブックマーク「トゲナシトゲアリ」",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://www.latent.space/feed",
+        "feedUrl": "https://b.hatena.ne.jp/search/text?q=%E3%83%88%E3%82%B2%E3%83%8A%E3%82%B7%E3%83%88%E3%82%B2%E3%82%A2%E3%83%AA&mode=rss",
         "_aihot": {
-          "initialBackfillLimit": 8
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "owner_entity_id": "togenashi-togeari",
+      "participation_mode": "hot_signal",
+      "interval_minutes": 180,
+      "tags": [
+        "热点信号"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-hatena-gbc-tag",
+      "name": "はてなブックマーク「ガールズバンドクライ」",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://b.hatena.ne.jp/search/tag?q=%E3%82%AC%E3%83%BC%E3%83%AB%E3%82%BA%E3%83%90%E3%83%B3%E3%83%89%E3%82%AF%E3%83%A9%E3%82%A4&mode=rss",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "owner_entity_id": "girls-band-cry",
+      "participation_mode": "hot_signal",
+      "interval_minutes": 180,
+      "tags": [
+        "热点信号"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-reddit-girlsbandcry",
+      "name": "Reddit r/GirlsBandCry",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.reddit.com/r/GirlsBandCry/new/.rss",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "owner_entity_id": "girls-band-cry",
+      "participation_mode": "hot_signal",
+      "interval_minutes": 180,
+      "tags": [
+        "热点信号"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-reddit-banddream",
+      "name": "Reddit r/BanGDream",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.reddit.com/r/BanGDream/new/.rss",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "owner_entity_id": "bang-dream",
+      "participation_mode": "hot_signal",
+      "interval_minutes": 180,
+      "tags": [
+        "热点信号"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "web-zepp-haneda-schedule",
+      "name": "Zepp Haneda スケジュール",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.zepp.co.jp/hall/haneda/schedule",
+        "itemSelector": "a.sch-content",
+        "linkSelector": "a.sch-content",
+        "titleSelector": "h3.sch-content-text__ttl",
+        "publishedAtSelector": ".sch-content-date",
+        "publishedAtUtcOffset": "+09:00",
+        "_aihot": {
+          "initialBackfillLimit": 10
         }
       },
       "tier": "T2",
       "owner_entity_id": null,
-      "participation_mode": "editorial",
+      "participation_mode": "hot_signal",
       "interval_minutes": 180,
       "tags": [
-        "个人"
+        "热点信号"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "web-loft-shinjuku-schedule",
+      "name": "新宿LOFT スケジュール",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.loft-prj.co.jp/schedule/loft",
+        "itemSelector": "#schedule_list .list > .column",
+        "linkSelector": "a",
+        "titleSelector": ".c_title",
+        "publishedAtSelector": "time",
+        "publishedAtUtcOffset": "+09:00",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "owner_entity_id": null,
+      "participation_mode": "hot_signal",
+      "interval_minutes": 180,
+      "tags": [
+        "热点信号"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "web-clubcitta-schedule",
+      "name": "CLUB CITTA' スケジュール",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.clubcitta.co.jp/schedule/",
+        "itemSelector": ".schedule_list .item",
+        "linkSelector": "a",
+        "titleSelector": "h3",
+        "publishedAtSelector": ".item_detail > p",
+        "publishedAtUtcOffset": "+09:00",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "owner_entity_id": null,
+      "participation_mode": "hot_signal",
+      "interval_minutes": 180,
+      "tags": [
+        "热点信号"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "json-eplus-togetoge-search",
+      "name": "イープラス「トゲナシトゲアリ」公演検索",
+      "kind": "json_list",
+      "config": {
+        "url": "https://eplus.jp/sf/search?keyword=%E3%83%88%E3%82%B2%E3%83%8A%E3%82%B7%E3%83%88%E3%82%B2%E3%82%A2%E3%83%AA",
+        "mode": "html_json_key",
+        "jsonKey": "record_list",
+        "titlePaths": [
+          "kanren_kogyo_sub.kogyo_name_1"
+        ],
+        "summaryPaths": [
+          "koenbi_hyoji_mongon",
+          "kanren_venue.venue_name"
+        ],
+        "urlTemplate": "https://eplus.jp{raw:koen_detail_url_pc}",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "owner_entity_id": "togenashi-togeari",
+      "participation_mode": "hot_signal",
+      "interval_minutes": 180,
+      "tags": [
+        "热点信号",
+        "票务"
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false

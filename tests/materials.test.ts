@@ -113,23 +113,23 @@ test("simultaneous first reports of one URL create one article", async () => {
 });
 
 test("another source listing the same article records a discovery, not a revision", async () => {
-  // Hacker News：AI 热帖 lists the English title, the buzzing.cc mirror a Chinese translation.
+  // A Japanese listing (5ch：ライブ速報) gives the Japanese title, the buzzing.cc mirror a Chinese translation.
   const url = `https://example.com/listed-twice-${tag()}`;
-  const own = await upsertMaterial({ sourceId: SOURCE, url, title: "One month without AI", excerpt: "own summary", via: "fetch" });
+  const own = await upsertMaterial({ sourceId: SOURCE, url, title: "Togenashi Togeari announces a new live", excerpt: "own summary", via: "fetch" });
   for (let i = 0; i < 3; i++) {
-    const mirror = await upsertMaterial({ sourceId: OTHER, url, title: "没有AI的一个月", excerpt: "译文摘要", via: "fetch" });
+    const mirror = await upsertMaterial({ sourceId: OTHER, url, title: "トゲナシトゲアリ 新 Live 公布", excerpt: "译文摘要", via: "fetch" });
     assert.deepEqual([mirror.articleId, mirror.revised], [own.articleId, false]);
-    assert.equal((await upsertMaterial({ sourceId: SOURCE, url, title: "One month without AI", excerpt: "own summary", via: "fetch" })).revised, false);
+    assert.equal((await upsertMaterial({ sourceId: SOURCE, url, title: "Togenashi Togeari announces a new live", excerpt: "own summary", via: "fetch" })).revised, false);
   }
   const a = await state(own.articleId);
-  assert.deepEqual([a.revision, a.title], [1, "One month without AI"]);
+  assert.deepEqual([a.revision, a.title], [1, "Togenashi Togeari announces a new live"]);
   const found = await sql<{ source_id: string }[]>`SELECT source_id FROM article_discoveries WHERE article_id = ${own.articleId}`;
   assert.ok(found.some((d) => d.source_id === OTHER), "the other source still counts as a discovery");
 });
 
 test("an article linking to a tweet is stored separately from the tweet", async () => {
   const tweetId = `${Date.now()}123456`;
-  const url = `https://x.com/openai/status/${tweetId}`;
+  const url = `https://x.com/togenashitogeari/status/${tweetId}`;
   const tweet = await upsertMaterial({ sourceId: SOURCE, url, title: "Original tweet", via: "fetch" });
   const article = await upsertMaterial({
     sourceId: OTHER, url: `https://example.com/report-${tag()}?related=${url}`, title: "Independent report", via: "fetch",
@@ -139,7 +139,7 @@ test("an article linking to a tweet is stored separately from the tweet", async 
   assert.equal((await state(tweet.articleId)).title, "Original tweet");
   assert.equal((await state(article.articleId)).title, "Independent report");
   const alias = await upsertMaterial({
-    sourceId: OTHER, url: `https://twitter.com/openai/status/${tweetId}`, title: "Tweet alias", via: "fetch",
+    sourceId: OTHER, url: `https://twitter.com/togenashitogeari/status/${tweetId}`, title: "Tweet alias", via: "fetch",
   });
   assert.equal(alias.created, false);
   assert.equal(alias.articleId, tweet.articleId);
@@ -157,10 +157,10 @@ test("another source reporting an imported article first does not set its baseli
 });
 
 test("a return to an earlier version is not a revision", async () => {
-  // One listing with two cards for one post ("Company Mistral and Mozilla…" / "Mistral and Mozilla…").
+  // One listing with two cards for one post ("出演 トゲナシトゲアリ 8th ONE-MAN LIVE…" / "トゲナシトゲアリ 8th ONE-MAN LIVE…").
   const url = `https://example.com/two-cards-${tag()}`;
-  const a = { sourceId: SOURCE, url, title: "Company Mistral and Mozilla", excerpt: "card", via: "fetch" as const };
-  const b = { ...a, title: "Mistral and Mozilla" };
+  const a = { sourceId: SOURCE, url, title: "出演 トゲナシトゲアリ 8th ONE-MAN LIVE『凛音の理』", excerpt: "card", via: "fetch" as const };
+  const b = { ...a, title: "トゲナシトゲアリ 8th ONE-MAN LIVE『凛音の理』" };
   const first = await upsertMaterial(a);
   assert.equal((await upsertMaterial(b)).revised, true, "a version not seen before is a revision");
   await sql`UPDATE articles SET processing_state = 'analyzed' WHERE id = ${first.articleId}`;
@@ -169,8 +169,8 @@ test("a return to an earlier version is not a revision", async () => {
     assert.equal((await upsertMaterial(b)).revised, false, "and to the current one again");
   }
   const s = await state(first.articleId);
-  assert.deepEqual([s.revision, s.title, s.processing_state], [2, "Mistral and Mozilla", "analyzed"], "nothing to analyse or publish again");
-  assert.equal((await upsertMaterial({ ...a, title: "Mistral and Mozilla, updated" })).revised, true, "a new version still is");
+  assert.deepEqual([s.revision, s.title, s.processing_state], [2, "トゲナシトゲアリ 8th ONE-MAN LIVE『凛音の理』", "analyzed"], "nothing to analyse or publish again");
+  assert.equal((await upsertMaterial({ ...a, title: "トゲナシトゲアリ 8th ONE-MAN LIVE『凛音の理』開催決定" })).revised, true, "a new version still is");
   assert.equal((await state(first.articleId)).revision, 3);
 });
 
@@ -186,20 +186,20 @@ test("an imported article that returns to its baseline is not revised again", as
 });
 
 test("characters lost in transit are no revision, lost or restored", async () => {
-  // A feed that garbles a few characters at random on every load: the 盖 of 覆盖 arrives as two U+FFFD, a ， as three.
+  // A feed that garbles a few characters at random on every load: the 覆 of 覆盖 arrives as two U+FFFD, a ， as three.
   const url = `https://example.com/garbled-${tag()}`;
-  const excerpt = "新旗舰店覆盖的产品范围更广，包括内衣、家居服、运动服饰、香水及身体护理。";
-  const clean = { sourceId: SOURCE, url, title: "维密重回上海淮海路，中国市场进入扩店阶段", excerpt, via: "fetch" as const };
+  const excerpt = "新 Live 的演出曲目覆盖了首张专辑的全部歌曲，包括「名前のない歌」与「空の箱」。";
+  const clean = { sourceId: SOURCE, url, title: "トゲナシトゲアリ 8th ONE-MAN LIVE『凛音の理』開催決定", excerpt, via: "fetch" as const };
   const lost = (s: string, from: string, n: number) => s.replace(from, "\uFFFD".repeat(n));
   const garbled = [
-    { ...clean, excerpt: lost(excerpt, "盖", 2) },
+    { ...clean, excerpt: lost(excerpt, "覆", 2) },
     { ...clean, excerpt: lost(excerpt, "，", 3) },
-    { ...clean, title: lost(clean.title, "淮", 2), excerpt: lost(excerpt, "衣", 1) },
+    { ...clean, title: lost(clean.title, "凛", 2), excerpt: lost(excerpt, "曲", 1) },
   ];
   const first = await upsertMaterial(garbled[0]!);
   for (const report of [clean, ...garbled, clean]) assert.equal((await upsertMaterial(report)).revised, false);
   assert.equal((await state(first.articleId)).revision, 1);
-  const edited = (r: typeof clean) => ({ ...r, excerpt: r.excerpt.replace("香水", "美妆") });
+  const edited = (r: typeof clean) => ({ ...r, excerpt: r.excerpt.replace("专辑", "单曲") });
   assert.equal((await upsertMaterial(edited(garbled[1]!))).revised, true, "a real change is one, lost characters or not");
   for (const report of [edited(clean), edited(garbled[2]!)]) assert.equal((await upsertMaterial(report)).revised, false);
   assert.equal((await state(first.articleId)).revision, 2);

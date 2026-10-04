@@ -12,7 +12,7 @@ const sourceId = `analysis-consistency-${tag()}`;
 let hold: { entered: ReturnType<typeof gate<void>>; release: ReturnType<typeof gate<void>> } | null = null;
 const provider = await stub(async (_hit, request) => {
   const system = String(JSON.parse(request.body).messages[0]?.content ?? "");
-  const prefilter = system.includes("宽召回的AI相关性预筛");
+  const prefilter = system.includes("宽召回的行业相关性预筛");
   if (prefilter && hold) {
     const waiting = hold;
     waiting.entered.open();
@@ -20,8 +20,8 @@ const provider = await stub(async (_hit, request) => {
   }
   const content = prefilter ? { label: "PASS", reason: "local fixture" }
     : system.includes("事件注意力评分器") ? { attentionScore: 80 }
-    : system.includes("资料结构化助手") ? { category: "ai-models", tags: [], subjects: [], scope: "single", fact: null }
-    : { itemType: "model_release", authorRole: "principal", tags: ["模型发布"], editorialJudgment: "模型能力提升", titleZh: "实验室发布新模型", summaryZh: "实验室发布新模型，并公布了评测结果与价格。" };
+    : system.includes("资料结构化助手") ? { category: "live", tags: [], subjects: [], scope: "single", fact: null }
+    : { itemType: "live_announcement", authorRole: "principal", tags: ["新 Live"], editorialJudgment: "Live 情报明确", titleZh: "乐队公布新巡演", summaryZh: "乐队公布新巡演，并给出了日程与会场。" };
   return { choices: [{ message: { content: JSON.stringify(content) } }] };
 });
 for (const name of ["DASHSCOPE_BASE_URL", "ZHIPU_BASE_URL", "DEEPSEEK_BASE_URL"]) process.env[name] = `${provider.url}/v1`;
@@ -32,8 +32,8 @@ before(async () => {
 });
 after(async () => { await stopBoss(); await provider.close(); await closeDb(); });
 
-const material = (name: string) => ({ sourceId, url: `https://example.org/${sourceId}/${name}`, title: `A lab releases a model ${name}`,
-  bodyText: `A lab released a model ${name}. ` + "The release includes benchmark results and pricing details. ".repeat(12),
+const material = (name: string) => ({ sourceId, url: `https://example.org/${sourceId}/${name}`, title: `A band announces a live tour ${name}`,
+  bodyText: `A band announced a live tour ${name}. ` + "The announcement includes ticket details and a venue list. ".repeat(12),
   bodyStatus: "ok" as const, via: "fetch" as const, publishedAt: new Date() });
 
 test("a late successful analysis preserves newer input awaiting processing", async () => {
@@ -44,7 +44,7 @@ test("a late successful analysis preserves newer input awaiting processing", asy
   const pending = processArticle(articleId);
   await waiting.entered.promise;
   try {
-    const revised = await upsertMaterial({ ...input, title: "The lab corrects the release", bodyText: "Corrected benchmark and pricing details. ".repeat(12) });
+    const revised = await upsertMaterial({ ...input, title: "The band corrects the announcement", bodyText: "Corrected ticket and venue details. ".repeat(12) });
     assert.equal(revised.revised, true);
   } finally {
     hold = null;

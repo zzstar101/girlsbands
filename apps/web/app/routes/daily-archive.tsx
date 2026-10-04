@@ -11,7 +11,7 @@ import { Rows, SectionPage } from "../features/report/ReportPaper";
 import { Nameplate } from "../features/report/Nameplate";
 import type { Screen } from "../components/shell/screens";
 
-export const handle: Screen = { tab: "daily", name: "往期" };
+export const handle: Screen = { home: "featured", name: "往期" };
 
 export async function loader({ request }: { request: Request }) {
   const { items: index } = await apiGet<ReportIndexResponse>("/api/site/reports/daily", { signal: request.signal });

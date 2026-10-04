@@ -5,7 +5,7 @@ import { toPublicApiCategory } from "@aihot/contracts/taxonomy";
 import { SITE } from "@aihot/industry/site";
 import { one, sql, type Tx } from "../db.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
-import { collapseWhitespace } from "../lib/text.ts";
+import { collapseWhitespace, looksChinese } from "../lib/text.ts";
 import { itemUrl } from "./links.ts";
 import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "./representative.ts";
 import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
@@ -242,7 +242,7 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   const now = options.now ?? new Date();
 
   const f = override?.fields ?? {};
-  const isChineseTitle = article.language === "zh" || /[一-鿿]/.test(article.title);
+  const isChineseTitle = article.language === "zh" || looksChinese(article.title);
   // An X post carries its Chinese in the summary and translation; without a Chinese title its own
   // text is the title, where an article would still be a half-finished card.
   const zhTitle = analysis?.title_zh?.trim() ? analysis.title_zh : null;

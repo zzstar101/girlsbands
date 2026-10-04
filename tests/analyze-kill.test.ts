@@ -20,7 +20,7 @@ let holdPrefilter: { asked: ReturnType<typeof gate<void>>; answer: ReturnType<ty
 const provider = await stub(async (_hit, request) => {
   const body = JSON.parse(request.body);
   const system = String(body.messages[0]?.content ?? "");
-  const step: Step = system.includes("宽召回的AI相关性预筛") ? "prefilter"
+  const step: Step = system.includes("宽召回的行业相关性预筛") ? "prefilter"
     : system.includes("事件注意力评分器") ? "score" : system.includes("资料结构化助手") ? "structure" : "understand";
   calls.push(step);
   if (step === "prefilter" && holdPrefilter) {
@@ -28,10 +28,10 @@ const provider = await stub(async (_hit, request) => {
     held.asked.open();
     await held.answer.promise;
   }
-  const content = step === "prefilter" ? { label: "PASS", reason: "AI model release" }
+  const content = step === "prefilter" ? { label: "PASS", reason: "band live announcement" }
     : step === "score" ? { attentionScore: 80 }
-      : step === "structure" ? { category: "ai-models", tags: ["模型发布"], subjects: [], fact: { title: "新模型发布" } }
-        : { itemType: "model_release", authorRole: "principal", tags: ["模型发布"], editorialJudgment: "模型有明确的能力提升", titleZh: `新模型发布 ${T}`, summaryZh: "模型发布并提供了评测和价格。" };
+      : step === "structure" ? { category: "live", tags: ["新 Live"], subjects: [], fact: { title: "新 Live 公布" } }
+        : { itemType: "live_announcement", authorRole: "principal", tags: ["新 Live"], editorialJudgment: "Live 情报明确", titleZh: `新 Live 公布 ${T}`, summaryZh: "Live 公布并提供了票务与日程。" };
   return { id: `stub-${calls.length}`, choices: [{ message: { content: JSON.stringify(content) } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
 });
 
@@ -100,8 +100,8 @@ async function kill(running: ReturnType<typeof worker>) {
 
 async function article(scenario: string) {
   const { articleId } = await upsertMaterial({
-    sourceId: SOURCE, url: `https://example.org/analyze-kill-${T}/${scenario}`, title: `AI model release ${T} ${scenario}`,
-    bodyText: `An AI lab released a new model with benchmarks and prices. ${T} ${scenario} ` + "The release explains model capabilities and evaluation results. ".repeat(10),
+    sourceId: SOURCE, url: `https://example.org/analyze-kill-${T}/${scenario}`, title: `Band live announcement ${T} ${scenario}`,
+    bodyText: `A band announced a new live tour with ticket and venue details. ${T} ${scenario} ` + "The announcement explains ticket and venue details. ".repeat(10),
     bodyStatus: "ok", language: "en", via: "fetch", publishedAt: new Date(),
   });
   return articleId;

@@ -34,7 +34,7 @@ flowchart LR
 - **规则由所属模块维护**：后台调用内容、事件、通知与恢复模块，不直接改写它们的状态；业务模块不反过来依赖后台。人工修改、公开结果与恢复所需记录一起提交。
 - **跨进程接口共享类型**：后台接口以 `packages/contracts/src/admin.ts` 为准，任务载荷以 `jobs/queue.ts` 的 `JobData` 为准，发送方和接收方一起检查。前端仍只通过 HTTP 访问后端。
 
-这些模块边界由 `tests/architecture.test.ts` 检查；调整边界时同时更新约定与检查。后续移植保留 `industry/` 的站点身份、行业分类、提示词和可选模块，不能用某个部署的固定配置替代。
+这些模块边界由 `tests/architecture.test.ts` 检查；调整边界时同时更新约定与检查。后续移植保留 `industry/` 的站点身份、行业分类和提示词，不能用某个部署的固定配置替代。
 
 ## 目录
 
@@ -49,9 +49,9 @@ flowchart LR
 | `packages/backend/src/reports/` | 日报、周报、月报 |
 | `packages/backend/src/providers/` | 模型、向量、X、公众号、Jina 的调用，回执与预算 |
 | `packages/backend/src/notify/` | 飞书推送 |
-| `packages/backend/src/operations/` | 告警、备份、清理、IndexNow |
+| `packages/backend/src/subscriptions/` | 邮件订阅：订阅者存取（`store.ts`）、发信（`send.ts`）、信件内容（`content.ts`）、两个定时任务（`notify.ts`） |
+| `packages/backend/src/operations/` | 告警、备份、清理、IndexNow、公开接口的来源指纹与限速（`abuse.ts`） |
 | `packages/backend/src/admin/` | 后台接口 |
-| `packages/backend/src/leaderboard/`、`monitor/` | 模型榜、Codex 重置监控（见 [模型榜与 Codex 重置监控](leaderboard.md)） |
 | `apps/web/app/routes/` | 每个页面一个文件，`routes.ts` 是路由表 |
 | `database/migrations/` | 数据库迁移，按编号顺序执行 |
 | `scripts/` | 初始化、迁移、种子数据、评测、检查脚本 |
@@ -61,10 +61,11 @@ flowchart LR
 
 | 地址 | 内容 |
 |---|---|
-| `/` `/all` `/hot` `/topics` `/daily` `/weekly` `/monthly` | 精选、全部动态、热门事件、主题、日报周报月报 |
+| `/` `/all` `/hot` `/deadlines` `/topics` `/daily` `/weekly` `/monthly` | 精选、全部动态、热门事件、截止雷达、主题、日报周报月报 |
 | `/feed.xml` `/feed/full.xml` `/feed/all.xml` `/feed/daily.xml` `/feed/weekly.xml` `/feed/monthly.xml` | RSS：精选、精选全文、全部、日报、周报、月报；另有按分类的 `/feed/category/<key>.xml` |
 | `/api/v1/` | 公开 API，文档在 `/openapi-v1.json`；给 Agent 读的 Markdown 从 `/api/v1/agent` 开始；说明页在 `/agent` |
-| `/api/mcp` | MCP 服务：最新、搜索、热点、事件、日报、周报、月报各一个工具（开着 Codex 重置监控时再加一个），工具名前缀是 `industry/site.ts` 的 `mcpPrefix` |
+| `/api/mcp` | MCP 服务：最新、搜索、热点、事件、日报、周报、月报各一个工具，工具名前缀是 `industry/site.ts` 的 `mcpPrefix` |
+| `/subscribe` `/subscribe/confirmed` `/subscribe/manage` | 邮件订阅：订阅、确认结果、改偏好与退订（后两个 `noindex`） |
 | `/llms.txt` `/sitemap.xml` `/robots.txt` | 给大模型和搜索引擎的说明 |
 | `/admin` | 后台 |
 

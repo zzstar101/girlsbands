@@ -5,9 +5,12 @@
 // no model calls; offline replay imports the same functions.
 import type { CategoryKey } from "@aihot/contracts/taxonomy";
 import type { TopicEvent, TopicGroupKey, TopicKind, TopicMilestoneKind, TopicMonth } from "@aihot/contracts/site";
+import { tracksAsSubject } from "@aihot/contracts/site";
 import { beijingDate } from "@aihot/contracts/time";
 import { CHRONICLE } from "@aihot/industry/chronicle";
 import { ENTITIES, entityIdentity, isRelease } from "../editorial/vocabulary.ts";
+
+export { tracksAsSubject };
 
 export interface ChronicleTopic {
   slug: string;
@@ -15,7 +18,7 @@ export interface ChronicleTopic {
   entityId: string | null;
   /** Directions: words a milestone's title must use to be about the direction (industry/topics.json). */
   terms: RegExp | null;
-  /** Companies: the names its own announcements open with, understood on its page. */
+  /** Subjects: the names its own announcements open with, understood on its page. */
   orgNames: string[];
 }
 
@@ -99,20 +102,20 @@ function ownNews(entity: string, r: ChronicleReport): boolean {
   return tags.length === 1 && tags[0] === `entity:${entity}`;
 }
 
-/** What the topic's pages ask of a kind: a company's, or the rest of the topics'; none when they do not take it. */
+/** What the topic's pages ask of a kind: a subject's, or the rest of the topics'; none when they do not take it. */
 const kindRules = (t: ChronicleTopic, kind: TopicMilestoneKind) =>
-  t.group === "company" ? CHRONICLE.kinds[kind]?.company : CHRONICLE.kinds[kind]?.other;
+  tracksAsSubject(t.group) ? CHRONICLE.kinds[kind]?.company : CHRONICLE.kinds[kind]?.other;
 
 /**
  * What the report is to the topic, or null when it is no milestone of it whatever its score: a kind the
- * topic's pages take; on a company's page its own launch or its own news; on a direction's page a title
+ * topic's pages take; on a subject's page its own launch or its own news; on a direction's page a title
  * naming the direction; on a form's page a kind the form takes.
  */
 function milestoneKind(t: ChronicleTopic, r: ChronicleReport): TopicMilestoneKind | null {
   if (!r.topicSlugs.includes(t.slug) || r.category === null || r.scope === "composite" || !readable(r.title)) return null;
   const kind = CHRONICLE.kindOf({ ...r, release: isRelease(r.category, r.tags) }, t.group);
   if (!kind || !kindRules(t, kind)) return null;
-  if (t.group === "company") return t.entityId && (CHRONICLE.kinds[kind].launch ? ownLaunch(t.entityId, r) : ownNews(t.entityId, r)) ? kind : null;
+  if (tracksAsSubject(t.group)) return t.entityId && (CHRONICLE.kinds[kind].launch ? ownLaunch(t.entityId, r) : ownNews(t.entityId, r)) ? kind : null;
   if (t.group === "field") return t.terms?.test(`${r.title} ${r.originalTitle ?? ""}`) ? kind : null;
   return CHRONICLE.forms[t.slug]?.kinds.includes(kind) ? kind : null;
 }
@@ -202,10 +205,10 @@ function candidates(t: ChronicleTopic, reports: ChronicleReport[], window: Chron
   return merged.filter((c) => monthOf(c.at) >= start && c.at <= window.now);
 }
 
-/** A company keeps up to its kinds' allowance by importance; another topic its most important events. */
+/** A subject keeps up to its kinds' allowance by importance; another topic its most important events. */
 function pick(t: ChronicleTopic, list: Candidate[]): Candidate[] {
   const ranked = [...list].sort(importance);
-  if (t.group !== "company") return ranked.slice(0, CHRONICLE.forms[t.slug]?.perMonth ?? MONTH_LIMIT);
+  if (!tracksAsSubject(t.group)) return ranked.slice(0, CHRONICLE.forms[t.slug]?.perMonth ?? MONTH_LIMIT);
   const taken = new Map<TopicMilestoneKind, number>();
   return ranked.filter((c) => {
     taken.set(c.kind, (taken.get(c.kind) ?? 0) + 1);
@@ -228,9 +231,9 @@ export function selectTopicChronicle(t: ChronicleTopic, reports: ChronicleReport
   }));
 }
 
-/** The search snippet's events: the last 30 days' most important, a company's in the order of its kinds. */
+/** The search snippet's events: the last 30 days' most important, a subject's in the order of its kinds. */
 export function selectTopicHighlights(t: ChronicleTopic, reports: ChronicleReport[], window: ChronicleWindow): TopicEvent[] {
   const recent = candidates(t, reports, window).filter((c) => c.at.getTime() > window.now.getTime() - 30 * DAY);
-  const order = (a: Candidate, b: Candidate) => (t.group === "company" ? KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) : 0) || importance(a, b);
+  const order = (a: Candidate, b: Candidate) => (tracksAsSubject(t.group) ? KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) : 0) || importance(a, b);
   return recent.sort(order).slice(0, 3).map(toEvent);
 }

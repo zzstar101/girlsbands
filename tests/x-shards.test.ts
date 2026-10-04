@@ -170,7 +170,7 @@ test("verified publishers include self-thread announcements in both single and s
   await fetchXSearch(source as Parameters<typeof fetchXSearch>[0]);
   assert.ok(queries[singleBefore]!.startsWith(`from:${HANDLES[0]} (-filter:replies OR filter:self_threads)`));
   assert.equal(selfThreadHandle({ config: { query: "from:official -filter:replies", publisherRole: "person" } }), "official");
-  assert.equal(selfThreadHandle({ config: { query: "from:official -filter:replies (AI OR news)", publisherRole: "organization" } }), null, "custom query semantics stay explicit");
+  assert.equal(selfThreadHandle({ config: { query: "from:official -filter:replies (Live OR news)", publisherRole: "organization" } }), null, "custom query semantics stay explicit");
   assert.equal(selfThreadHandle({ config: { query: "from:media -filter:replies" } }), null);
 });
 

@@ -1,7 +1,6 @@
 // Public API v1 (long-term). Field shapes follow reference/public-v1.openapi.json (the paths stay /api/v1);
 // each operation's query parameters and Cache-Control are listed in V1_OPERATIONS.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { FEATURES } from "@aihot/industry/features";
 import { PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
 import { config } from "@aihot/backend/config";
 import { InvalidCursorError } from "@aihot/backend/lib/cursor";
@@ -9,7 +8,6 @@ import { SearchBusyError } from "@aihot/backend/publication/pool";
 import { selectedChanges, selectedSnapshot, SnapshotRequiredError, v1Items } from "@aihot/backend/publication/v1";
 import { resolveStory, v1HotTopics, v1Story } from "@aihot/backend/publication/stories";
 import { isPeriodKey, v1Dailies, v1Daily, v1Period, v1Periods } from "@aihot/backend/publication/reports";
-import { codexResetsRecent, codexResetsSnapshot } from "@aihot/backend/monitor/read";
 import { isValidDate } from "@aihot/contracts/time";
 import { applyPublicHeaders, QueryError, sendJsonWithEtag, sendProblem, strictQuery } from "../http/respond.ts";
 
@@ -19,8 +17,6 @@ const op = (queryKeys: readonly string[], cacheControl: string) => ({ queryKeys,
 
 export const V1_OPERATIONS = {
   items: op(["mode", "category", "window", "by", "q", "limit", "cursor"], "public, max-age=60, s-maxage=60, stale-while-revalidate=300"),
-  codexResets: op([], "public, max-age=60, s-maxage=60, stale-while-revalidate=60"),
-  codexResetsRecent: op([], "public, max-age=60, s-maxage=60, stale-while-revalidate=60"),
   hotTopics: op([], "public, max-age=60, s-maxage=60, stale-while-revalidate=60"),
   storyByPublicId: op([], "public, max-age=60, s-maxage=60, stale-while-revalidate=60"),
   dailies: op(["limit"], "public, max-age=60, s-maxage=60, stale-while-revalidate=300"),
@@ -96,8 +92,6 @@ export function registerV1(app: FastifyInstance) {
     const body = await v1Items({ mode, window, by, category, q: search, limit, cursor: q.cursor ?? null });
     return sendJsonWithEtag(req, reply, body, { etagPrefix: "v1-items", cacheControl: V1_OPERATIONS.items.cacheControl });
   }));
-
-  if (FEATURES.codexResetMonitor) registerCodexResets(app);
 
   app.get("/api/v1/hot-topics", publicHandler(async (req, reply) => {
     strictQuery(req, V1_OPERATIONS.hotTopics.queryKeys);
@@ -182,24 +176,6 @@ export function registerV1(app: FastifyInstance) {
     if (!q.cursor) throw new SnapshotRequiredError("missing cursor");
     const body = await selectedChanges({ cursor: q.cursor, limit });
     return sendJsonWithEtag(req, reply, body, { etagPrefix: "v1-changes", cacheControl: V1_OPERATIONS.selectedChanges.cacheControl });
-  }));
-}
-
-/** The Codex reset monitor's endpoints (an optional module, industry/features.ts). */
-function registerCodexResets(app: FastifyInstance) {
-  app.get("/api/v1/codex-resets", publicHandler(async (req, reply) => {
-    strictQuery(req, V1_OPERATIONS.codexResets.queryKeys);
-    // The full archive points recurring readers at the lighter representation.
-    reply.header("Link", `<${config.siteUrl}/api/v1/codex-resets/recent>; rel="alternate"; type="application/json"`);
-    const body = await codexResetsSnapshot();
-    return sendJsonWithEtag(req, reply, body, { etagPrefix: "v1-codex-resets", cacheControl: V1_OPERATIONS.codexResets.cacheControl });
-  }));
-
-  // The same snapshot limited to the last week and the events still waiting to land: what a poller needs.
-  app.get("/api/v1/codex-resets/recent", publicHandler(async (req, reply) => {
-    strictQuery(req, V1_OPERATIONS.codexResetsRecent.queryKeys);
-    const body = await codexResetsRecent();
-    return sendJsonWithEtag(req, reply, body, { etagPrefix: "v1-codex-resets-recent", cacheControl: V1_OPERATIONS.codexResetsRecent.cacheControl });
   }));
 }
 

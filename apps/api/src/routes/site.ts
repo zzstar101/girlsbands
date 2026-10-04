@@ -1,7 +1,6 @@
 // First-party site API (/api/site/*). Not public, not versioned, never called /api/v2.
 // Reads through the same public read layer as v1; no cookies are read or set.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { FEATURES } from "@aihot/industry/features";
 import { isCategoryKey, isChannelKey, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
 import type { ReportIndexResponse, ReportLatestPage, ReportNavigationResponse, SiteContact } from "@aihot/contracts/site";
 import { InvalidCursorError } from "@aihot/backend/lib/cursor";
@@ -11,6 +10,7 @@ import { loadTimeline } from "@aihot/backend/publication/timeline";
 import { loadStoryFollowups } from "@aihot/backend/publication/followups";
 import { loadGroupReports } from "@aihot/backend/publication/groups";
 import { loadHotStrip } from "@aihot/backend/publication/hot";
+import { upcomingDeadlines } from "@aihot/backend/publication/deadlines";
 import { loadChangelog, siteMeta } from "@aihot/backend/site/meta";
 import { loadContact, loadMakerAvatar } from "@aihot/backend/site/contact";
 import { loadSiteStats } from "@aihot/backend/site/stats";
@@ -19,14 +19,9 @@ import { listTopicSummaries, loadTopicPage } from "@aihot/backend/publication/to
 import { registerFeedback } from "./feedback.ts";
 import { loadHot, loadStoryDetail, resolveStory } from "@aihot/backend/publication/stories";
 import { listReports, loadReport, reportNavigation, loadReportNavigation, loadReportMonth, type ReportKind } from "@aihot/backend/publication/reports";
-import { loadSiteCodexResetPage, loadSiteCodexResetDay } from "@aihot/backend/publication/monitor";
-import { codexResetVersion } from "@aihot/backend/monitor/read";
-import { cached } from "@aihot/backend/lib/cache";
 import { looseQuery, sendJsonWithEtag, sendProblem } from "../http/respond.ts";
 
 type Handler = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
-
-const codexVersion = cached(() => codexResetVersion(), { freshMs: 5_000, maxStaleMs: 5_000 });
 
 class BadRequest extends Error {}
 
@@ -65,8 +60,6 @@ export function registerSite(app: FastifyInstance) {
   app.get("/api/site/meta", siteHandler(async (req, reply) => {
     return sendJsonWithEtag(req, reply, siteMeta(), { etagPrefix: "meta", cacheControl: "public, max-age=60, s-maxage=60" });
   }));
-
-  if (FEATURES.codexResetMonitor) registerCodexReset(app);
 
   app.get("/api/site/timeline", siteHandler(async (req, reply) => {
     const q = looseQuery(req);
@@ -157,6 +150,12 @@ export function registerSite(app: FastifyInstance) {
     return sendJsonWithEtag(req, reply, data, { etagPrefix: "hot", cacheControl: "public, max-age=30, s-maxage=30" });
   }));
 
+  app.get("/api/site/deadlines", siteHandler(async (req, reply) => {
+    const horizon = Number(looseQuery(req).horizon);
+    const data = await upcomingDeadlines(new Date(), { horizonDays: Number.isFinite(horizon) && horizon > 0 ? horizon : undefined });
+    return sendJsonWithEtag(req, reply, data, { etagPrefix: "deadlines", cacheControl: "public, max-age=60, s-maxage=60" });
+  }));
+
   app.get("/api/site/stories/:publicId", siteHandler(async (req, reply) => {
     const publicId = (req.params as { publicId: string }).publicId;
     const found = await resolveStory(publicId);
@@ -222,24 +221,5 @@ export function registerSite(app: FastifyInstance) {
       .header("Cache-Control", "public, max-age=300, s-maxage=300")
       .header("X-Robots-Tag", "noindex")
       .send(md.body);
-  }));
-}
-
-/** The Codex reset monitor's page data (an optional module, industry/features.ts). */
-function registerCodexReset(app: FastifyInstance) {
-  app.get("/api/site/codex-reset", siteHandler(async (req, reply) => {
-    return sendJsonWithEtag(req, reply, await loadSiteCodexResetPage(), { etagPrefix: "codex-page", cacheControl: "public, max-age=30, s-maxage=30" });
-  }));
-
-  app.get("/api/site/codex-reset/days/:date", siteHandler(async (req, reply) => {
-    const { date } = req.params as { date: string };
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "date not found" });
-    return sendJsonWithEtag(req, reply, await loadSiteCodexResetDay(date), { etagPrefix: "codex-day", cacheControl: "no-store" });
-  }));
-
-  // Foreground polling from /codex-reset (every open tab, once a minute): a cache in front answers the
-  // tabs of the same 15 s, and the process reads the database at most every 5 s.
-  app.get("/api/site/codex-reset/version", siteHandler(async (req, reply) => {
-    return sendJsonWithEtag(req, reply, await codexVersion.get(), { etagPrefix: "codex-version", cacheControl: "public, max-age=0, s-maxage=15" });
   }));
 }

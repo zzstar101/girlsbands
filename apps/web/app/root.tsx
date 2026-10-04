@@ -15,7 +15,7 @@ import { SearchOverlay } from "./features/search/SearchOverlay";
 import { BackToTop, NavigationProgress } from "./components/shell/Chrome";
 import { RingMark } from "./components/Logo";
 import { buttonClass } from "./components/ui/Controls";
-import { rememberPage, THEME_BOOT_SCRIPT, useThemeSync } from "./lib/local-state";
+import { rememberPage, THEME_BOOT_SCRIPT, THEME_COLOR, useThemeSync } from "./lib/local-state";
 import { apiGet } from "./lib/api.server";
 import { useHydratedFlag } from "./lib/hydration";
 import { titled } from "./lib/seo";
@@ -44,8 +44,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf9f6" />
-        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#13191c" />
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content={THEME_COLOR.light} />
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content={THEME_COLOR.dark} />
         <meta name="apple-mobile-web-app-title" content={SITE.name} />
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <Meta />
