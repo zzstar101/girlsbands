@@ -7,12 +7,12 @@ import "./setup.ts";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { after, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { sanitizeBody, trimTrailingChrome } from "@aihot/backend/content/sanitize";
-import { fetchDetail, fetchWebList, fromHtml, fromMarkdown } from "@aihot/backend/sources/web-list";
-import { fetchRss } from "@aihot/backend/sources/rss";
-import { fetchJsonList } from "@aihot/backend/sources/json-list";
-import { noiseFiltered } from "@aihot/backend/sources/collect";
+import { config } from "@girlsbands/backend/config";
+import { sanitizeBody, trimTrailingChrome } from "@girlsbands/backend/content/sanitize";
+import { fetchDetail, fetchWebList, fromHtml, fromMarkdown } from "@girlsbands/backend/sources/web-list";
+import { fetchRss } from "@girlsbands/backend/sources/rss";
+import { fetchJsonList, renderFields } from "@girlsbands/backend/sources/json-list";
+import { noiseFiltered } from "@girlsbands/backend/sources/collect";
 
 const source = (config: Record<string, unknown>) => ({ id: "test-list", config }) as never;
 
@@ -37,6 +37,11 @@ const pages: Record<string, (cdn: string) => string> = {
     `<content type="html"><![CDATA[<p>${"The feed carries this post whole, paragraph after paragraph. ".repeat(30)}</p>]]></content></entry></feed>`,
   // A list API that gives calendar days as yyyymmdd.
   "/days.json": () => JSON.stringify({ data: { list: [{ seq: 695, ttl: "8th ONE-MAN LIVE", day: "20260922" }, { seq: 1, ttl: "Bad day", day: "20260230" }] } }),
+  // A Chinese doujin-event listing: one tag per request, dates as epoch milliseconds.
+  "/cpp.json?tag=a": () => JSON.stringify({ result: { list: [{ id: 1, name: "上海BanG Dream ONLY7", tag: "bangdream", enterTime: 1794672000000, cityName: "上海" }] } }),
+  "/cpp.json?tag=b": () => JSON.stringify({ result: { list: [{ id: 2, name: "北京音乐番Only 2.0", tag: "BanGDream", enterTime: 1792773000000, cityName: "北京" }] } }),
+  "/cpp.json?tag=quiet": () => JSON.stringify({ result: { list: [] } }),
+  "/cpp.json?tag=quiet2": () => JSON.stringify({ result: { list: [] } }),
   // A label blog: no date in the feed or in meta tags, only in JSON-LD.
   "/ld-post": () =>
     `<html><head><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Blog"},` +
@@ -217,4 +222,60 @@ test("dates in yyyymmdd and in JSON-LD are read", async () => {
   assert.deepEqual(days.map((c) => c.publishedAt?.toISOString() ?? null), ["2026-09-22T00:00:00.000Z", null], "February 30 is no date");
   const got = await fetchDetail(`${site}/ld-post`, { id: "test-feed", config: { detail: { maxFetches: 20 } } } as never, { date: true, title: false, summary: false, body: false });
   assert.equal(got.publishedAt?.toISOString(), "2026-09-24T00:00:00.000Z");
+});
+
+test("a listing's own fields become the item text, on the listing's own calendar", () => {
+  const item = { id: 7421, name: "珠海音乐企划ONLY", tag: "音乐企划|bangdream", cityName: "珠海", areaName: "香洲", enterAddress: "乐坊Livehouse", enterTime: 1794672000000, wannaGoCount: 0 };
+  const template = "活动时间：{date:enterTime}｜城市：{cityName}｜区县：{areaName}｜会场：{enterAddress}｜标签：{tag}｜想去：{wannaGoCount} 人";
+  assert.equal(renderFields(template, item),
+    "活动时间：2026-11-15｜城市：珠海｜区县：香洲｜会场：乐坊Livehouse｜标签：音乐企划|bangdream｜想去：0 人");
+  // A field this listing does not carry takes its own "｜字段：" with it rather than hanging on.
+  const { areaName: _omitted, ...withoutArea } = item;
+  assert.equal(renderFields(template, withoutArea),
+    "活动时间：2026-11-15｜城市：珠海｜会场：乐坊Livehouse｜标签：音乐企划|bangdream｜想去：0 人");
+  assert.equal(renderFields(template, {}), null, "nothing resolvable leaves the source to its fallback");
+  // 00:30 on the 24th in +08:00 is still the 23rd in UTC: the listing's offset decides the day.
+  assert.equal(renderFields("活动时间：{date:enterTime}", { enterTime: 1792773000000 }), "活动时间：2026-10-24");
+  // A zone-less wall clock is the listing's own local time, not the host's.
+  assert.equal(renderFields("开票：{date:sale_start_time}", { sale_start_time: "2026-09-19 18:00:00" }), "开票：2026-09-19");
+});
+
+test("a JSON listing without a summary writes one from its own fields", async () => {
+  const got = await fetchJsonList({ id: "test-cpp", config: {
+    url: `${site}/cpp.json?tag=a`,
+    itemsPath: "result.list",
+    titlePaths: ["name"],
+    summaryTemplate: "活动时间：{date:enterTime}｜城市：{cityName}｜标签：{tag}",
+    summaryIsBody: true,
+    urlTemplate: "https://www.allcpp.cn/allcpp/event/event.do?event={id}",
+  } } as never);
+  assert.deepEqual(got.map((c) => ({ url: c.url, title: c.title, excerpt: c.excerpt, bodyStatus: c.bodyStatus })), [{
+    url: "https://www.allcpp.cn/allcpp/event/event.do?event=1",
+    title: "上海BanG Dream ONLY7",
+    excerpt: "活动时间：2026-11-15｜城市：上海｜标签：bangdream",
+    bodyStatus: "ok",
+  }]);
+});
+
+test("a card's own text is the material when the page it links to has no date", () => {
+  const html = `<div class="list-box"><a class="show-item item" href="/event/311467">`
+    + `<div class="title">所谓正解？【哭泣少女乐队Only Live】</div><div class="price">价格：<span>¥68起</span></div>`
+    + `<div class="time">时间：2026/10/11 15:30</div><div class="addr">[广州]MAOLivehouse广州（永庆坊店CLUB厅）</div></a></div>`;
+  const out = fromHtml(html, "https://www.showstart.com/", source({
+    url: "https://www.showstart.com/event/list?keyword=x",
+    itemSelector: "div.list-box a.show-item",
+    titleSelector: "div.title",
+    summarySelector: "div.time, div.addr, div.price",
+    summaryIsBody: true,
+  }));
+  // A selector list reads in document order, which is the order the card writes its fields in.
+  const card = "价格：¥68起｜时间：2026/10/11 15:30｜[广州]MAOLivehouse广州（永庆坊店CLUB厅）";
+  assert.deepEqual(out, [{
+    url: "https://www.showstart.com/event/311467",
+    title: "所谓正解？【哭泣少女乐队Only Live】",
+    publishedAt: null,
+    excerpt: card,
+    bodyText: card,
+    bodyStatus: "ok",
+  }]);
 });

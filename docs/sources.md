@@ -71,6 +71,8 @@
 - 日期在条目内查找 `publishedAtSelector`，依次读取 `datetime` 属性、`title` 属性、文字。没有时区的日期时间可用 `publishedAtUtcOffset`（默认 `+08:00`）；自带时区的时间保留原时区语义，纯 `YYYY-MM-DD` 按 UTC 零点读。
 - `parseMode`：普通网页默认 `html`；`markdown` 按 Markdown 链接读；`docusaurus_changelog` 读更新日志标题。需要 Jina 时，显式把 `url` 写成 `https://r.jina.ai/https://目标站/路径` 并配置 `JINA_API_KEY`，不是抓不到就自动切换。Jina 默认返回 Markdown；要继续使用 CSS 选择器，显式设 `parseMode: "html"`。
 - `detail`：列表缺日期、标题或摘要时抓详情页补齐（`publishedAtSelector`、`titleSelector`、`summarySelector` 等）。
+- `summarySelector`（列表级）：正文直接从列表卡片上取，多个选择器用逗号分隔，按**文档顺序**拼接（不是按写法顺序），每段文字用 `｜` 连起来、最多 2000 字。配 `summaryIsBody: true` 时这段文字同时当正文，`body_status` 直接是 `ok`，不会再去抓详情页。适合正文本来就印在卡片上的站（演出列表、活动排期）。
+- `urls`：一个源扇出多条列表地址。列表接口只接受一个查询参数时（例如同一接口的 `?tag=a`、`?tag=b`），把地址全写进 `urls`，采集时**顺序**遍历。**单条地址空结果不算失败**，只在 `fetch_runs.detail.urls` 里记 `{"url": "...", "count": 0}`；只有全部地址都是 0 条才报 `no items matched (N urls)`，其它错误（404 等）立刻让整源失败。`url` 单地址的老写法照旧可用。
 - `allowUrlPrefixes` / `denyUrlPrefixes`：只收某些路径下的文章。
 
 ### json_list
@@ -110,8 +112,10 @@
 
 - 接口本身返回数组时，省略 `itemsPath`。`titlePaths`、`summaryPaths`、`authorPaths` 是候选路径数组，按顺序取第一个非空值，例如 `["title", "name"]`。
 - 已有完整网址时用 `{raw:url}`；只有 slug 时可用 `https://example.com/posts/{slug}`。`{字段路径}` 会编码字段值，`{raw:字段路径}` 原样插入。JSON 列表不会自动把相对网址补成绝对网址，模板应产出完整的 HTTP(S) 地址。
-- 日期建议返回带时区的 ISO 字符串；数字时间戳分别设 `publishedAtUnit: "epoch_s"`（秒）或 `"epoch_ms"`（毫秒），`20261001` 这类日期设 `"yyyymmdd"`。
-- 缺少标题或无法生成链接的条目会跳过。非空数组全部映射失败时，会报 `no items mapped (check title/url paths)`；路径不是数组时，会报 `items path did not resolve to an array`。
+- 日期建议返回带时区的 ISO 字符串；数字时间戳分别设 `publishedAtUnit: "epoch_s"`（秒）或 `"epoch_ms"`（毫秒），`20261001` 这类日期设 `"yyyymmdd"`。不写 `publishedAtUnit` 时，13 位数字当毫秒、10 位当秒、8 位当 `yyyymmdd`。
+- `summaryTemplate`：把接口字段拼成一段正文，段落之间用 `|` 或 `｜` 分隔，例如 `"活动时间：{date:enterTime}｜城市：{cityName}｜想去：{wannaGoCount} 人"`。`{字段路径}` 取文字（去掉 HTML 标签），`{date:字段路径}` 归一成 `YYYY-MM-DD`：带时区的 ISO 按原时区、纯 `YYYY-MM-DD` 原样、epoch 数字与 `YYYY-MM-DD HH:MM:SS` 这类**不带时区的墙钟**按 `publishedAtUtcOffset`（默认 `+08:00`）换算。**某个占位符取不到值就整段连同分隔符丢掉**（缺区县的场次不会留下「区县：」空壳），全段都取不到才退回 `summaryPaths`。字段路径本身不用写在模板里。
+- `urls`：同 `web_list`，一个源扇出多条列表地址（每个查询参数一条），单条空结果只记 `count: 0`。
+- 缺少标题或无法生成链接的条目会跳过。非空数组全部映射失败时，会报 `no items mapped (check title/url paths)`；路径不是数组时，会报 `items path did not resolve to an array`。**接口用 HTTP 200 掩盖失败时（body 里 `data: null`），这一条也会触发** —— 别把 `pagesize` 这类上限调大，上限超了就是 65 字节的空壳响应。
 
 ### 本地跑通 HTML/JSON 示例
 
@@ -241,4 +245,4 @@ Content-Type: application/json
 - 返回 `{"ok": true, "created": <新建条数>}`。不是 JSON 对象的条目、缺标题或网址的条目会被跳过，同一请求里重复的网址只取第一条。
 - `sourceId` 不存在时会自动建一个 `external` 信源，默认不进公开页面：到后台把它的参与方式改成 `editorial` 才会出现在站上。
 - 在后台暂停信源后，推送接口返回 409，不再接收新文章；恢复信源后可以继续推送。
-- 条目的 `raw._aihot.backfill` 为 `true` 时按历史回灌处理（不进入“今天”、不推送）。
+- 条目的 `raw._girlsbands.backfill` 为 `true` 时按历史回灌处理（不进入“今天”、不推送）。

@@ -183,6 +183,14 @@ export function fromHtml(html: string, base: string, source: SourceRow): Candida
     const titleEl = c.titleSelector ? (el.is(c.titleSelector) ? el : el.find(c.titleSelector).first()) : linkEl;
     const title = collapseWhitespace(titleEl.text() || linkEl.attr("title") || "");
     if (!title) continue;
+    // A listing card's own text is material for sources whose event date and venue live only in the
+    // card (Showstart's year is in the card's time line, never in the page it links to).
+    let excerpt: string | null = null;
+    if (c.summarySelector) {
+      const fields = el.is(c.summarySelector) ? el.toArray() : el.find(c.summarySelector).toArray();
+      const text = fields.map((n) => collapseWhitespace($(n).text())).filter(Boolean);
+      excerpt = text.length ? text.join("｜").slice(0, 2000) : null;
+    }
     let publishedAt: Date | null = null;
     if (c.publishedAtSelector) {
       const dateEl = el.find(c.publishedAtSelector).first();
@@ -193,7 +201,13 @@ export function fromHtml(html: string, base: string, source: SourceRow): Candida
       publishedAt = parseLooseDate(m?.[1], c.publishedAtUtcOffset);
     }
     seen.add(url);
-    out.push({ url, title, publishedAt });
+    const candidate: Candidate = { url, title, publishedAt };
+    if (excerpt) {
+      candidate.excerpt = excerpt;
+      // The card is the whole item: nothing on the page it links to adds a date or a venue.
+      if (c.summaryIsBody === true) { candidate.bodyText = excerpt; candidate.bodyStatus = "ok"; }
+    }
+    out.push(candidate);
   }
   return out;
 }

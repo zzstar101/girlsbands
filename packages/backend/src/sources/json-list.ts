@@ -59,6 +59,68 @@ function toDate(v: unknown, unit: string | undefined): Date | null {
   return Number.isFinite(t) ? new Date(t) : null;
 }
 
+const OFFSET_RE = /^([+-])(\d{2}):?(\d{2})$/;
+
+/** Minutes east of UTC for "+08:00"/"+0800"/"Z"; anything else is read as UTC. */
+function offsetMinutes(offset: string): number {
+  const t = offset.trim();
+  if (t === "Z" || t === "UTC") return 0;
+  const m = OFFSET_RE.exec(t);
+  return m ? (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : 0;
+}
+
+/** Epoch numbers and compact days carry no unit of their own. */
+function guessUnit(v: unknown): string | undefined {
+  const s = String(v).trim();
+  if (/^\d{13}$/.test(s)) return "epoch_ms";
+  if (/^\d{10}$/.test(s)) return "epoch_s";
+  if (/^\d{8}$/.test(s)) return "yyyymmdd";
+  return undefined;
+}
+
+const BARE_DATE = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/;
+
+/**
+ * The calendar day a listing's own date field names, on the offset that listing writes its times in.
+ * A wall-clock value without a zone ("2026-10-24 10:30:00", "2026/10/11 15:30") is that offset's local
+ * time — never the host's — and an epoch or `yyyymmdd` value is read as the unit it looks like.
+ */
+function listingDay(v: unknown, unit: string | undefined, offset: string): string | null {
+  const s = String(v).trim();
+  const bare = BARE_DATE.exec(s);
+  const date = bare
+    ? new Date(`${bare[1]}-${bare[2]!.padStart(2, "0")}-${bare[3]!.padStart(2, "0")}T${(bare[4] ?? "00").padStart(2, "0")}:${bare[5] ?? "00"}:${bare[6] ?? "00"}${offset}`)
+    : toDate(v, unit ?? guessUnit(v));
+  if (!date || !Number.isFinite(date.getTime())) return null;
+  return new Date(date.getTime() + offsetMinutes(offset) * 60_000).toISOString().slice(0, 10);
+}
+
+/**
+ * The listing's own text for one item, e.g. "活动时间：2026-11-15｜城市：北京｜会场：…":
+ * `{path}` is a value, `{date:path}` the calendar day that date field names. A segment whose
+ * placeholder resolves to nothing is dropped with its separator, so an item without a venue does
+ * not leave "会场：" hanging. Returns null when nothing at all resolves (the source falls back).
+ */
+export function renderFields(template: string, item: unknown, utcOffset = "+08:00"): string | null {
+  const parts: string[] = [];
+  for (const segment of template.split(/(?=[|｜])/u)) {
+    let missing = false;
+    const text = segment.replace(/\{(raw:|date:)?([^}]+)\}/g, (_m, kind: string | undefined, path: string) => {
+      const v = getPath(item, path);
+      if (v === undefined || v === null || v === "") { missing = true; return ""; }
+      if (kind === "date:") {
+        const day = listingDay(v, undefined, utcOffset);
+        if (!day) { missing = true; return ""; }
+        return day;
+      }
+      return collapseWhitespace(stripTags(String(v)));
+    });
+    if (!missing) parts.push(text);
+  }
+  const out = parts.join("").replace(/^[\s|｜]+/u, "").trim();
+  return out || null;
+}
+
 function findKey(obj: unknown, key: string, depth = 0): unknown {
   if (depth > 12 || obj === null || typeof obj !== "object") return undefined;
   if (!Array.isArray(obj) && key in (obj as Record<string, unknown>)) {
@@ -171,7 +233,10 @@ export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
     const url = (c.urlTemplate && renderTemplate(c.urlTemplate, item)) || (c.urlTemplateFallback && renderTemplate(c.urlTemplateFallback, item));
     if (!title || !url) continue;
     const externalId = c.externalIdPath ? getPath(item, c.externalIdPath) : null;
-    const summary = firstString(item, c.summaryPaths);
+    // A composed line gives the writer (and the deadline step) the fields the reader needs in the
+    // item's own words: what day it is, where, and for what. `summaryPaths` stays the fallback.
+    const summary = (c.summaryTemplate ? renderFields(String(c.summaryTemplate), item, String(c.publishedAtUtcOffset ?? "+08:00")) : null)
+      ?? firstString(item, c.summaryPaths);
     const summaryIsBody = c.summaryIsBody === true && !!summary;
     out.push({
       url,

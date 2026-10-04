@@ -102,6 +102,38 @@ async function recordFetch(db: Db, sourceId: string, runId: number, run: { found
               error = ${run.error}, detail = ${detail} WHERE id = ${runId}`;
 }
 
+/** A listing that came back with nothing: a quiet keyword, not a broken source. */
+const isEmptyListing = (error: unknown) => error instanceof FetchError && /^no items (matched|mapped)\b/.test(error.message);
+
+/**
+ * The candidates of a listing source. `config.urls` fans one source out over several searches — a CPP
+ * tag, a Bilibili keyword, a Showstart search — because those APIs take exactly one query per request
+ * and offer no paging. A URL that returns nothing is skipped (a quiet keyword is normal), the URLs are
+ * read in turn so a fan-out does not arrive as a burst, and a run where *no* URL returned anything
+ * still fails: a listing that changed shape must not pass for a listing with nothing to say.
+ */
+async function fetchListing(source: SourceRow): Promise<{ candidates: Candidate[]; detail: Record<string, unknown> | null }> {
+  const readListing = source.kind === "web_list" ? fetchWebList : fetchJsonList;
+  const urls: string[] = Array.isArray(source.config.urls) ? source.config.urls.map((u: unknown) => String(u)) : [];
+  if (urls.length === 0) return { candidates: await readListing(source), detail: null };
+  const found: Array<{ url: string; count: number }> = [];
+  const candidates: Candidate[] = [];
+  for (const url of urls) {
+    // The clone carries this URL as `url`: detail rules, the Jina check and fragment identity read it.
+    const one = { ...source, config: { ...source.config, url } };
+    try {
+      const got = await readListing(one);
+      found.push({ url, count: got.length });
+      candidates.push(...got);
+    } catch (error) {
+      if (!isEmptyListing(error)) throw error;
+      found.push({ url, count: 0 });
+    }
+  }
+  if (!found.some((f) => f.count > 0)) throw new FetchError(`no items matched (${urls.length} urls)`);
+  return { candidates, detail: { urls: found } };
+}
+
 export async function collectSource(sourceId: string, opts: { force?: boolean } = {}): Promise<CollectResult> {
   const source = await loadSource(sourceId);
   if (!source) return { sourceId, status: "skipped", found: 0, created: 0, revised: 0, error: "missing" };
@@ -133,8 +165,11 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
       else delete nextCursor.rss;
       if (rss.notModified) detail = { notModified: true, httpStatus: 304 };
     }
-    else if (source.kind === "web_list") candidates = await fetchWebList(source);
-    else if (source.kind === "json_list") candidates = await fetchJsonList(source);
+    else if (source.kind === "web_list" || source.kind === "json_list") {
+      const listing = await fetchListing(source);
+      candidates = listing.candidates;
+      detail = listing.detail;
+    }
     else {
       const x = await fetchXSearch(source);
       candidates = x.candidates;
@@ -160,8 +195,8 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     }
     candidates = [...unique.values()];
     // First import of a new source: bounded, and archived by source time (never "today", never pushed).
-    const backfillLimit = Number(source.config._aihot?.initialBackfillLimit ?? 30);
-    const backfillMonths = Number(source.config._aihot?.initialBackfillMonths ?? 12);
+    const backfillLimit = Number(source.config._girlsbands?.initialBackfillLimit ?? 30);
+    const backfillMonths = Number(source.config._girlsbands?.initialBackfillMonths ?? 12);
     if (firstImport) {
       const cutoff = Date.now() - backfillMonths * 30 * 86400000;
       candidates = candidates.filter((c) => !c.publishedAt || !Number.isFinite(c.publishedAt.getTime()) || c.publishedAt.getTime() >= cutoff).slice(0, backfillLimit);

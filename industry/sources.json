@@ -1,5 +1,5 @@
 {
-  "$comment": "示范信源：首次启动时导入（scripts/seed.ts），已存在的不会被覆盖。之后在后台“信源”里新建、修改和暂停。字段说明见 docs/customize.md，各 kind 的配置项见 docs/sources.md。tier：T1 官方一手（官网、唱片公司）／T1_5 官方社交账号（企划、乐队、成员本人）／T2 专业媒体与商业平台。注意：数据库的 tier 只有这四个字面值，没有 “T3”；本仓库说的“T3 热点信号”用 participation_mode=“hot_signal” 表达（只做热度证据，不单独展示）。每条 URL 都在 2026 年实测过：只收录返回正常 RSS/Atom 的订阅源，以及用 curl 取回原始 HTML、再用 cheerio 真实解析确认过结构的列表页（选择器来自真实标记，未凭猜测填写）。这一轮实测被排除的：音楽ナタリー（AWS WAF，连 /robots.txt 都返回 405 Human Verification）、Animate Times（RSS 返回 0 字节、列表页 404）、ORICON（按 IP 限流，密集请求后 429）、Billboard Japan 与 THE FIRST TIMES／アニメアニメ／声グラ／VoiS（Feed 都能取到，但一次窗口里少女乐队命中率为 0/30、0/30、0/50、0/10、0/30，而框架没有“只保留命中关键词”的白名单过滤，收录只会灌入无关条目）、BARKS（10 条里命中 1 条，暂未收录）、イープラス等票务平台（列表由 JS 渲染，服务端 HTML 里没有条目链接）。x_search 需要 SOCIALDATA_API_KEY，未配置时整个 T1_5 官方社交层都收不到内容。hot_signal 源（はてなブックマーク／Reddit／Zepp・LOFT・CLUB CITTA' 场馆日程／イープラス）只做热度证据：它们不进分析队列（不花模型钱），公开页面的取数条件要求 participation_mode='editorial'，所以也不会单独出现在时间线上，只能作为事件热度或被 T1 官方源认领后的旁证。三项已知限制写在这里以免后人踩坑：①场馆日程的日期拆在多个标签里，publishedAt 一定是空，时间线只能回落到 discovered_at；②イープラス 走的是搜索页内嵌 JSON（/sf/search 在它的 robots.txt 里被明确 Disallow，是否采集由站主拍板），且受付时间是 14 位 YYYYMMDDHHMMSS，框架不认，同样没有 publishedAt，并需在后台错峰开关；③Reddit 匿名 IP 约每分钟只能请求一次，两条 Reddit 源必须错峰，否则后一条会拿到 429 并被退避到 6 小时。后台每个信源都能先预览再启用。 X 采集的落地方式（2026-10 决定）：不用需要 SOCIALDATA_API_KEY 的 x_search，改用 Nitter 镜像的按账号 RSS（kind=rss），再用 itemUrlPrefixRewrite 把镜像域名改写成 x.com，所以拿到的是可点击、可被 T1 认领的推文原链；summaryIsBody=true 是因为推文正文就在 RSS 的 description 里，不需要再抓页面。两条已实测可用的镜像是 nitter.kareem.one 与 nitter.meowing.monster（各 200、各 20 条），11 个账号在两个实例间轮流分配以分摊限流。镜子是志愿者实例，随时可能下线：挂掉时改 feedUrl 的域名和同一条的 itemUrlPrefixRewrite.from 即可（两处必须一致）。三条实测得到的运维常识：①镜像在密集请求下会偶发 HTTP 404，同一账号隔几分钟重试就恢复 200，手动补抓要留 25–30 秒间隔；②镜像条目里约 45% 是转推，标题带 “RT by @xxx:” 前缀、链接与 dc:creator 都指向原作者，所以官方账号会带进被它转推的其他账号（既包括官方兄弟账号，也包括粉丝号与周边店）——这与旧 x_search（同样的 -filter:replies 查询其实也含转推）行为一致，靠预筛和评分压掉，暂不额外过滤；③短于 280 字的推文会命中 rss.ts 里“摘要超过 280 字才算正文”的规则，落到 body_status=pending 并触发两次注定失败的正文抓取（x.com 抓不到），但摘要里已经是完整推文，判定不受影响，代价只是每条多等约 20 分钟。",
+  "$comment": "示范信源：首次启动时导入（scripts/seed.ts），已存在的不会被覆盖。之后在后台“信源”里新建、修改和暂停。字段说明见 docs/customize.md，各 kind 的配置项见 docs/sources.md。tier：T1 官方一手（官网、唱片公司）／T1_5 官方社交账号（企划、乐队、成员本人）／T2 专业媒体与商业平台。注意：数据库的 tier 只有这四个字面值，没有 “T3”；本仓库说的“T3 热点信号”用 participation_mode=“hot_signal” 表达（只做热度证据，不单独展示）。每条 URL 都在 2026 年实测过：只收录返回正常 RSS/Atom 的订阅源，以及用 curl 取回原始 HTML、再用 cheerio 真实解析确认过结构的列表页（选择器来自真实标记，未凭猜测填写）。这一轮实测被排除的：音楽ナタリー（AWS WAF，连 /robots.txt 都返回 405 Human Verification）、Animate Times（RSS 返回 0 字节、列表页 404）、ORICON（按 IP 限流，密集请求后 429）、Billboard Japan 与 THE FIRST TIMES／アニメアニメ／声グラ／VoiS（Feed 都能取到，但一次窗口里少女乐队命中率为 0/30、0/30、0/50、0/10、0/30，而框架没有“只保留命中关键词”的白名单过滤，收录只会灌入无关条目）、BARKS（10 条里命中 1 条，暂未收录）、イープラス等票务平台（列表由 JS 渲染，服务端 HTML 里没有条目链接）。x_search 需要 SOCIALDATA_API_KEY，未配置时整个 T1_5 官方社交层都收不到内容。2026-10 站主拍板：这个站把日文原文整篇搬进站内、翻成中文，不再看上游许可，所以 18 个 editorial 源的 site_fulltext 全部打开（正文抓得到就整篇展示，抓不到就退回摘要）；hot_signal 源没有公开页面，保持关闭。syndicate_fulltext 仍全关——它管的是 RSS 与公开 API 的 content 字段（把整篇再分发出去），那是另一个决定，要开再单独开。hot_signal 源（はてなブックマーク／Reddit／Zepp・LOFT・CLUB CITTA' 场馆日程／イープラス）只做热度证据：它们不进分析队列（不花模型钱），公开页面的取数条件要求 participation_mode='editorial'，所以也不会单独出现在时间线上，只能作为事件热度或被 T1 官方源认领后的旁证。三项已知限制写在这里以免后人踩坑：①场馆日程的日期拆在多个标签里，publishedAt 一定是空，时间线只能回落到 discovered_at；②イープラス 走的是搜索页内嵌 JSON（/sf/search 在它的 robots.txt 里被明确 Disallow，是否采集由站主拍板），且受付时间是 14 位 YYYYMMDDHHMMSS，框架不认，同样没有 publishedAt，并需在后台错峰开关；③Reddit 匿名 IP 约每分钟只能请求一次，两条 Reddit 源必须错峰，否则后一条会拿到 429 并被退避到 6 小时。后台每个信源都能先预览再启用。 X 采集的落地方式（2026-10 决定）：不用需要 SOCIALDATA_API_KEY 的 x_search，改用 Nitter 镜像的按账号 RSS（kind=rss），再用 itemUrlPrefixRewrite 把镜像域名改写成 x.com，所以拿到的是可点击、可被 T1 认领的推文原链；summaryIsBody=true 是因为推文正文就在 RSS 的 description 里，不需要再抓页面。两条已实测可用的镜像是 nitter.kareem.one 与 nitter.meowing.monster（各 200、各 20 条），11 个账号在两个实例间轮流分配以分摊限流。镜子是志愿者实例，随时可能下线：挂掉时改 feedUrl 的域名和同一条的 itemUrlPrefixRewrite.from 即可（两处必须一致）。三条实测得到的运维常识：①镜像在密集请求下会偶发 HTTP 404，同一账号隔几分钟重试就恢复 200，手动补抓要留 25–30 秒间隔；②镜像条目里约 45% 是转推，标题带 “RT by @xxx:” 前缀、链接与 dc:creator 都指向原作者，所以官方账号会带进被它转推的其他账号（既包括官方兄弟账号，也包括粉丝号与周边店）——这与旧 x_search（同样的 -filter:replies 查询其实也含转推）行为一致，靠预筛和评分压掉，暂不额外过滤；③短于 280 字的推文会命中 rss.ts 里“摘要超过 280 字才算正文”的规则，落到 body_status=pending 并触发两次注定失败的正文抓取（x.com 抓不到），但摘要里已经是完整推文，判定不受影响，代价只是每条多等约 20 分钟。",
   "sources": [
     {
       "id": "web-gbc-news",
@@ -12,7 +12,7 @@
         "titleSelector": "div.ttl",
         "publishedAtSelector": "time.time",
         "publishedAtUtcOffset": "+09:00",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 10
         }
       },
@@ -23,7 +23,7 @@
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -37,7 +37,7 @@
         "titleSelector": "p.info__list__cont span",
         "publishedAtSelector": "time",
         "publishedAtUtcOffset": "+09:00",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 10
         }
       },
@@ -48,7 +48,7 @@
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -62,7 +62,7 @@
         "titleSelector": "h3.p-news-list__item-title",
         "publishedAtSelector": "div.p-news-list__item-date",
         "publishedAtUtcOffset": "+09:00",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 20
         }
       },
@@ -73,7 +73,7 @@
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -82,7 +82,7 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.universal-music.co.jp/togenashitogeari/feed/",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 15
         }
       },
@@ -93,7 +93,7 @@
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -108,7 +108,7 @@
         },
         "summaryIsBody": true,
         "publisherRole": "organization",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
@@ -119,7 +119,7 @@
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -134,7 +134,7 @@
         },
         "summaryIsBody": true,
         "publisherRole": "organization",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
@@ -145,7 +145,7 @@
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -160,7 +160,7 @@
         },
         "summaryIsBody": true,
         "publisherRole": "organization",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
@@ -171,7 +171,7 @@
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -186,7 +186,7 @@
         },
         "summaryIsBody": true,
         "publisherRole": "organization",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
@@ -197,7 +197,7 @@
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -212,7 +212,7 @@
         },
         "summaryIsBody": true,
         "publisherRole": "organization",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
@@ -223,7 +223,7 @@
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -238,18 +238,18 @@
         },
         "summaryIsBody": true,
         "publisherRole": "organization",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
       "tier": "T1_5",
-      "owner_entity_id": "kessoku-band",
+      "owner_entity_id": "bocchi-the-rock",
       "participation_mode": "editorial",
       "interval_minutes": 60,
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -264,7 +264,7 @@
         },
         "summaryIsBody": true,
         "publisherRole": "person",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
@@ -276,7 +276,7 @@
         "官方",
         "成员"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -291,7 +291,7 @@
         },
         "summaryIsBody": true,
         "publisherRole": "person",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
@@ -303,7 +303,7 @@
         "官方",
         "成员"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -318,7 +318,7 @@
         },
         "summaryIsBody": true,
         "publisherRole": "person",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
@@ -330,7 +330,7 @@
         "官方",
         "成员"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -345,7 +345,7 @@
         },
         "summaryIsBody": true,
         "publisherRole": "person",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
@@ -357,7 +357,7 @@
         "官方",
         "成员"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -372,7 +372,7 @@
         },
         "summaryIsBody": true,
         "publisherRole": "person",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
@@ -384,7 +384,7 @@
         "官方",
         "成员"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -393,7 +393,7 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.lisani.jp/feed/",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 8
         }
       },
@@ -404,7 +404,7 @@
       "tags": [
         "媒体"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -418,7 +418,7 @@
         "titleSelector": "span.c-news-item__title",
         "publishedAtSelector": "span.c-news-item__date",
         "publishedAtUtcOffset": "+09:00",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 10
         }
       },
@@ -429,7 +429,7 @@
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -438,7 +438,7 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://anime.bang-dream.com/yumemita/feed/",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 10
         }
       },
@@ -449,7 +449,7 @@
       "tags": [
         "官方"
       ],
-      "site_fulltext": false,
+      "site_fulltext": true,
       "syndicate_fulltext": false
     },
     {
@@ -458,7 +458,7 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://b.hatena.ne.jp/search/text?q=%E3%83%88%E3%82%B2%E3%83%8A%E3%82%B7%E3%83%88%E3%82%B2%E3%82%A2%E3%83%AA&mode=rss",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 10
         }
       },
@@ -478,7 +478,7 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://b.hatena.ne.jp/search/tag?q=%E3%82%AC%E3%83%BC%E3%83%AB%E3%82%BA%E3%83%90%E3%83%B3%E3%83%89%E3%82%AF%E3%83%A9%E3%82%A4&mode=rss",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 10
         }
       },
@@ -498,7 +498,7 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.reddit.com/r/GirlsBandCry/new/.rss",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 10
         }
       },
@@ -518,7 +518,7 @@
       "kind": "rss",
       "config": {
         "feedUrl": "https://www.reddit.com/r/BanGDream/new/.rss",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 10
         }
       },
@@ -543,7 +543,7 @@
         "titleSelector": "h3.sch-content-text__ttl",
         "publishedAtSelector": ".sch-content-date",
         "publishedAtUtcOffset": "+09:00",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 10
         }
       },
@@ -568,7 +568,7 @@
         "titleSelector": ".c_title",
         "publishedAtSelector": "time",
         "publishedAtUtcOffset": "+09:00",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 10
         }
       },
@@ -593,7 +593,7 @@
         "titleSelector": "h3",
         "publishedAtSelector": ".item_detail > p",
         "publishedAtUtcOffset": "+09:00",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 10
         }
       },
@@ -623,7 +623,7 @@
           "kanren_venue.venue_name"
         ],
         "urlTemplate": "https://eplus.jp{raw:koen_detail_url_pc}",
-        "_aihot": {
+        "_girlsbands": {
           "initialBackfillLimit": 5
         }
       },
@@ -636,6 +636,118 @@
         "票务"
       ],
       "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "json-cpp-only-events",
+      "name": "无差别同人站 CP 同人 Only 活动",
+      "kind": "json_list",
+      "config": {
+        "urls": [
+          "https://www.allcpp.cn/allcpp/event/eventMainListV2.do?type=3&time=8&sort=1&pageNo=1&pageSize=100&tag=BanGDream",
+          "https://www.allcpp.cn/allcpp/event/eventMainListV2.do?type=3&time=8&sort=1&pageNo=1&pageSize=100&tag=BanGDream%21",
+          "https://www.allcpp.cn/allcpp/event/eventMainListV2.do?type=3&time=8&sort=1&pageNo=1&pageSize=100&tag=BangDream%EF%BC%81",
+          "https://www.allcpp.cn/allcpp/event/eventMainListV2.do?type=3&time=8&sort=1&pageNo=1&pageSize=100&tag=%E9%82%A6%E5%A4%9A%E5%88%A9",
+          "https://www.allcpp.cn/allcpp/event/eventMainListV2.do?type=3&time=8&sort=1&pageNo=1&pageSize=100&tag=%E5%B0%91%E5%A5%B3%E4%B9%90%E9%98%9F",
+          "https://www.allcpp.cn/allcpp/event/eventMainListV2.do?type=3&time=8&sort=1&pageNo=1&pageSize=100&tag=%E5%AD%A4%E7%8B%AC%E6%91%87%E6%BB%9A",
+          "https://www.allcpp.cn/allcpp/event/eventMainListV2.do?type=3&time=8&sort=1&pageNo=1&pageSize=100&tag=GirlsBandCry",
+          "https://www.allcpp.cn/allcpp/event/eventMainListV2.do?type=3&time=8&sort=1&pageNo=1&pageSize=100&tag=GBC"
+        ],
+        "itemsPath": "result.list",
+        "titlePaths": [
+          "name"
+        ],
+        "summaryTemplate": "活动时间：{date:enterTime}｜城市：{cityName}｜区县：{areaName}｜会场：{enterAddress}｜标签：{tag}｜想去：{wannaGoCount} 人",
+        "summaryIsBody": true,
+        "urlTemplate": "https://www.allcpp.cn/allcpp/event/event.do?event={id}",
+        "externalIdPath": "id",
+        "_girlsbands": {
+          "initialBackfillLimit": 30
+        }
+      },
+      "tier": "T2",
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 360,
+      "tags": [
+        "票务",
+        "同人活动"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "json-bilibili-show",
+      "name": "哔哩哔哩会员购 演出票务",
+      "kind": "json_list",
+      "config": {
+        "urls": [
+          "https://show.bilibili.com/api/ticket/search/list?keyword=BanG%20Dream&page=1&pagesize=20&platform=web",
+          "https://show.bilibili.com/api/ticket/search/list?keyword=%E5%B0%91%E5%A5%B3%E4%B9%90%E9%98%9F&page=1&pagesize=20&platform=web",
+          "https://show.bilibili.com/api/ticket/search/list?keyword=%E5%AD%A4%E7%8B%AC%E6%91%87%E6%BB%9A&page=1&pagesize=20&platform=web",
+          "https://show.bilibili.com/api/ticket/search/list?keyword=%E5%93%AD%E6%B3%A3%E5%B0%91%E5%A5%B3%E4%B9%90%E9%98%9F&page=1&pagesize=20&platform=web",
+          "https://show.bilibili.com/api/ticket/search/list?keyword=MyGO&page=1&pagesize=20&platform=web",
+          "https://show.bilibili.com/api/ticket/search/list?keyword=Ave%20Mujica&page=1&pagesize=20&platform=web"
+        ],
+        "headers": {
+          "Referer": "https://show.bilibili.com/"
+        },
+        "itemsPath": "data.result",
+        "titlePaths": [
+          "project_name"
+        ],
+        "summaryTemplate": "活动时间：{date:start_time}｜城市：{city}｜区县：{district_name}｜场馆：{venue_name}｜票务状态：{sale_flag}｜开票：{date:sale_start_time}｜票价：{price_low} 分起｜想去：{wish} 人",
+        "summaryIsBody": true,
+        "urlTemplate": "https://mall.bilibili.com/neul-next/ticket-renovation/detail.html?id={id}",
+        "externalIdPath": "id",
+        "_girlsbands": {
+          "initialBackfillLimit": 20
+        },
+        "ingestNoiseFilter": {
+          "dropMarkers": [
+            "票务状态：已结束"
+          ]
+        }
+      },
+      "tier": "T2",
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 360,
+      "tags": [
+        "票务",
+        "演出"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "web-showstart-events",
+      "name": "秀动 ShowStart 演出",
+      "kind": "web_list",
+      "config": {
+        "urls": [
+          "https://www.showstart.com/event/list?keyword=%E5%B0%91%E5%A5%B3%E4%B9%90%E9%98%9F",
+          "https://www.showstart.com/event/list?keyword=%E5%93%AD%E6%B3%A3%E5%B0%91%E5%A5%B3%E4%B9%90%E9%98%9F",
+          "https://www.showstart.com/event/list?keyword=%E5%AD%A4%E7%8B%AC%E6%91%87%E6%BB%9A",
+          "https://www.showstart.com/event/list?keyword=BanG%20Dream"
+        ],
+        "itemSelector": "div.list-box a.show-item",
+        "titleSelector": "div.title",
+        "summarySelector": "div.time, div.addr, div.price",
+        "summaryIsBody": true,
+        "_girlsbands": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 360,
+      "tags": [
+        "演出",
+        "票务"
+      ],
+      "site_fulltext": true,
       "syndicate_fulltext": false
     }
   ]

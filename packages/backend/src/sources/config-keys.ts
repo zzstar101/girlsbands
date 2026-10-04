@@ -5,28 +5,28 @@ import type { SourceRow } from "./types.ts";
 
 // Rules applied in collect.ts to every kind read through collectSource.
 const PUBLISHER = ["publisherRole", "publisherUrlPrefixes"];
-const COLLECTED = [...PUBLISHER, "_aihot", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "detail", "fetchPublicContent"];
+const COLLECTED = [...PUBLISHER, "_girlsbands", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "detail", "fetchPublicContent"];
 
 const KEYS: Record<SourceRow["kind"], string[]> = {
   rss: [...COLLECTED, "feedUrl", "summaryIsBody", "preserveUrlFragment", "allowCategories", "denyCategories"],
   web_list: [
-    ...COLLECTED, "url", "baseUrl", "parseMode", "adapter", "cacheToleranceSeconds", "linksStartLine", "preserveUrlFragment",
-    "itemSelector", "linkSelector", "titleSelector", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset",
+    ...COLLECTED, "urls", "url", "baseUrl", "parseMode", "adapter", "cacheToleranceSeconds", "linksStartLine", "preserveUrlFragment",
+    "itemSelector", "linkSelector", "titleSelector", "summarySelector", "summaryIsBody", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset",
   ],
   json_list: [
-    ...COLLECTED, "url", "mode", "method", "headers", "bodyJson", "jsonKey", "windowVar", "itemsPath", "itemsObjectValues",
-    "titlePaths", "summaryPaths", "summaryIsBody", "authorPaths", "publishedAtPath", "publishedAtUnit", "externalIdPath",
-    "urlTemplate", "urlTemplateFallback", "rawDropKeys", "requireBoolean", "minNumeric",
+    ...COLLECTED, "urls", "url", "mode", "method", "headers", "bodyJson", "jsonKey", "windowVar", "itemsPath", "itemsObjectValues",
+    "titlePaths", "summaryPaths", "summaryTemplate", "summaryIsBody", "authorPaths", "publishedAtPath", "publishedAtUnit",
+    "publishedAtUtcOffset", "externalIdPath", "urlTemplate", "urlTemplateFallback", "rawDropKeys", "requireBoolean", "minNumeric",
   ],
   // X accounts are mostly read in shards, which apply only these.
-  x_search: [...PUBLISHER, "_aihot", "ingestNoiseFilter", "itemUrlPrefixRewrite", "query", "searchType"],
+  x_search: [...PUBLISHER, "_girlsbands", "ingestNoiseFilter", "itemUrlPrefixRewrite", "query", "searchType"],
   mp_account: [...PUBLISHER, "wxid", "ghid", "nickname"],
   external: [...PUBLISHER],
 };
 
 // Objects with fixed keys (headers and bodyJson are request data, free-form).
 const NESTED: Record<string, string[]> = {
-  _aihot: ["initialBackfillLimit", "initialBackfillMonths"],
+  _girlsbands: ["initialBackfillLimit", "initialBackfillMonths"],
   ingestNoiseFilter: ["dropMarkers", "dropMarkersTitleOnly", "keepIfMatches"],
   itemUrlPrefixRewrite: ["from", "to"],
   requireBoolean: ["path", "equals"],
@@ -52,6 +52,11 @@ export function unsupportedConfig(kind: SourceRow["kind"], config: Record<string
     else if (key === "publisherUrlPrefixes" && (!Array.isArray(value) || !value.every((v) => {
       if (typeof v !== "string") return false;
       try { const u = new URL(v); return /^https?:$/.test(u.protocol) && !u.username && !u.password && !u.search && !u.hash; } catch { return false; }
+    }))) out.push(key);
+    // One listing URL per search a source fans out over (tags, keywords): the query is the search.
+    else if (key === "urls" && (!Array.isArray(value) || value.length === 0 || !value.every((v) => {
+      if (typeof v !== "string") return false;
+      try { const u = new URL(v); return /^https?:$/.test(u.protocol) && !u.username && !u.password; } catch { return false; }
     }))) out.push(key);
     else if (VALUES[key] && !VALUES[key]!.includes(String(value))) out.push(`${key}=${String(value)}`);
     else if (NESTED[key] && value && typeof value === "object") {

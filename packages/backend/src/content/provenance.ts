@@ -34,9 +34,12 @@ export function publisherOwnsUrl(source: Publisher, rawUrl: string): boolean {
   let scopes: string[];
   if (Array.isArray(source.config.publisherUrlPrefixes)) {
     scopes = source.config.publisherUrlPrefixes.filter((v): v is string => typeof v === "string");
-  } else if (source.kind === "web_list" && typeof source.config.url === "string") {
-    // A site's configured listing owns only its own path, not all links it points to.
-    scopes = [source.config.url];
+  } else if (source.kind === "web_list") {
+    // A site's configured listing owns only its own path, not all links it points to. A search URL
+    // (one of `urls`) carries a query and is refused below as a scope: only a path can own a path.
+    scopes = [source.config.url, ...(Array.isArray(source.config.urls) ? source.config.urls : [])]
+      .filter((v): v is string => typeof v === "string");
+    if (scopes.length === 0) return false;
   } else {
     // Feed/API hosts are often distributors or shared platforms. Their address alone is not proof
     // of ownership; a source with a different article path needs an explicit publisher scope.
