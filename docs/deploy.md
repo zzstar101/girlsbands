@@ -104,6 +104,14 @@ docker compose run --rm setup && docker compose up -d
 - **删除请求走后台，不用改数据库**：单条在内容页「公开范围」里选「下架」（所有出口移除，链接 404）；整个来源在信源页点「整源下架」，它会把该源已经发布出去的条目整批写成 `withdrawn`、逐条重新投影、并暂停这个源，之后不再采集。两种操作都写进审计日志（`content.visibility` / `source.withdraw`）。
 - **联系入口**：`industry/site.ts` 的 `contactEmail`。现在填的是 `contact@girlsbands.com` 占位，**上线前必须确认这个邮箱真的能收信**（它还喂 `/.well-known/security.txt`、llms.txt 和 RSS 的 author）。读者看到的说明在 `/rights`（`industry/pages/rights.md`）。
 
+#### 补上 GIRLS BAND CRY 的两支乐队（2026-10-05）
+
+`ENTITIES` 原来只有企划 + トゲナシトゲアリ、クズミミズク、ダイヤモンドダスト，漏了游戏「ガールズバンドクライ First Riff」的第 1 弾 **Canna Lily** 与第 2 弾 **F-272**（第 3 弾就是クズミミズク）。补上后主体从 20 个变成 22 个（4 企划 + 18 支乐队），新增 `/topics/canna-lily`、`/topics/f-272` 两个页面，企划页 `/topics/girls-band-cry` 把六支主体都收进来。
+
+- **升级后词表会把已入库的条目重译一遍**：乐队名从 `ENTITIES` 生成，`GLOSSARY_VERSION` 从 `glossary-336-q9eeo5` 变成 `glossary-338-rs65fk`，而它进了 `TRANSLATE_PROMPT_VERSION` —— 旧译文回执全部失效。这是预期行为（词表变了就不能复用旧回执），只是会多花一轮模型钱，做好这个准备；不要为了省这笔去手改回执。
+- **没有迁移**：`taxonomy.ts`、`topics.json`、`assets/band-logos/` 都是文件，`git pull` 后重建、重启即可；两个字标已经在仓库里（`canna-lily.png`、`f-272.png`），不需要联网抓。
+- **新主题不会立刻进 sitemap**：`publication/sitemap.ts` 只列 `indexable` 的主题，而 `publication/topics.ts` 的规则是「≥ 50 条，或 ≥ 20 条且近 30 天有更新」。页面本身一直可达，等条目够了会自动进 sitemap。
+
 ### 管理员会话与配置变更
 
 会话绑定迁移排在 `0041`。此前已试用会话绑定迁移的数据库可直接升级，已有列和绑定会被保留，无需手动修改迁移记录。

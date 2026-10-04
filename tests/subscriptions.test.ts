@@ -343,7 +343,7 @@ test("头图主角：确认信取订阅的第一支乐队，脏 id 与空名单�
 
 test("主体分类：乐队与企划的边界写在配置里，不是渲染时猜的", () => {
   assert.deepEqual([...PROJECT_IDS].sort(), ["bang-dream", "bocchi-the-rock", "girls-band-cry", "our-notes"], "企划是整个系列／作品／游戏，只有这四个");
-  assert.equal(BAND_IDS.length, 16, "ENTITIES 里另外 16 条是乐队");
+  assert.equal(BAND_IDS.length, 18, "ENTITIES 里另外 18 条是乐队");
   assert.equal(BAND_IDS.length + PROJECT_IDS.length, Object.keys(ENTITIES).length, "每条都必须有 kind，不能有漏网的");
   assert.ok(isBand("mygo") && isProject("our-notes"), "isBand／isProject 认乐队和企划");
   assert.ok(!isBand("bang-dream") && !isProject("mygo"), "企划不是乐队，乐队也不是企划");

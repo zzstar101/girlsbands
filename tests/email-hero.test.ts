@@ -49,7 +49,7 @@ test("hero token：同一份 spec 永远同一个 token，往返之后一字不�
 test("hero logo：只放行形状合法的乐队 id，其余一律丢掉退回海报", () => {
   // 这里故意喂 unknown：验证器要挡的是「不是 string 的东西」，而 TS 的类型在运行时不存在。
   const pick = (logo: unknown) => normalizeHero({ logo } as Partial<HeroSpec>).logo;
-  // 20 个主体的 id 必须全部原样通过——它们就是 assets/band-logos/ 的文件名。
+  // 22 个主体的 id 必须全部原样通过——它们就是 assets/band-logos/ 的文件名。
   for (const id of Object.keys(ENTITIES)) assert.equal(pick(id), id, `${id} 是合法乐队 id，不该被丢`);
   assert.equal(pick(SPEC.logo), SPEC.logo);
   assert.equal(pick("  " + SPEC.logo + "  "), SPEC.logo, "首尾空白应该被裁掉");
@@ -141,7 +141,7 @@ test("hero 句柄：地址、替代文字、显示尺寸、兜底色一个不少
   assert.equal(heroHandle({ ...SPEC, date: "" }, "https://girlsbands.example").alt, SPEC.star);
 });
 
-test("logo 入库：20 个主体一个不缺，manifest 与磁盘上的 PNG 逐字节对得上", async () => {
+test("logo 入库：22 个主体一个不缺，manifest 与磁盘上的 PNG 逐字节对得上", async () => {
   // 这条测的是「资产与代码不许走散」。渲染端读 manifest 决定拿哪张图、用不用得上，
   // 清单缺一条或多一条都不会报错、只会安静地退回海报——那正是最难发现的那种退化。
   const dir = path.join(REPO_ROOT, "assets/band-logos");
@@ -187,7 +187,7 @@ test("inkOn：永远选对比度更高的那一半，而不是靠固定亮度阈
   };
   const DARK = "#1b1b20";
   const LIGHT = "#ffffff";
-  // 全 20 个主体的应援色 + 极端色（纯白、纯黑、中灰）+ 一段网格，阈值式实现会在这几处选错。
+  // 全 22 个主体的应援色 + 极端色（纯白、纯黑、中灰）+ 一段网格，阈值式实现会在这几处选错。
   const samples = new Set<string>([...Object.values(ENTITIES).map((e) => e.accent).filter((a): a is string => Boolean(a)), "#ff3377", "#ffffff", "#000000", "#808080", "#e8b53c", "#c8342a"]);
   for (let r = 0; r < 6; r++) for (let g = 0; g < 6; g++) for (let b = 0; b < 6; b++) samples.add(`#${[r, g, b].map((v) => (v * 51).toString(16).padStart(2, "0")).join("")}`);
   for (const bg of samples) {

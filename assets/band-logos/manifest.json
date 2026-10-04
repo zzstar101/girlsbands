@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-04T18:32:21.903Z",
+  "generatedAt": "2026-10-04T21:11:21.360Z",
   "logos": {
     "girls-band-cry": {
       "file": "girls-band-cry.png",
@@ -162,6 +162,24 @@
       "height": 333,
       "inkLum": 0.3153,
       "onDark": false
+    },
+    "canna-lily": {
+      "file": "canna-lily.png",
+      "source": "https://gbc-firstriff.com/wp-content/themes/gbc-firstriff_teaser/assets/images/band/canna-lily/img_logo-band-canna-lily.png",
+      "sha256": "c476b9ed1538c28a71b15e1ed3e799718e213c87e23e9154caeda2b9d9e69c18",
+      "width": 1077,
+      "height": 419,
+      "inkLum": 0.7948,
+      "onDark": true
+    },
+    "f-272": {
+      "file": "f-272.png",
+      "source": "https://gbc-firstriff.com/wp-content/themes/gbc-firstriff_teaser/assets/images/band/f-272/img_logo-band-f-272.png",
+      "sha256": "c9f641a511a25ece6a7bdf40aaff5aec626be68e7914a1a99bfa368dcabad3a1",
+      "width": 970,
+      "height": 390,
+      "inkLum": 0.8905,
+      "onDark": true
     },
     "kuzumimizuku": {
       "file": "kuzumimizuku.png",

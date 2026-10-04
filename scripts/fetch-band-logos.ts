@@ -52,6 +52,8 @@ const SOURCES: Record<string, string> = {
   "our-notes": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/images/common/common/logo_ournotes.png",
   millsage: "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_millsage.webp",
   ikkadumbrock: "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_ikka-dumb-rock.webp",
+  "canna-lily": "https://gbc-firstriff.com/wp-content/themes/gbc-firstriff_teaser/assets/images/band/canna-lily/img_logo-band-canna-lily.png",
+  "f-272": "https://gbc-firstriff.com/wp-content/themes/gbc-firstriff_teaser/assets/images/band/f-272/img_logo-band-f-272.png",
   kuzumimizuku: "https://gbc-firstriff.com/wp-content/themes/gbc-firstriff_teaser/assets/images/band/kuzumimizuku/img_logo-band-kuzumimizuku.png",
   "diamond-dust": "https://girls-band-cry.com/wp-content/themes/gbc_v1-1/assets/images/common/character/logo_dd.png",
 };

@@ -22,7 +22,7 @@ async function load(file: string) {
 }
 const has = (font: Font, ch: string) => font.charToGlyphIndex(ch) > 0;
 
-test("头图字库：20 个主体的名字，每个字都有字形", async () => {
+test("头图字库：22 个主体的名字，每个字都有字形", async () => {
   const sc = (await load("noto-sans-sc-700.ttf")).font;
   const jp = (await load("noto-sans-jp-700.ttf")).font;
   const missing: string[] = [];
@@ -72,7 +72,7 @@ test("头图字库：400 与 700 两个字重收同一套字", async () => {
   assert.deepEqual(diff, [], `两个字重的字集不一致：${diff.join("")}`);
 });
 
-test("显示字体：20 个主体的名字一个不缺，且体积受控", async () => {
+test("显示字体：22 个主体的名字一个不缺，且体积受控", async () => {
   const { font, bytes } = await load("dela-gothic-one.ttf");
   const missing: string[] = [];
   for (const [id, entity] of Object.entries(ENTITIES)) {

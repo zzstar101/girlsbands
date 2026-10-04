@@ -7,7 +7,7 @@
 //   → y332 一条 1px 细线 → 左下乐队名 24px 粗 → 它下面 `LIVE / TICKET / RELEASE` 17px 字距 3
 //   → 右下 `10 / 04 · JST` 24px。整版左右对齐在 x=64（HERO_PAD）。
 //
-// 为什么底不能直接用应援色：逐像素量过 20 个官方 logo，只有 4 个的墨迹能直接压在应援色上，
+// 为什么底不能直接用应援色：逐像素量过 22 个官方 logo，只有 4 个的墨迹能直接压在应援色上，
 // 其余各支的应援色都是中间调，墨迹对比度掉到 1.5:1 上下。所以按「丢掉多少墨迹」在四块底里挑一块
 // （见 plateFor），另有 4 支按用户那版画廊里的实际效果手工覆盖（PLATE_OVERRIDE）。
 //
@@ -94,8 +94,8 @@ const PALE_MIX = 0.12;
 const DEEP_MIX = 0.18;
 
 /**
- * 用户那版画廊里手工定下的四块底（其余 15 支走 plateFor 的度量）。
- * 来源是 .data/event-mail-v1/build.ts；改了就要重跑 20 个的对照图，别凭印象动。
+ * 用户那版画廊里手工定下的四块底（其余 18 支走 plateFor 的度量）。
+ * 来源是 .data/event-mail-v1/build.ts；改了就要重跑 22 个的对照图，别凭印象动。
  */
 export const PLATE_OVERRIDE: Record<string, string> = {
   mygo: "#102b3b",

@@ -169,6 +169,24 @@
       "definition": "一家Dumb Rock! 的全部动态：Live、单曲与专辑、抽选、周边与成员动态。"
     },
     {
+      "slug": "canna-lily",
+      "name": "Canna Lily",
+      "group": "band",
+      "entityId": "canna-lily",
+      "aliases": [],
+      "orgNames": ["Canna Lily"],
+      "definition": "Canna Lily（ガールズバンドクライ First Riff）的全部动态：Live、配信与发售、周边。"
+    },
+    {
+      "slug": "f-272",
+      "name": "F-272",
+      "group": "band",
+      "entityId": "f-272",
+      "aliases": [],
+      "orgNames": ["F-272"],
+      "definition": "F-272（ガールズバンドクライ First Riff）的全部动态：Live、配信与发售、周边。"
+    },
+    {
       "slug": "kuzumimizuku",
       "name": "クズミミズク",
       "group": "band",

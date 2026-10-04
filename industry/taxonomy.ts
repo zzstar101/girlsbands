@@ -312,7 +312,23 @@ export const ENTITIES: Record<string, { name: string; displayTag: string | null;
     aliases: ["一家Dumb Rock!", "一家Dumb Rock"],
     otherNames: ["一家Dumb Rock!"],
   },
-  // GIRLS BAND CRY 侧的乐队：游戏 First Riff 的新乐队，以及动画里的对手乐队。
+  // GIRLS BAND CRY 侧的乐队：游戏 First Riff 的三支新乐队（第 1～3 弾），以及动画里的对手乐队。
+  "canna-lily": {
+    accent: "#e8629a",
+    kind: "band",
+    name: "Canna Lily",
+    displayTag: "Canna Lily",
+    aliases: ["Canna Lily", "CannaLily"],
+    otherNames: ["Canna Lily"],
+  },
+  "f-272": {
+    accent: "#2fbf9b",
+    kind: "band",
+    name: "F-272",
+    displayTag: "F-272",
+    aliases: ["F-272", "F272"],
+    otherNames: ["F-272"],
+  },
   kuzumimizuku: {
     accent: "#73a792",
     kind: "band",
@@ -363,7 +379,7 @@ const SERIES: ReadonlyArray<{ id: string; members: readonly string[] }> = [
       "morfonica", "raise-a-suilen", "mygo", "ave-mujica", "mugendai-mewtype", "millsage", "ikkadumbrock", "our-notes",
     ],
   },
-  { id: "girls-band-cry", members: ["girls-band-cry", "togenashi-togeari", "kuzumimizuku", "diamond-dust"] },
+  { id: "girls-band-cry", members: ["girls-band-cry", "togenashi-togeari", "canna-lily", "f-272", "kuzumimizuku", "diamond-dust"] },
   { id: "bocchi-the-rock", members: ["bocchi-the-rock", "kessoku-band"] },
 ];
 
@@ -407,6 +423,8 @@ export const IDENTITY_LEXICON: ReadonlyArray<{ id: string; name: string; pattern
   { id: "our-notes", name: "Our Notes", patterns: [/our\s?notes/i] },
   { id: "millsage", name: "millsage", patterns: [/millsage/i] },
   { id: "ikkadumbrock", name: "一家Dumb Rock!", patterns: [/一家\s?dumb\s?rock/i] },
+  { id: "canna-lily", name: "Canna Lily", patterns: [/canna\s?lily/i] },
+  { id: "f-272", name: "F-272", patterns: [/\bf[-\s]?272\b/i] },
   { id: "kuzumimizuku", name: "クズミミズク", patterns: [/クズミミズク/i] },
   { id: "diamond-dust", name: "ダイヤモンドダスト", patterns: [/ダイヤモンドダスト/i] },
 ];

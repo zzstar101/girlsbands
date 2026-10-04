@@ -37,7 +37,7 @@
 | 热点榜 | |
 | **乐队页** | |
 
-> ⚠️ 关键细节：`apps/web/app/routes/topic.tsx:86` 写的是 `const band = tracksAsSubject(topic.group) ? subjectOfId(topic.slug) : null;`，`:131` 是 `tracksAsSubject(topic.group) ? <ChronicleBand …/> : <ChronicleRail …/>`。也就是说 **`/topic/:slug` 这个路由身兼两职：普通主题渲染时间轴，主体渲染乐队页**。所以"隐藏主题页"只能隐藏 `/topics` 列表和普通主题分支，`ENTITIES` 里那 19 个主体（3 企划 + 16 支乐队）的页面必须留着。
+> ⚠️ 关键细节：`apps/web/app/routes/topic.tsx:86` 写的是 `const band = tracksAsSubject(topic.group) ? subjectOfId(topic.slug) : null;`，`:131` 是 `tracksAsSubject(topic.group) ? <ChronicleBand …/> : <ChronicleRail …/>`。也就是说 **`/topic/:slug` 这个路由身兼两职：普通主题渲染时间轴，主体渲染乐队页**。所以"隐藏主题页"只能隐藏 `/topics` 列表和普通主题分支，`ENTITIES` 里那 22 个主体（4 企划 + 18 支乐队）的页面必须留着。
 
 ---
 
@@ -121,7 +121,7 @@
 
 **落地的样子**
 
-- **三种页面，一条规则**：`packages/backend/src/publication/topics.ts` 的 `hasPage(t) = t.group !== "genre"`、`findPageTopic(slug)`。20 个主体（4 企划 + 16 支乐队）+ 9 个方向 = 29 个页面；19 个内容形态只剩标签，没有 URL、不进站点地图。
+- **三种页面，一条规则**：`packages/backend/src/publication/topics.ts` 的 `hasPage(t) = t.group !== "genre"`、`findPageTopic(slug)`。22 个主体（4 企划 + 18 支乐队）+ 9 个方向 = 31 个页面；19 个内容形态只剩标签，没有 URL、不进站点地图。
 - **企划页收整个系列**：`industry/taxonomy.ts` 的 `SERIES`（三条）+ `seriesOf(id)`（**页面语义**：系列 id 自己 → 整个系列；其它 id → 只有它自己，乐队页不能被同系列其它乐队串进来）+ `seriesKeyOf(id)`（成员反查，`parentOf` 用它）。`packages/backend/src/publication/rules.ts` 的 `entityTags(entityId)` 把主题的归类标签展开成「自己 + 同系列其它主体」，`titlePattern` 也带上整组的名字 ⇒ 企划页的精选、日历、.ics 一起收旗下乐队。
 - **`?scope=all`**：`TopicPage` 加 `scope: "picked" | "all"`；`loadTopicPage(slug, page, now?, scope)` 的 `all` 走 `listedCondition(at) AND inTopic(t)` 分页（`poolIds`／`poolTotal`），精选走原来的 `seatedCondition`；`/api/site/topics/:slug?scope=all`；`topic.tsx` 用 `PillTabs`（精选 = `topic.total`／全部 = `topic.poolTotal`）切，切换都回第 1 页。
 - **日历**：`upcomingDeadlines`／`deadlineWindow` 加 `subject?`（`p.tags && entityTags(subject)`）与 `from`／`to`；新增 `deadlineRange`、`deadlineMonths`、`jstDate`、`addDays`。`packages/backend/src/publication/calendar.ts` 造月历与 .ics：`calendarSubject(slug)`（只认企划／乐队）、`calendarMonths`（前 3 个月 ~ 后 12 个月）、`calendarPage(now, month, subject)`、`calendarIcs`（`X-WR-TIMEZONE:Asia/Tokyo`、RFC 5545 转义、75 octets 折行）。API：`GET /api/site/calendar/:subject?month=`、`GET /calendar.ics`、`GET /calendar/<slug>.ics`（`apps/api/src/routes/calendar.ts`）——**不能写 `/calendar/:subject.ics`**，find-my-way 不支持带后缀的参数段（和 `feeds.ts` 的 `/feed/category/:file` 同理）；`packages/contracts/src/http-policy.ts` 的 `API_OWNED_PATTERNS` 必须登记 `/^\/calendar(\.ics|\/[^/]+\.ics)$/`，否则 web 会把它当静态文件。
@@ -493,7 +493,23 @@
 - **改 `.env` 不会让 `node --watch` 重启**：`apps/worker` 的进程是 `node --watch --env-file-if-exists=../../.env src/main.ts`，换安全阀必须 `touch apps/worker/src/main.ts`，否则你以为阀门开了、其实还是旧的（第一轮采集会一直不出现）。
 - **`structure.md` 写了「只写日期不写时刻」，模型仍会写时刻**：秀动那条抽出的是 `{"at":"2026-10-11T15:30","kind":"event"}`。`publication/deadlines.ts:38` 的 `jstInstant` 按 JST 解释，15:30 这种下午场没事，但**北京时间 23:00 之后开演的场次会被推成次日**。要彻底消掉得让结构步骤按来源地区选时区，现在没做。
 - **关阀门要等积压跑完**：worker 拿不到模型时条目会按 `RETRY_MINUTES` 阶梯重试，整条阶梯走完（约 14 小时）才落 `failed`；中途关掉会把剩下的积压条目一路耗到终态，之后只能从后台「重试」救回来。
-- **单文件跑测试必须带 preload，否则会污染模板库**：`node --test tests/x.test.ts`（不带 `--import ./tests/databases.ts`）会直接写进 `DATABASE_URL` 指向的模板库 `girlsbands_test` —— 而模板库是所有测试文件克隆的来源（`tests/databases.ts:62-65`）。留下 2 条 `test-analyze-*` 源和 13 篇文章之后，之后的**全量**运行里 `tests/backend-read-load.test.ts`（断言 `sources` 恰好 2 条）、`tests/grouping-reliability.test.ts`、`tests/processing-recovery.test.ts` 会无端变红（实测 4 条失败、单跑也红），排查半天才发现与代码无关。正确写法：`node --test-global-setup=tests/databases.ts --import ./tests/databases.ts --test --test-timeout=120000 tests/x.test.ts`。模板库脏了就洗一遍：`DROP DATABASE girlsbands_test WITH (FORCE)` → `CREATE DATABASE girlsbands_test OWNER aniband` → `DATABASE_URL=postgres://…/girlsbands_test node scripts/migrate.ts`；**干净模板里 `sources`/`articles`/`receipts` 都必须是 0，只有迁移自己插的 9 条 `budgets`**。
+- **单文件跑测试必须带 preload，否则会污染模板库**：`node --test tests/x.test.ts`（不带 `--import ./tests/databases.ts`）会直接写进 `DATABASE_URL` 指向的模板库 `girlsbands_test` —— 而模板库是所有测试文件克隆的来源（`tests/databases.ts:62-65`）。留下 2 条 `test-analyze-*` 源和 13 篇文章之后，之后的**全量**运行里 `tests/backend-read-load.test.ts`（断言 `sources` 恰好 2 条）、`tests/grouping-reliability.test.ts`、`tests/processing-recovery.test.ts` 会无端变红（实测 4 条失败、单跑也红），排查半天才发现与代码无关。正确写法：`node --test-global-setup=tests/databases.ts --import ./tests/databases.ts --test --test-timeout=120000 tests/x.test.ts`。模板库脏了就洗一遍：`DROP DATABASE girlsbands_test WITH (FORCE)` → `CREATE DATABASE girlsbands_test OWNER aniband` → `DATABASE_URL=postgres://…/girlsbands_test node scripts/migrate.ts`；**干净模板里 `sources`/`articles`/`receipts` 都必须是 0，只有迁移自己插的 9 条 `budgets`**。**少写 `--test-global-setup=tests/databases.ts` 时，每个测试文件克隆出来的 `girlsbands_test_f<pid>_test` 不会被清掉**（实测单跑 5 个文件留下 5 个库），得手工 drop。
+
+**补录：GBC 侧漏掉的两支乐队（2026-10-05）**
+
+GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミミズク、ダイヤモンドダスト —— 游戏「ガールズバンドクライ First Riff」的原创乐队其实有三支，第 1 弾 **Canna Lily** 与第 2 弾 **F-272** 没登记（依据：[gamer.ne.jp 2026-10-03 第 3 弾 解禁](https://www.gamer.ne.jp/news/202610030026/) 里 11/3「赤色の響祭」的出演名单，以及 [DONUTS 的 Canna Lily 公告](https://www.donuts.ne.jp/news/2026/0322_gbc_cannalily/)、[Skream! 的 F-272 公告](https://en.skream.jp/news/2026/04/gbc-firstriff_f-272.php)）。`gbc-firstriff.com` 本来就是信源，所以这两支的新闻一直在采集，只是没有实体：不挂主体标签、没有主题页与订阅。按 `AGENTS.md` 的「加一支乐队要改四处」补齐：
+
+| 检查 | 结果 |
+|---|---|
+| `industry/taxonomy.ts` | `ENTITIES` 加 `canna-lily`（accent `#e8629a`）、`f-272`（`#2fbf9b`）；`SERIES` 的 girls-band-cry 成员 4 → 6；`IDENTITY_LEXICON` 各加一条（`/canna\s?lily/i`、`/\bf[-\s]?272\b/i`） |
+| `industry/topics.json` | 主体 20 → 22（4 企划 + 18 支乐队），带页面的主题 29 → 31 |
+| `assets/band-logos/` | `node scripts/fetch-band-logos.ts` → **22/22 成功**；新字标 1077×419（canna-lily，inkLum 0.79）、970×390（f-272，0.89）；`git status` 里只有 `manifest.json` 与两张新 PNG 变化 |
+| 词表 | 乐队名从 `ENTITIES` 自动生成（`industry/glossary.ts:49`），`GLOSSARY_VERSION` `glossary-336-q9eeo5` → `glossary-338-rs65fk`；旧翻译回执因此失效、会重译一次，符合预期 |
+| 应援色当底 | 照 `apps/api/src/og/hero.ts` 的 `inkHist`/`unreadable` 逐像素重算：22 个字标里仍然只有 4 个（girls-band-cry、kessoku-band、bocchi-the-rock、afterglow）能直接压在应援色上，新两支分别丢 5.2% 与更多 → 照旧走 `plateFor` 的度量，不用加 `PLATE_OVERRIDE` |
+| `npm run typecheck` | 全绿（含 `npm run typecheck -w @girlsbands/web`） |
+| 相关测试 | `og-fonts` / `email-hero` / `glossary` / `topics` / `topics-rules` / `subscriptions` 全绿（含新字标的字形、manifest 与磁盘一一对应、`BAND_IDS.length === 18`） |
+| 全量 `npm test` | **618 通过 / 0 失败**（122s） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **29 通过 / 0 失败** |
 
 **订正**
 - 本文档 W2-1 原写「`scripts/seed.ts` 是 upsert，改完跑一次 seed 即可」→ 错，是 `ON CONFLICT (id) DO NOTHING`，必须加迁移。
