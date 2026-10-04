@@ -7,8 +7,8 @@
 // sit in rows of two whose rules run across the page, each story as tall as its neighbour.
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import type { ReportCitation, ReportDetail, ReportNavigationEntry } from "@aihot/contracts/site";
-import { SITE, subjectAfter, withSubject } from "@aihot/industry/site";
+import type { ReportCitation, ReportDetail, ReportNavigationEntry } from "@girlsbands/contracts/site";
+import { SITE, subjectAfter, withSubject } from "@girlsbands/industry/site";
 import { Badge } from "../../components/ui/Badge";
 import { IconArrowLeft, IconArrowRight, IconArrowUpRight } from "../../components/icons";
 import { Kicker } from "../../components/ui/Kicker";

@@ -4,7 +4,7 @@ import { addAbortListener } from "node:events";
 import { Agent, ProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
 import { config } from "../config.ts";
 import { assertPublicUrl, guardedLookup } from "./url.ts";
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 
 /**
  * Where a request leaves the host. "egress" (collection, bodies and images) goes

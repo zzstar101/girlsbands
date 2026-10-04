@@ -2,9 +2,9 @@ import { tag } from './setup.ts';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
-import { closeDb, sql } from '@aihot/backend/db';
-import type { HotEntry } from '@aihot/backend/events/hot';
-import { loadHotStrip, rankingExtras } from '@aihot/backend/publication/hot';
+import { closeDb, sql } from '@girlsbands/backend/db';
+import type { HotEntry } from '@girlsbands/backend/events/hot';
+import { loadHotStrip, rankingExtras } from '@girlsbands/backend/publication/hot';
 
 const t = `hotfaces-${tag()}`;
 // Listed in the ranking's stored order, which the faces must not follow.

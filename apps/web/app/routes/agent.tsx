@@ -1,9 +1,9 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
 import type { Route } from "./+types/agent";
-import { PUBLIC_INTERFACE_VERSION } from "@aihot/contracts/http-policy";
-import { MCP_TOOLS } from "@aihot/contracts/mcp";
-import { SITE } from "@aihot/industry/site";
+import { PUBLIC_INTERFACE_VERSION } from "@girlsbands/contracts/http-policy";
+import { MCP_TOOLS } from "@girlsbands/contracts/mcp";
+import { SITE } from "@girlsbands/industry/site";
 import { apiGet, edgeTtl } from "../lib/api.server";
 import { listPath, pageMeta, siteUrl } from "../lib/seo";
 import { IconArrowUpRight, IconChevronRight, IconCode, IconDoc, IconPlug, IconRss } from "../components/icons";

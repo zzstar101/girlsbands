@@ -1,12 +1,14 @@
-AIHOT
-Copyright (c) 2026 数字生命卡兹克. The code is licensed under the MIT License (LICENSE).
+少女乐队's (girlsbands)
+A derivative work of the AIHOT framework. The upstream code is Copyright (c) 2026 数字生命卡兹克 and is
+licensed under the MIT License (LICENSE); that notice is retained here because the license requires it.
 
-The name "AIHOT" and the AIHOT logo are not licensed under the MIT License. Please use your own name
-and logo for your site.
+The name "AIHOT" and the AIHOT logo are not licensed under the MIT License. This site runs under its own
+name and logo, and so must any further fork.
 
 This repository also contains third-party material under its own terms:
 
 - assets/og-fonts/: Noto Sans SC, SIL Open Font License 1.1 (assets/og-fonts/LICENSE).
 
-The demo sources in industry/sources.json are public feeds of their publishers. Their content belongs
-to them; by default the site shows only a summary and a link to the original.
+The sources in industry/sources.json are public feeds of their publishers. Their content belongs to them:
+this site republishes each item in full together with a Chinese translation. A rights holder who wants an
+item taken down can ask, and it is removed; the contact address is in industry/site.ts.

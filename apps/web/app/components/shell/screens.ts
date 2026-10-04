@@ -37,7 +37,7 @@ export function historyIndex(): number {
 }
 
 // Session storage, so a page the browser reloads still knows what lies behind it. Not a contract.
-const SCREENS_KEY = "aihot:screens";
+const SCREENS_KEY = "girlsbands:screens";
 const MAX_SCREENS = 60;
 
 interface HistoryScreen { key: string; name: string; tab?: TabKey }

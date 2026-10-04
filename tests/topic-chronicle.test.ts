@@ -11,11 +11,11 @@
 //   the later stages must not be folded into the announcement;
 // - ownership: a band takes an announcement whose title names another band first, or one its own source
 //   alone carries; a project's page takes its bands' news, a band's page does not take its project's;
-// - directions and forms: a content-form topic's chronicle takes what names the form, not everything
-//   carrying its tag;
+// - directions and forms: a direction topic's chronicle takes what names the direction, not everything
+//   carrying its tag; a content form has no page, so it has no chronicle either;
 // - curated history: an older, stronger report in a month a band's curated history covers suppresses
 //   the automatic milestone after that month;
-// - limits: a form topic keeps no more of a busy month than its own perMonth; a band's kinds keep theirs;
+// - limits: a direction keeps the framework's five a month; a band's kinds keep their own allowance;
 // - labels: a milestone reads as the event's name, with the subject opening and the announcement verb
 //   removed on its own page ("8th ONE-MAN LIVE『凛音の理』"), and a 公演名 or 碟名 is copied as-is,
 //   never translated;
@@ -26,9 +26,9 @@
 import "./setup.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CHRONICLE } from "@aihot/industry/chronicle";
-import { findTopic, TOPICS } from "@aihot/backend/publication/topics";
-import { selectTopicChronicle, selectTopicHighlights, type ChronicleReport } from "@aihot/backend/publication/topic-chronicle";
+import { CHRONICLE } from "@girlsbands/industry/chronicle";
+import { findTopic, TOPICS } from "@girlsbands/backend/publication/topics";
+import { selectTopicChronicle, selectTopicHighlights, type ChronicleReport } from "@girlsbands/backend/publication/topic-chronicle";
 
 const NOW = new Date("2026-09-30T20:00:00+08:00");
 const window = { now: NOW };
@@ -94,7 +94,7 @@ test("汇总、榜单、传闻与商品目录不是大事记，分数再高也�
     report("トゲナシトゲアリ グッズ紹介", { score: 99, day: 6 }),
   ];
   assert.deepEqual(titles("togenashi-togeari", out), []);
-  assert.deepEqual(titles("one-man", out), [], "内容形态主题也一样");
+  assert.deepEqual(titles("one-man", out), [], "内容形态主题没有页面，也不设大事记");
 });
 
 test("媒体内容只有电视、广播、生放送这类出演才算事件", () => {
@@ -102,7 +102,7 @@ test("媒体内容只有电视、广播、生放送这类出演才算事件", ()
   const tv = media("トゲナシトゲアリ 理名 テレビ出演決定", { score: 90, day: 3 });
   assert.deepEqual(titles("togenashi-togeari", [column]), [], "杂志访谈不是事件");
   assert.deepEqual(titles("togenashi-togeari", [tv]), [tv.title], "电视出演是");
-  assert.deepEqual(titles("media-interviews", [column]), [column.title], "在媒体形态主题里它仍是一条");
+  assert.deepEqual(titles("media-interviews", [column]), [], "内容形态主题没有页面，栏目的访谈也进不了大事记");
 });
 
 test("企划／乐队主题各类型分开取，按各自的分数门槛和每月名额", () => {
@@ -118,12 +118,11 @@ test("企划／乐队主题各类型分开取，按各自的分数门槛和每�
   assert.equal(picked.filter((e) => e.kind === "member").length, 1);
 });
 
-test("内容形态主题每月按自己的名额取舍：旗舰形态八条，其余五条", () => {
+test("方向主题每月按重要程度取前五件", () => {
   const many = (n: number, what: string) => Array.from({ length: n }, (_, i) => report(`バンド${i} ${what} 開催決定`, { score: 95 - i, day: 1 + i }));
-  const flagship = many(9, "ONE-MAN LIVE");
-  assert.equal(events("one-man", flagship).length, CHRONICLE.forms["one-man"]!.perMonth);
-  assert.ok(!titles("one-man", flagship).includes(flagship[8]!.title), "最不重要的一条掉出去");
-  assert.equal(events("tours", many(7, "全国ツアー")).length, 5, "其余形态按框架默认的五条");
+  const busy = many(7, "ONE-MAN LIVE");
+  assert.equal(events("live", busy).length, 5, "框架默认每月五条");
+  assert.ok(!titles("live", busy).includes(busy[6]!.title), "最不重要的几条掉出去");
 });
 
 test("人工整理的历史覆盖到哪个月，自动节点就从那之后开始", () => {
@@ -197,7 +196,7 @@ test("事件名去掉开头的主体和末尾的公布动作，公演名照抄�
     ["togenashi-togeari", "トゲナシトゲアリ 新单曲《名前のない歌》发售决定", "新单曲《名前のない歌》", { category: "release", tags: ["新作发售"] }],
     ["togenashi-togeari", "トゲナシトゲアリ×MyGO!!!!! 対バンライブ開催決定", "トゲナシトゲアリ×MyGO!!!!! 対バンライブ"],
     ["roselia", "Roselia、9th Live 開催決定", "9th Live"],
-    ["one-man", "トゲナシトゲアリ、8th ONE-MAN LIVE 開催決定", "トゲナシトゲアリ、8th ONE-MAN LIVE"],
+    ["live", "トゲナシトゲアリ、8th ONE-MAN LIVE 開催決定", "トゲナシトゲアリ、8th ONE-MAN LIVE"],
     // 日文标题的真实写法：顿号后面还接一句（只留前半句）、票务和周边各自的说法、通知末尾的「のお知らせ」、
     // 括号标签留在开头（框架的选择）、合作演出里的两个乐队名一起照抄、外文标题照抄不翻译。
     ["togenashi-togeari", "トゲナシトゲアリ、8th ONE-MAN LIVE『凛音の理』開催決定、チケットは9月5日よりFC先行", "8th ONE-MAN LIVE『凛音の理』"],

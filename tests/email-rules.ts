@@ -11,18 +11,18 @@
 //          （图片默认被屏蔽，所以「不加载也读得懂」是硬要求，不是加分项）；
 //          每一封还要引用自己的大标题牌 /og/email/title/<kind>.png，截止雷达每天一张日期牌
 import { load } from "cheerio";
-import { ALLOWED_PX, BORDER, INDENT, LEADING, MAX_WIDTH, PAD_X, RADIUS, SPACE, TYPE } from "@aihot/industry/email/layout";
-import { heroHandle, normalizeHero, type HeroHandle } from "@aihot/industry/email/hero";
-import { dateHandle, titleHandle } from "@aihot/industry/email/title";
-import type { EmailData, EmailSite, EmailStyle } from "@aihot/industry/email/types";
+import { ALLOWED_PX, BORDER, INDENT, LEADING, MAX_WIDTH, PAD_X, RADIUS, SPACE, TYPE } from "@girlsbands/industry/email/layout";
+import { heroHandle, normalizeHero, type HeroHandle } from "@girlsbands/industry/email/hero";
+import { dateHandle, titleHandle } from "@girlsbands/industry/email/title";
+import type { EmailData, EmailSite, EmailStyle } from "@girlsbands/industry/email/types";
 
 export const SAMPLE_SITE: EmailSite = {
-  name: "AniBand Radar",
+  name: "少女乐队's",
   subject: "少女乐队",
   tagline: "别错过下一场 Live",
-  url: "https://aniband.example",
+  url: "https://girlsbands.example",
   footerNote: "本站是聚合摘要与索引，信息以官方发布为准",
-  logoUrl: "https://aniband.example/icon-192.png",
+  logoUrl: "https://girlsbands.example/icon-192.png",
   accent: "#8a5c07",
   accentBright: "#e8b53c",
   hot: "#c8342a",
@@ -36,6 +36,21 @@ export const SAMPLE_SITE: EmailSite = {
 };
 
 const SITE = SAMPLE_SITE;
+
+/**
+ * 把 HTML 实体还原成读者看到的文字。
+ * 站名 `少女乐队's` 里的撇号在模板里按规矩转成 `&#39;`，所以「HTML 里有没有站名」不能用原文去比。
+ * 只用于这一类可见文字比对；安全检查一律仍拿原始 html。
+ */
+const visibleText = (html: string) =>
+  html
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 
 /**
  * 头图样本：与 packages/backend/src/subscriptions/content.ts 造出来的句柄同形。
@@ -59,7 +74,7 @@ export const SAMPLES: EmailData[] = [
     kind: "confirm",
     site: SITE,
     email: "listener@example.com",
-    confirmUrl: "https://aniband.example/api/site/subscribe/confirm?token=abc123",
+    confirmUrl: "https://girlsbands.example/api/site/subscribe/confirm?token=abc123",
     bands: ["トゲナシトゲアリ", "MyGO!!!!!", "結束バンド"],
     wantsDeadlines: true,
     wantsDigest: true,
@@ -80,7 +95,7 @@ export const SAMPLES: EmailData[] = [
             label: "抽选截止",
             note: "FC先行受付締切",
             title: "トゲナシトゲアリ 8th ONE-MAN LIVE『凛音の理』チケット先行受付",
-            url: "https://aniband.example/items/abc",
+            url: "https://girlsbands.example/items/abc",
             band: "トゲナシトゲアリ",
             accent: "#e8b53c",
             source: "トゲナシトゲアリ 官网",
@@ -92,7 +107,7 @@ export const SAMPLES: EmailData[] = [
             label: "一般发售",
             note: null,
             title: "結束バンド 出演 新宿LOFT 50周年記念 2マンライブ「DREAM MATCH 2026」",
-            url: "https://aniband.example/items/def",
+            url: "https://girlsbands.example/items/def",
             band: "結束バンド",
             accent: "#3f7d5a",
             source: "結束バンド 官网",
@@ -111,7 +126,7 @@ export const SAMPLES: EmailData[] = [
             label: "演出当天",
             note: "開場 17:00 / 開演 18:00",
             title: "MyGO!!!!! 5th LIVE「迷跡波」日本武道館公演",
-            url: "https://aniband.example/items/ghi",
+            url: "https://girlsbands.example/items/ghi",
             band: "MyGO!!!!!",
             accent: "#5b6ecb",
             source: "BanG Dream! 官网",
@@ -130,7 +145,7 @@ export const SAMPLES: EmailData[] = [
             label: "配信截止",
             note: "アーカイブ配信の視聴期限",
             title: "『ガールズバンドクライ』2nd Anniversary LIVE アーカイブ配信",
-            url: "https://aniband.example/items/jkl",
+            url: "https://girlsbands.example/items/jkl",
             band: "ガールズバンドクライ",
             accent: "#c8342a",
             source: "GIRLS BAND CRY 官网",
@@ -139,8 +154,8 @@ export const SAMPLES: EmailData[] = [
         ],
       },
     ],
-    unsubscribeUrl: "https://aniband.example/subscribe/manage?token=abc123&action=unsubscribe",
-    preferencesUrl: "https://aniband.example/subscribe/manage?token=abc123",
+    unsubscribeUrl: "https://girlsbands.example/subscribe/manage?token=abc123&action=unsubscribe",
+    preferencesUrl: "https://girlsbands.example/subscribe/manage?token=abc123",
   },
   {
     kind: "digest",
@@ -152,7 +167,7 @@ export const SAMPLES: EmailData[] = [
       {
         title: "トゲナシトゲアリ LIVE in 日本武道館“奏檄の叫” 影像碟化",
         summary: "2026 年 1 月 28 日发售 Blu-ray & DVD，初回限定盘附赠演唱会写真集与纪录片。",
-        url: "https://aniband.example/items/mno",
+        url: "https://girlsbands.example/items/mno",
         category: "发售",
         bands: ["トゲナシトゲアリ"],
         accents: ["#e8b53c"],
@@ -164,7 +179,7 @@ export const SAMPLES: EmailData[] = [
       {
         title: "トゲナシトゲアリ 香港公演「凛音の理」Special Edition 10 月 2 日开演",
         summary: "首次海外 One-man 公演，主办方公布了入场时间与周边售卖安排。",
-        url: "https://aniband.example/items/pqr",
+        url: "https://girlsbands.example/items/pqr",
         category: "Live",
         bands: ["トゲナシトゲアリ"],
         accents: ["#e8b53c"],
@@ -176,7 +191,7 @@ export const SAMPLES: EmailData[] = [
       {
         title: "結束バンド 将在 SHELTER 35 周年纪念活动举行ワンマン",
         summary: "下北泽 SHELTER 35 周年纪念演出，結束バンド 确认出演并举行单独公演。",
-        url: "https://aniband.example/items/stu",
+        url: "https://girlsbands.example/items/stu",
         category: "Live",
         bands: ["結束バンド"],
         accents: ["#3f7d5a"],
@@ -188,7 +203,7 @@ export const SAMPLES: EmailData[] = [
       {
         title: "MyGO!!!!! 新单曲「名前のない歌」初回限定盘 店铺别特典公开",
         summary: "各店铺特典图案公开，Amazon 限定版附赠亚克力立牌。",
-        url: "https://aniband.example/items/vwx",
+        url: "https://girlsbands.example/items/vwx",
         category: "周边",
         bands: ["MyGO!!!!!"],
         accents: ["#5b6ecb"],
@@ -200,7 +215,7 @@ export const SAMPLES: EmailData[] = [
       {
         title: "「ぼっち・ざ・らじお！」公開録音 in 大阪 门票与配信券 6 月 13 日一般贩售",
         summary: "公开录音的门票与配信券同日开卖，售完即止。",
-        url: "https://aniband.example/items/yza",
+        url: "https://girlsbands.example/items/yza",
         category: "票务",
         bands: [],
         accents: [],
@@ -212,7 +227,7 @@ export const SAMPLES: EmailData[] = [
       {
         title: "夢限大みゅーたいぷ 数字单曲「夢我夢中」9 月 28 日 0:00 开始配信",
         summary: "数字单曲正式上线各大平台，附带无字幕 MV。",
-        url: "https://aniband.example/items/bcd",
+        url: "https://girlsbands.example/items/bcd",
         category: "配信",
         bands: ["夢限大みゅーたいぷ"],
         accents: ["#7a4fbf"],
@@ -222,8 +237,8 @@ export const SAMPLES: EmailData[] = [
         selected: false,
       },
     ],
-    unsubscribeUrl: "https://aniband.example/subscribe/manage?token=abc123&action=unsubscribe",
-    preferencesUrl: "https://aniband.example/subscribe/manage?token=abc123",
+    unsubscribeUrl: "https://girlsbands.example/subscribe/manage?token=abc123&action=unsubscribe",
+    preferencesUrl: "https://girlsbands.example/subscribe/manage?token=abc123",
   },
 ];
 
@@ -234,7 +249,7 @@ const EVIL_HERO: HeroHandle = { src: `javascript:${NASTY}`, alt: NASTY, width: 6
 
 /** 恶意样本：每一处读者可见的文字和每一个 URL 都塞进注入串。 */
 export const EVIL_SAMPLES: EmailData[] = [
-  { kind: "confirm", site: SITE, email: "x@example.com", confirmUrl: `https://aniband.example/${NASTY}`, bands: [NASTY], wantsDeadlines: true, wantsDigest: true },
+  { kind: "confirm", site: SITE, email: "x@example.com", confirmUrl: `https://girlsbands.example/${NASTY}`, bands: [NASTY], wantsDeadlines: true, wantsDigest: true },
   {
     kind: "deadline",
     site: SITE,
@@ -244,11 +259,11 @@ export const EVIL_SAMPLES: EmailData[] = [
         date: "2026-10-04",
         label: NASTY,
         weekday: NASTY,
-        items: [{ at: "2026-10-04", time: null, label: NASTY, note: NASTY, title: NASTY, url: `https://aniband.example/${NASTY}`, band: NASTY, accent: NASTY, source: NASTY, soon: true }],
+        items: [{ at: "2026-10-04", time: null, label: NASTY, note: NASTY, title: NASTY, url: `https://girlsbands.example/${NASTY}`, band: NASTY, accent: NASTY, source: NASTY, soon: true }],
       },
     ],
-    unsubscribeUrl: "https://aniband.example/u",
-    preferencesUrl: `https://aniband.example/${NASTY}`,
+    unsubscribeUrl: "https://girlsbands.example/u",
+    preferencesUrl: `https://girlsbands.example/${NASTY}`,
   },
   {
     kind: "digest",
@@ -256,9 +271,9 @@ export const EVIL_SAMPLES: EmailData[] = [
     email: "x@example.com",
     heading: NASTY,
     lead: NASTY,
-    items: [{ title: NASTY, summary: NASTY, url: `https://aniband.example/${NASTY}`, category: NASTY, bands: [NASTY], accents: [NASTY], source: NASTY, time: NASTY, official: true, selected: true }],
-    unsubscribeUrl: "https://aniband.example/u",
-    preferencesUrl: "https://aniband.example/p",
+    items: [{ title: NASTY, summary: NASTY, url: `https://girlsbands.example/${NASTY}`, category: NASTY, bands: [NASTY], accents: [NASTY], source: NASTY, time: NASTY, official: true, selected: true }],
+    unsubscribeUrl: "https://girlsbands.example/u",
+    preferencesUrl: "https://girlsbands.example/p",
   },
 ];
 
@@ -474,7 +489,7 @@ export function checkStyle(style: EmailStyle): string[] {
     ] as const;
     for (const [re, what] of bad) if (re.test(html)) problems.push(`${where}: 出现 ${what}`);
     if (!/max-width\s*:\s*600px/.test(html)) problems.push(`${where}: 没有 600px 封顶`);
-    if (!html.includes(SAMPLE_SITE.name)) problems.push(`${where}: HTML 里没有站名`);
+    if (!visibleText(html).includes(SAMPLE_SITE.name)) problems.push(`${where}: HTML 里没有站名`);
     if (!text.includes(SAMPLE_SITE.name)) problems.push(`${where}: 纯文本里没有站名`);
     if (/<[a-z/]/i.test(text)) problems.push(`${where}: 纯文本里还有标签`);
     if (/[\u200b\u200c\u200d\ufeff]/.test(html + text + subject + preheader)) problems.push(`${where}: 出现零宽字符`);

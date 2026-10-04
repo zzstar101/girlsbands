@@ -4,12 +4,12 @@
 // dailies and a model only writes its overview and introductions, from the brief in the industry pack
 // (industry/prompts/report-period*.md).
 import { z } from "zod";
-import { SITE } from "@aihot/industry/site";
-import { PLAIN_TERMS, RELEASE } from "@aihot/industry/taxonomy";
+import { SITE } from "@girlsbands/industry/site";
+import { PLAIN_TERMS, RELEASE } from "@girlsbands/industry/taxonomy";
 import { promptText, promptVersion } from "../editorial/prompts.ts";
 import { modelFor } from "../editorial/models.ts";
 import { ENTITIES, isRelease } from "../editorial/vocabulary.ts";
-import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange, monthRange } from "@aihot/contracts/time";
+import { addDays, beijingDate, beijingMidnight, isoWeekLabel, isoWeekRange, monthRange } from "@girlsbands/contracts/time";
 import { sql } from "../db.ts";
 import { chatJson } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";

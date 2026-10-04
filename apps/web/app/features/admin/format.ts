@@ -1,5 +1,5 @@
 // Admin display helpers: Beijing wall-clock times, relative ages, compact numbers.
-import { beijingDate, beijingTime } from "@aihot/contracts/time";
+import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
 
 export function bj(iso: string | Date | null | undefined, withYear = false): string {
   if (!iso || Number.isNaN(new Date(iso).getTime())) return "—";

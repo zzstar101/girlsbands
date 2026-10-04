@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { afterEach, mock, test } from "node:test";
 import { createRenderErrorHandler } from "../apps/web/app/lib/render-recovery.ts";
 
-const KEY = "aihot-render-recovery-release";
+const KEY = "girlsbands-render-recovery-release";
 const MANIFEST = "/assets/manifest-1a2b3c4d.js";
 const ORIGIN = "https://news.example.com";
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");

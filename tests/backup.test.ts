@@ -6,9 +6,9 @@ import http from "node:http";
 import { symlink } from "node:fs/promises";
 import path from "node:path";
 import { after, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { sql, closeDb } from "@aihot/backend/db";
-import { runBackup } from "@aihot/backend/operations/backup";
+import { config } from "@girlsbands/backend/config";
+import { sql, closeDb } from "@girlsbands/backend/db";
+import { runBackup } from "@girlsbands/backend/operations/backup";
 
 after(closeDb);
 

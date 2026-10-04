@@ -4,8 +4,8 @@
 import { stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { closeDb } from "@aihot/backend/db";
-import { runAnalysis } from "@aihot/backend/editorial/analyze";
+import { closeDb } from "@girlsbands/backend/db";
+import { runAnalysis } from "@girlsbands/backend/editorial/analyze";
 
 const steps: string[] = [];
 const provider = await stub((_hit, request) => {

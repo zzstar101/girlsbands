@@ -3,11 +3,11 @@
 import './setup.ts';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { SITE } from '@aihot/industry/site';
-import { PUBLIC_API_CATEGORY_KEYS } from '@aihot/contracts/taxonomy';
-import { config } from '@aihot/backend/config';
-import { closeDb } from '@aihot/backend/db';
-import { agentGuide, dailyAnswer, latestAnswer } from '@aihot/backend/publication/agent';
+import { SITE } from '@girlsbands/industry/site';
+import { PUBLIC_API_CATEGORY_KEYS } from '@girlsbands/contracts/taxonomy';
+import { config } from '@girlsbands/backend/config';
+import { closeDb } from '@girlsbands/backend/db';
+import { agentGuide, dailyAnswer, latestAnswer } from '@girlsbands/backend/publication/agent';
 import { buildApp } from '../apps/api/src/app.ts';
 const app = await buildApp();
 after(async () => { await app.close(); await closeDb(); });
@@ -31,6 +31,6 @@ test('empty answers are explicit and fixed reports include their flash section',
   const query = {mode:'selected',window:'24h',category:null,limit:10} as const;
   const res = {schemaVersion:1,query:{...query,by:'timeline',q:null,ordering:'timelineDesc'},items:[],page:{count:0,hasMore:false,nextCursor:null}} as const;
   assert.match(latestAnswer({...res,items:[]},query),/没有符合条件/);
-  const text = dailyAnswer({date:'2026-09-30',windowStart:'2026-09-29T00:00:00Z',windowEnd:'2026-09-30T00:00:00Z',links:{aihot:'https://example.org/daily/2026-09-30'},lead:null,sections:[],flashes:[{title:'FLASH-MARKER',publishedAt:'2026-09-29T01:00:00Z',source:{name:'Source'},links:{aihot:'https://example.org/items/1',original:'https://source.example/1'}}]},'http');
+  const text = dailyAnswer({date:'2026-09-30',windowStart:'2026-09-29T00:00:00Z',windowEnd:'2026-09-30T00:00:00Z',links:{site:'https://example.org/daily/2026-09-30'},lead:null,sections:[],flashes:[{title:'FLASH-MARKER',publishedAt:'2026-09-29T01:00:00Z',source:{name:'Source'},links:{site:'https://example.org/items/1',original:'https://source.example/1'}}]},'http');
   assert.ok(text.includes('FLASH-MARKER'));assert.match(text,/【快讯】/);assert.ok(text.includes('不可信外部资料'));
 });

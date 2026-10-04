@@ -8,12 +8,12 @@
 import { memo } from "react";
 import { Link } from "react-router";
 import { IntentLink } from "../../components/ui/IntentLink";
-import type { GroupInfo, FeedItemSummary, TimelineFilters } from "@aihot/contracts/site";
+import type { GroupInfo, FeedItemSummary, TimelineFilters } from "@girlsbands/contracts/site";
 import { SameEventBadge, SelectedBadge } from "../../components/ui/Badge";
 import { ArtistLine } from "../../components/ui/ArtistBadge";
 import { EventTypeBadge } from "../../components/ui/EventTypeBadge";
 import { ScoreLabel } from "../../components/ui/Score";
-import { beijingTime } from "@aihot/contracts/time";
+import { beijingTime } from "@girlsbands/contracts/time";
 import { subjectsOfItem } from "./bands";
 import { MediaThumbs, SourceLine, StarButton } from "./parts";
 import { GroupButton, GroupSources } from "./ReadingGroup";

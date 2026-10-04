@@ -1,7 +1,7 @@
 // How a dated point is worded, shared by the deadline radar and an event's own page so the two can
 // never drift apart. The words and the hints come from the contract (the reminder emails use the same
 // ones); only the colour class is the website's own business.
-import { DEADLINE_LABELS, type DeadlineKind } from "@aihot/contracts/site";
+import { DEADLINE_LABELS, type DeadlineKind } from "@girlsbands/contracts/site";
 
 export const DEADLINE_KINDS: Record<DeadlineKind, { label: string; hint: string; className: string }> = {
   lottery_end: { ...DEADLINE_LABELS.lottery_end, className: "text-hot" },
@@ -10,6 +10,8 @@ export const DEADLINE_KINDS: Record<DeadlineKind, { label: string; hint: string;
   event: { ...DEADLINE_LABELS.event, className: "text-ink" },
   stream_end: { ...DEADLINE_LABELS.stream_end, className: "text-amber" },
   result: { ...DEADLINE_LABELS.result, className: "text-ink-3" },
+  release_start: { ...DEADLINE_LABELS.release_start, className: "text-accent" },
+  merch_start: { ...DEADLINE_LABELS.merch_start, className: "text-ink-3" },
   other: { ...DEADLINE_LABELS.other, className: "text-ink-4" },
 };
 

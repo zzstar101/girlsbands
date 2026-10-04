@@ -1,5 +1,5 @@
 {
-  "name": "@aihot/api",
+  "name": "@girlsbands/api",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,9 +7,9 @@
     "start": "node src/main.ts"
   },
   "dependencies": {
-    "@aihot/backend": "*",
-    "@aihot/contracts": "*",
-    "@aihot/industry": "*",
+    "@girlsbands/backend": "*",
+    "@girlsbands/contracts": "*",
+    "@girlsbands/industry": "*",
     "@modelcontextprotocol/server": "2.1.0",
     "fastify": "5.12.5",
     "satori": "0.33.5",

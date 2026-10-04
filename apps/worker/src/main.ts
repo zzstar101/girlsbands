@@ -1,15 +1,15 @@
 // Worker process: queues and schedules for collection, processing, events, reports and ops.
-import { assertProductionSecrets } from "@aihot/backend/config";
-import { closeDb } from "@aihot/backend/db";
-import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
-import { registerContentJobs } from "@aihot/backend/jobs/content";
-import { registerSourceJobs } from "@aihot/backend/jobs/sources";
-import { registerEventJobs } from "@aihot/backend/jobs/events";
-import { registerNotifyJobs } from "@aihot/backend/jobs/notify";
-import { registerPublicationJobs } from "@aihot/backend/jobs/publication";
+import { assertProductionSecrets } from "@girlsbands/backend/config";
+import { closeDb } from "@girlsbands/backend/db";
+import { getBoss, stopBoss } from "@girlsbands/backend/jobs/queue";
+import { registerContentJobs } from "@girlsbands/backend/jobs/content";
+import { registerSourceJobs } from "@girlsbands/backend/jobs/sources";
+import { registerEventJobs } from "@girlsbands/backend/jobs/events";
+import { registerNotifyJobs } from "@girlsbands/backend/jobs/notify";
+import { registerPublicationJobs } from "@girlsbands/backend/jobs/publication";
 import { registerSchedules } from "./schedules.ts";
-import { ensureContentTargets } from "@aihot/backend/notify/deliver";
-import { startHeartbeat } from "@aihot/backend/operations/heartbeat";
+import { ensureContentTargets } from "@girlsbands/backend/notify/deliver";
+import { startHeartbeat } from "@girlsbands/backend/operations/heartbeat";
 
 assertProductionSecrets([["auth", "IMG_PROXY_SIGN_SECRET"]]);
 

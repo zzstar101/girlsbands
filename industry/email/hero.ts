@@ -9,7 +9,7 @@
 //   · 画布 1200×450（邮件里按 600×225 显示，2 倍图在高分屏上是清的）
 //   · 主角是**这支乐队的官方 logo**，存在仓库里（assets/band-logos/<id>.png，scripts/fetch-band-logos.ts
 //     抓一次入库），渲染时从磁盘读，**不出网**；没有对应 logo 就没有主视觉，只剩文字
-//   · 底色要保证 logo 读得清：**应援色不能直接用**——逐像素量过 19 支官方 logo，只有 4 支的墨迹
+//   · 底色要保证 logo 读得清：**应援色不能直接用**——逐像素量过 20 个官方 logo，只有 4 个的墨迹
 //     能压在应援色上，其余各支的应援色都是中间调，墨迹对比度掉到 1.5:1 上下。所以渲染那端按
 //     「丢掉多少墨迹」挑一块（判据见 apps/api/src/og/hero.ts 的 plateFor）：应援色推明度得到的
 //     浅板、深板、白板、近黑板里挑墨迹最全的那块，另有 4 支按官方页面上的实际底板手工覆盖
@@ -102,7 +102,7 @@ export function normalizeHero(input: Partial<HeroSpec>): HeroSpec {
     accent: color(input.accent, FALLBACK_ACCENT),
     ink: color(input.ink, FALLBACK_INK),
     surface: color(input.surface, FALLBACK_SURFACE),
-    star: clean(input.star) || "AniBand Radar",
+    star: clean(input.star) || "少女乐队's",
     date: dateOnly(input.date),
     logo: logoId(input.logo),
   };

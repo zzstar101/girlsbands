@@ -8,7 +8,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import opentype from "opentype.js";
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 
 const pkg = process.argv[2];
 if (!pkg) throw new Error("usage: node scripts/nameplates.ts <noto-sans-sc package dir>");

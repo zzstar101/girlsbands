@@ -8,9 +8,9 @@
 //      understanding for selected and near-selected items, by the cheaper title/summary prompts for the rest.
 // Material with only a title or a feed summary has its article page fetched before it is judged.
 import { z } from "zod";
-import { CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
-import { CATEGORIES } from "@aihot/industry/taxonomy";
-import { SELECTION } from "@aihot/industry/selection";
+import { CATEGORY_KEYS } from "@girlsbands/contracts/taxonomy";
+import { CATEGORIES } from "@girlsbands/industry/taxonomy";
+import { SELECTION } from "@girlsbands/industry/selection";
 import { sql } from "../db.ts";
 import { chatJson, MODELS, ModelOutputError, type ContentPart } from "../providers/llm.ts";
 import { completeReceipt, ProviderRejectedError, ReceiptUnknownError } from "../providers/receipts.ts";
@@ -350,9 +350,9 @@ export async function runStructure(a: AnalyzeInputArticle, opts: StepOpts = {}):
 }
 
 /** Content understanding grounded in the original; null on a content-filter refusal. */
-export async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts = {}): Promise<AnalysisRun["writing"]> {
+export async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts = {}, note?: string): Promise<AnalysisRun["writing"]> {
   const model = await modelFor("understand");
-  const text = understandUser(a);
+  const text = understandUser(a) + (note ? `\n\n${note}` : "");
   const call = (image: ContentPart | null) => {
     checkAnalysisRunning();
     return chatJson({
@@ -386,7 +386,7 @@ export async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts = {})
 }
 
 /** The title/summary prompts (articles, long and short posts). */
-async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts): Promise<NonNullable<AnalysisRun["writing"]>> {
+async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts, note?: string): Promise<NonNullable<AnalysisRun["writing"]>> {
   const t = translateInputOf(a);
   const isX = t.sourceKind === "x_search";
   const short = isShortTweetInput(t);
@@ -397,13 +397,14 @@ async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
   if (!short && t.text.trim().length < 20) return { kind: "none", model: null, titleZh: looksChinese(t.title) ? t.title : "", summaryZh: "", ...plain };
   const model = await modelFor("summarize");
   checkAnalysisRunning();
+  const user = short ? buildShortTweetPrompt(t) : isX ? buildLongTweetPrompt(t) : buildArticlePrompt(t);
   const res = await chatJson({
     model,
     purpose: "summarize_article",
     subject: subjectOf(a),
     promptVersion: PROMPT_VERSIONS.summarize,
     system: "",
-    user: short ? buildShortTweetPrompt(t) : isX ? buildLongTweetPrompt(t) : buildArticlePrompt(t),
+    user: note ? `${user}\n\n${note}` : user,
     schema: SummarizeSchema,
     json: false,
     parse: parseTranslateOutput,
@@ -421,6 +422,33 @@ async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
   return { kind: "summarize", model: res.model, titleZh: copy.titleZh, summaryZh: copy.summaryZh, reasonZh: null, identityGuard: copy.identityGuard, receiptIds: [res.receiptId], reused: res.reused };
 }
 
+/** Why an item that passed the prefilter is not on the site, as the runs page and the alert show it. */
+export const NO_COPY_ERROR = "写作步骤没有给出中文标题或摘要，已重试一次";
+
+/** What a reader of this site needs from the copy step: a Chinese title, and a summary under it. */
+const hasCopy = (w: AnalysisRun["writing"] | null | undefined): boolean =>
+  !!collapseWhitespace(w?.titleZh ?? "") && !!(w?.summaryZh ?? "").trim();
+
+/**
+ * Nothing goes on the site without Chinese copy, so an item whose writer returned no usable title or
+ * summary is asked once more — as a new paid request, because repeating the same one would only replay
+ * its receipt and get the same answer back. What went wrong is said to the model in the retry. A
+ * verbatim or too-short item had no model writing it and there is nothing to write from: left alone.
+ */
+async function ensureCopy(a: AnalyzeInputArticle, opts: StepOpts, wrote: AnalysisRun["writing"]): Promise<AnalysisRun["writing"]> {
+  if (hasCopy(wrote) || !wrote || wrote.kind === "verbatim" || wrote.kind === "none") return wrote;
+  const note = wrote.identityGuard?.outcome === "fallback"
+    ? "上一次的中文标题里出现了原文没有提到的名字，整条被丢弃了。请只用原文里确实出现的名字重写标题和摘要。"
+    : "上一次没有给出可用的中文标题或摘要。标题必须是有信息量的中文，摘要要回答这条消息说了什么。";
+  const retry = { ...opts, attemptTag: tagged(opts.attemptTag, "copy-retry") };
+  const again = wrote.kind === "understand" ? await runUnderstand(a, retry, note) : await runSummarize(a, retry, note);
+  if (!again || !hasCopy(again)) return wrote;
+  // Both receipts are kept: the first request was paid for too, and it is why the second one ran.
+  const receipts = [...wrote.receiptIds, ...again.receiptIds];
+  const reused = wrote.reused && again.reused;
+  return { ...again, receiptIds: receipts, reused };
+}
+
 /** Runs the steps on the material as it is (or reuses their receipts) without writing business results. */
 export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts = {}): Promise<AnalysisRun> {
   checkAnalysisRunning();
@@ -435,7 +463,8 @@ export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts = {}): 
     const near = sum !== null && (sum >= scores!.threshold * SCORE_CALLS || sum > UNDERSTAND_FLOOR * SCORE_CALLS);
     const s = await structure;
     if ("error" in s) throw s.error;
-    const writing = (near ? await runUnderstand(a, opts) : null) ?? (await runSummarize(a, opts));
+    const wrote = (near ? await runUnderstand(a, opts) : null) ?? (await runSummarize(a, opts));
+    const writing = await ensureCopy(a, opts, wrote);
     return { prefilter, scores, writing, structure: s.value };
   } finally {
     // A score/writing error or deploy must not let the job finish while a paid structure request
@@ -450,7 +479,7 @@ export function normalizeAnalysis(run: AnalysisRun) {
   const titleZh = collapseWhitespace(run.writing?.titleZh ?? "");
   const summaryZh = (run.writing?.summaryZh ?? "").trim();
   // Past the prefilter (PASS or UNKNOWN) an item is relevant, but without a usable Chinese title and
-  // summary it cannot be published: it waits.
+  // summary it cannot be published: it is marked failed rather than parked in "analyzed".
   const relevance = label === "BLOCK" ? "block" : run.writing && (!titleZh || !summaryZh) ? "unknown" : "pass";
   // Selected when the two scores add up to twice the tier threshold; the mean, floored, is the score
   // shown (it never decides a half point on its own).
@@ -528,7 +557,13 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
       RETURNING id`;
     for (const id of receiptIds) await completeReceipt(tx, id);
     if (!stale) {
-      await tx`UPDATE articles SET processing_state = ${out.relevance === "block" ? "blocked" : "analyzed"}, processing_error = NULL WHERE id = ${articleId}`;
+      // Past the prefilter an item is relevant, but without Chinese copy it cannot go on the site.
+      // "analyzed" is terminal and nothing sweeps it again, so an item a writer gave no copy for twice
+      // would disappear silently; "failed" puts it on the runs page and in the ops alert, where the
+      // owner can see it and retry it. Material too thin to write up at all is not that: nothing ran.
+      const gaveUp = out.relevance === "unknown" && (w?.kind === "understand" || w?.kind === "summarize");
+      const state = out.relevance === "block" ? "blocked" : gaveUp ? "failed" : "analyzed";
+      await tx`UPDATE articles SET processing_state = ${state}, processing_error = ${gaveUp ? NO_COPY_ERROR : null} WHERE id = ${articleId}`;
     }
     return { analysisId: row!.id, stale };
   });

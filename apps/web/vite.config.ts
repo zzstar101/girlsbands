@@ -2,7 +2,7 @@ import { request as httpRequest } from "node:http";
 import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
-import { isApiOwned, resolveRedirect } from "@aihot/contracts/http-policy";
+import { isApiOwned, resolveRedirect } from "@girlsbands/contracts/http-policy";
 import { API_BASE_URL } from "./app/lib/api.server.ts";
 
 const API = new URL(API_BASE_URL);
@@ -10,7 +10,7 @@ const API = new URL(API_BASE_URL);
 /** Development stand-in for the production web server: the shared redirect table and api-owned path routing. */
 function devEdge(): Plugin {
   return {
-    name: "aihot-dev-edge",
+    name: "girlsbands-dev-edge",
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const raw = req.url ?? "/";

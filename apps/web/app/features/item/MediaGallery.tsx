@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { MediaView } from "@aihot/contracts/site";
+import type { MediaView } from "@girlsbands/contracts/site";
 import { Lightbox } from "../../components/ui/Lightbox";
 
 /** A round play mark over a video's still. */

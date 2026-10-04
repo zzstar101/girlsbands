@@ -5,10 +5,10 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import satori from "satori";
 import sharp from "sharp";
-import { config, REPO_ROOT } from "@aihot/backend/config";
-import { SITE } from "@aihot/industry/site";
+import { config, REPO_ROOT } from "@girlsbands/backend/config";
+import { SITE } from "@girlsbands/industry/site";
 
-export const OG_TEMPLATE_VERSION = "og-2026-09-29.1";
+export const OG_TEMPLATE_VERSION = "og-2026-10-05.3";
 const WIDTH = 1200;
 const HEIGHT = 630;
 const CACHE_DIR = path.join(config.dataDir, "ogcache");
@@ -23,18 +23,21 @@ export interface OgCard {
   accent?: "teal" | "hot" | "amber";
 }
 
-/** 简体字族：中文标签、站名走它。 */
+/** 简体字族：中文标签走它。 */
 export const CN_FAMILY = "Noto Sans SC";
 /** 日文字族：乐队名走它——假名与日文汉字跟简体是两套字形，而且 GB2312 子集里根本没有 結/夢/楽。 */
 export const JP_FAMILY = "Noto Sans JP";
 /** 显示字族：头图上的乐队名与大字日期走它（超粗黑海报体）。只有名字与数字的字形，
  *  中文标签（「48 小时内」「日本时间 JST」）必须留在 CN_FAMILY，混用会出豆腐块。 */
 export const DISPLAY_FAMILY = "Dela Gothic One";
+/** 品牌字族：**只画站名一个词**（邮件头图左上角、分享图与海报的角标）。子集只收 `SITE.name`
+ *  里的字（见 scripts/og/build-og-jp-font.ts 的 brandCharset()），别的词用它就会画成豆腐块。 */
+export const BRAND_FAMILY = "ZCOOL KuaiLe";
 
 let fontsPromise: Promise<Array<{ name: string; data: Buffer; weight: 400 | 700; style: "normal" }>> | null = null;
 
 // satori 0.33.5 按 fontFamily 选字族，缺字时按列表顺序逐字回退（列表顺序不影响字族选择）。
-// 所以三个子集都要注册：日文名缺字回退到 SC，中文标签缺字回退到 JP。
+// 所以四个子集都要注册：日文名缺字回退到 SC，中文标签缺字回退到 JP。
 function fonts() {
   fontsPromise ??= Promise.all([
     readFile(path.join(REPO_ROOT, "assets/og-fonts/noto-sans-sc-400.ttf")),
@@ -42,7 +45,8 @@ function fonts() {
     readFile(path.join(REPO_ROOT, "assets/og-fonts/noto-sans-jp-400.ttf")),
     readFile(path.join(REPO_ROOT, "assets/og-fonts/noto-sans-jp-700.ttf")),
     readFile(path.join(REPO_ROOT, "assets/og-fonts/dela-gothic-one.ttf")),
-  ]).then(([scRegular, scBold, jpRegular, jpBold, display]) => [
+    readFile(path.join(REPO_ROOT, "assets/og-fonts/zcool-kuaile.ttf")),
+  ]).then(([scRegular, scBold, jpRegular, jpBold, display, brand]) => [
     { name: CN_FAMILY, data: scRegular, weight: 400, style: "normal" },
     { name: CN_FAMILY, data: scBold, weight: 700, style: "normal" },
     { name: JP_FAMILY, data: jpRegular, weight: 400, style: "normal" },
@@ -50,6 +54,9 @@ function fonts() {
     // 显示字体只有一个字重，两档都注册成它，免得 satori 按 700 找不到字族又回退。
     { name: DISPLAY_FAMILY, data: display, weight: 400, style: "normal" },
     { name: DISPLAY_FAMILY, data: display, weight: 700, style: "normal" },
+    // 品牌字体同样只有一个字重，两档都注册。
+    { name: BRAND_FAMILY, data: brand, weight: 400, style: "normal" },
+    { name: BRAND_FAMILY, data: brand, weight: 700, style: "normal" },
   ]);
   return fontsPromise;
 }
@@ -64,7 +71,7 @@ export const SITE_HOST = new URL(config.siteUrl).host;
 export function nameMark(size: number, color: string, dot: string): Node {
   return h("div", { display: "flex", alignItems: "center" }, [
     h("div", { width: size * 0.36, height: size * 0.36, borderRadius: 999, backgroundColor: dot, marginRight: size * 0.28 }),
-    h("div", { display: "flex", fontSize: size, fontWeight: 700, color, letterSpacing: 0.5 }, SITE.name),
+    h("div", { display: "flex", fontFamily: BRAND_FAMILY, fontSize: size, fontWeight: 700, color, letterSpacing: 0.5 }, SITE.name),
   ]);
 }
 
@@ -94,7 +101,7 @@ async function tree(card: OgCard): Promise<Node> {
     },
     [
       h("div", { display: "flex", alignItems: "center", justifyContent: "space-between" }, [
-        nameMark(34, "#e6eded", "#2ce2e8"),
+        nameMark(46, "#e6eded", "#2ce2e8"),
         h("div", { display: "flex", fontSize: 24, color: "#82939a" }, SITE_HOST),
       ]),
       h("div", { display: "flex", marginTop: 56, alignItems: "center" }, [

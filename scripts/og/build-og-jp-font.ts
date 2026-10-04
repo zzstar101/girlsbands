@@ -1,6 +1,7 @@
-// 生成头图用的两个子集：
+// 生成头图用的三个子集：
 //   assets/og-fonts/noto-sans-jp-{400,700}.ttf   —— 中文/日文正文与固定文案（CN/JP 兜底）+ 日期图的「月」
 //   assets/og-fonts/dela-gothic-one.ttf          —— 显示字体（超粗黑海报体）：乐队名、邮件标题大字、日期数字
+//   assets/og-fonts/zcool-kuaile.ttf             —— 品牌字体（站名专用）：邮件头图与分享图左上角的 `SITE.name`
 //
 // 为什么需要日文子集：apps/api/src/og/render.ts 原先只注册 GB2312 子集，里面**没有**日文汉字
 // 結(U+7D50) 与 夢(U+5922)（GB2312 只有简体的 结/梦）。satori 遇到缺字会画成豆腐块且不报错，
@@ -17,7 +18,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { ENTITIES } from "@aihot/industry/taxonomy";
+import { SITE } from "@girlsbands/industry/site";
+import { ENTITIES } from "@girlsbands/industry/taxonomy";
 
 const ROOT = path.resolve(new URL("../../", import.meta.url).pathname);
 const VF_URL = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf";
@@ -25,6 +27,9 @@ const VF = path.join(ROOT, ".data/fonts/NotoSansJP-VF.ttf");
 /** 显示字体：Dela Gothic One（Google Fonts，OFL-1.1），静态单一字重。 */
 const DELA_URL = "https://raw.githubusercontent.com/google/fonts/main/ofl/delagothicone/DelaGothicOne-Regular.ttf";
 const DELA = path.join(ROOT, ".data/fonts/DelaGothicOne-Regular.ttf");
+/** 品牌字体：站酷快乐体（Google Fonts，OFL-1.1），静态单一字重，只用来画站名一个词。 */
+const KC_URL = "https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolkuaile/ZCOOLKuaiLe-Regular.ttf";
+const KC = path.join(ROOT, ".data/fonts/ZCOOLKuaiLe-Regular.ttf");
 const OUT_DIR = path.join(ROOT, "assets/og-fonts");
 /** 头图里写死的文案（apps/api/src/og/hero.ts 的 URGENT_LABEL / JST_LABEL，content.ts 的措辞）。 */
 const FIXED_COPY = "● 48 小时内 日本时间 JST 全部乐队与企划 支 个";
@@ -65,6 +70,22 @@ export function displayCharset() {
   for (const ch of MAIL_TITLE_JP) chars.add(ch);
   for (const ch of range(0x3040, 0x30ff)) chars.add(ch); // 平假名 + 片假名
   for (const ch of range(0x0020, 0x007e)) chars.add(ch); // ASCII（数字与 : . 都在这）
+  for (const ch of range(0x00a0, 0x00ff)) chars.add(ch);
+  for (const ch of range(0x2000, 0x206f)) chars.add(ch);
+  for (const ch of range(0x3000, 0x303f)) chars.add(ch);
+  for (const ch of range(0xff00, 0xffef)) chars.add(ch);
+  return [...chars].sort().join("");
+}
+
+/** 品牌字体的字符集：**只有**站名里的字 + 拉丁 + 标点。
+ *
+ *  站名是唯一会用它画的词（邮件头图左上角、分享图与海报的角标），所以字集就是 `SITE.name`。
+ *  换个站名、或多出一款字体没有的字，tests/og-fonts.test.ts 会红，重跑本脚本即可。
+ *  刻意不在这里收乐队名：中文标签与乐队名一律走 CN_FAMILY / JP_FAMILY / DISPLAY_FAMILY。 */
+export function brandCharset() {
+  const chars = new Set<string>();
+  for (const ch of SITE.name) chars.add(ch);
+  for (const ch of range(0x0020, 0x007e)) chars.add(ch); // ASCII（撇号、空格都在这）
   for (const ch of range(0x00a0, 0x00ff)) chars.add(ch);
   for (const ch of range(0x2000, 0x206f)) chars.add(ch);
   for (const ch of range(0x3000, 0x303f)) chars.add(ch);
@@ -127,6 +148,13 @@ async function main() {
   await writeFile(displayFile, displayCharset());
   const dela = await subset(DELA, path.join(OUT_DIR, "dela-gothic-one.ttf"), displayFile, `${displayCharset().length} 个字符（乐队名、邮件标题、数字）`);
   if (dela > 400 * 1024) throw new Error(`显示字体子集 ${Math.round(dela / 1024)}KB 太大了：多半是把整套假名收进来了，收窄 displayCharset()`);
+
+  // 品牌字体：静态单一字重，只画站名一个词，直接裁。
+  await ensure(KC_URL, KC);
+  const brandFile = path.join(ROOT, ".data/fonts/brand-charset.txt");
+  await writeFile(brandFile, brandCharset());
+  const brand = await subset(KC, path.join(OUT_DIR, "zcool-kuaile.ttf"), brandFile, `${brandCharset().length} 个字符（站名）`);
+  if (brand > 200 * 1024) throw new Error(`品牌字体子集 ${Math.round(brand / 1024)}KB 太大了：收窄 brandCharset()`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) await main();

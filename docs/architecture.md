@@ -61,7 +61,8 @@ flowchart LR
 
 | 地址 | 内容 |
 |---|---|
-| `/` `/all` `/hot` `/deadlines` `/topics` `/daily` `/weekly` `/monthly` | 精选、全部动态、热门事件、截止雷达、主题、日报周报月报 |
+| `/` `/all` `/hot` `/deadlines` `/topics/<slug>` `/daily` `/weekly` `/monthly` | 精选、全部动态、热门事件、截止雷达、企划／乐队／方向主题页、日报周报月报 |
+| `/calendar.ics` `/calendar/<slug>.ics` | 日历订阅：全站、单个企划或乐队（RFC 5545） |
 | `/feed.xml` `/feed/full.xml` `/feed/all.xml` `/feed/daily.xml` `/feed/weekly.xml` `/feed/monthly.xml` | RSS：精选、精选全文、全部、日报、周报、月报；另有按分类的 `/feed/category/<key>.xml` |
 | `/api/v1/` | 公开 API，文档在 `/openapi-v1.json`；给 Agent 读的 Markdown 从 `/api/v1/agent` 开始；说明页在 `/agent` |
 | `/api/mcp` | MCP 服务：最新、搜索、热点、事件、日报、周报、月报各一个工具，工具名前缀是 `industry/site.ts` 的 `mcpPrefix` |
@@ -73,8 +74,8 @@ flowchart LR
 
 ```bash
 npm run typecheck
-DATABASE_URL=postgres://127.0.0.1:5432/myhot_test npm test
-npm run build -w @aihot/web && node --test apps/web/tests/*.test.ts
+DATABASE_URL=postgres://127.0.0.1:5432/girlsbands_test npm test
+npm run build -w @girlsbands/web && node --test apps/web/tests/*.test.ts
 ```
 
 `DATABASE_URL` 指向的库名必须以 `_test` 或 `_ci` 结尾；没有会自动创建并迁移。每个测试文件在它的一份副本上并行运行，所以数据库账号要有建库权限（`CREATEDB`）。测试不访问任何外部服务：模型和付费接口都由本地假服务回答。

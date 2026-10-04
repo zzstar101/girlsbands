@@ -1,20 +1,20 @@
 // Share images (1200×630 PNG) for pages, items, reports, topics and events. Only public content
 // gets a card; anything else is a real 404.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
-import { beijingDate } from "@aihot/contracts/time";
-import { loadItemShare } from "@aihot/backend/publication/og";
-import { loadReport, type ReportKind } from "@aihot/backend/publication/reports";
-import { findTopic, TOPIC_GROUPS, TOPICS } from "@aihot/backend/publication/topics";
-import { loadStoryDetail, resolveStory } from "@aihot/backend/publication/stories";
+import { CATEGORY_LABELS } from "@girlsbands/contracts/taxonomy";
+import { beijingDate } from "@girlsbands/contracts/time";
+import { loadItemShare } from "@girlsbands/backend/publication/og";
+import { loadReport, type ReportKind } from "@girlsbands/backend/publication/reports";
+import { findPageTopic, TOPIC_GROUPS } from "@girlsbands/backend/publication/topics";
+import { loadStoryDetail, resolveStory } from "@girlsbands/backend/publication/stories";
 import { ogEtag, renderOg, type OgCard } from "../og/render.ts";
 import { posterEtag, renderPoster, type Poster } from "../og/poster.ts";
 import { renderHero } from "../og/hero.ts";
 import { parseDateFile, parseTitleFile, renderDate, renderTitle } from "../og/title.ts";
-import { decodeHero } from "@aihot/industry/email/hero";
-import { SITE, subjectAfter, withSubject } from "@aihot/industry/site";
-import { config } from "@aihot/backend/config";
-import { Rejected, rateLimit, sourceFingerprint } from "@aihot/backend/operations/abuse";
+import { decodeHero } from "@girlsbands/industry/email/hero";
+import { SITE, subjectAfter, withSubject } from "@girlsbands/industry/site";
+import { config } from "@girlsbands/backend/config";
+import { Rejected, rateLimit, sourceFingerprint } from "@girlsbands/backend/operations/abuse";
 
 const S = SITE.subject;
 
@@ -26,10 +26,10 @@ const PAGES: Record<string, OgCard> = {
   daily: { kicker: withSubject("日报"), title: `每天 8 点，一份读得完的${withSubject("日报")}`, subtitle: `前一天值得关注的${S}动态。` },
   weekly: { kicker: withSubject("周报"), title: "一周大事，一次看清", subtitle: "本周的主线、重要发布与值得回看的讨论。" },
   monthly: { kicker: withSubject("月报"), title: "一个月的变化", subtitle: "月度主线与关键事件回顾。" },
-  topics: { kicker: "主题", title: `${TOPICS.length} ${subjectAfter("个长期追踪的", "方向")}`, subtitle: `${TOPIC_GROUPS.map((g) => g.name).join("、")}。` },
   about: { kicker: "关于", title: `关于 ${SITE.name}`, subtitle: SITE.description },
   terms: { kicker: "使用规则", title: `${SITE.name} 使用规则`, subtitle: "网站、API、RSS 与 MCP 的使用范围。" },
   privacy: { kicker: "隐私说明", title: `${SITE.name} 隐私说明`, subtitle: "访问日志、浏览器本地数据与反馈资料的处理方式。" },
+  rights: { kicker: "权利与删除", title: `${SITE.name} 权利与删除`, subtitle: "来源方怎么要求删除、更正或调整展示方式，以及我们会怎么处理。" },
   changelog: { kicker: "更新日志", title: `${SITE.name} 更新日志`, subtitle: "功能更新、优化、公告与下线记录。" },
   feedback: { kicker: "反馈", title: "告诉我们哪里可以更好", subtitle: "内容、功能、接入，或来源方的更正与下架请求。" },
   agent: { kicker: "Agent 接入", title: `把 ${SITE.name} 接进你的 Agent`, subtitle: "Markdown、MCP、RSS、API 四种方式，匿名只读，无需 API Key。" },
@@ -201,7 +201,7 @@ export function registerOg(app: FastifyInstance) {
 
   app.get("/og/topics/:file", async (req, reply) => {
     const file = (req.params as { file: string }).file;
-    const t = file.endsWith(".png") ? findTopic(file.slice(0, -4)) : null;
+    const t = file.endsWith(".png") ? findPageTopic(file.slice(0, -4)) : null;
     if (!t) return notFound(reply);
     return send(req, reply, { kicker: `主题 · ${TOPIC_GROUPS.find((g) => g.key === t.group)?.name ?? ""}`, title: `${t.name} 最新动态`, subtitle: t.definition }, 86400);
   });

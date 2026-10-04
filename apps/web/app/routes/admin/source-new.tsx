@@ -1,8 +1,8 @@
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import type { Route } from "./+types/source-new";
-import type { AdminSourceCreated, AdminSourcePreview } from "@aihot/contracts/admin";
+import type { AdminSourceCreated, AdminSourcePreview } from "@girlsbands/contracts/admin";
 import { useAdminAction } from "../../features/admin/action";
 import { bj } from "../../features/admin/format";
 import { KIND_LABEL, MODE_LABEL, TIER_LABEL } from "../../features/admin/labels";

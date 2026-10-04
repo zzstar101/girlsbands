@@ -3,14 +3,14 @@
 //
 // 收件人的乐队过滤在这里做：截止雷达和精选摘要各算一次全量，再按每个人的乐队名单筛。
 // 没勾任何乐队的人拿全部（见 store.ts 的说明）。
-import { CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
-import { DEADLINE_LABELS, type DeadlineKind, type DeadlineView } from "@aihot/contracts/site";
-import { beijingDate, beijingTime } from "@aihot/contracts/time";
-import { ENTITIES, isBand } from "@aihot/industry/taxonomy";
-import { heroHandle, normalizeHero, type HeroHandle, type HeroSpec } from "@aihot/industry/email/hero";
-import { EMAIL_THEME } from "@aihot/industry/email/theme";
-import type { ConfirmData, DeadlineData, DeadlineDay, DeadlineEntry, DigestData, DigestItem, EmailSite } from "@aihot/industry/email/types";
-import { SITE, withSubject } from "@aihot/industry/site";
+import { CATEGORY_LABELS } from "@girlsbands/contracts/taxonomy";
+import { DEADLINE_LABELS, type DeadlineKind, type DeadlineView } from "@girlsbands/contracts/site";
+import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
+import { ENTITIES, isBand } from "@girlsbands/industry/taxonomy";
+import { heroHandle, normalizeHero, type HeroHandle, type HeroSpec } from "@girlsbands/industry/email/hero";
+import { EMAIL_THEME } from "@girlsbands/industry/email/theme";
+import type { ConfirmData, DeadlineData, DeadlineDay, DeadlineEntry, DigestData, DigestItem, EmailSite } from "@girlsbands/industry/email/types";
+import { SITE, withSubject } from "@girlsbands/industry/site";
 import { config } from "../config.ts";
 import { sql } from "../db.ts";
 import { itemUrl, siteUrl } from "../publication/links.ts";

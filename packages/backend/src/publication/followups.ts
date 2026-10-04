@@ -1,5 +1,5 @@
 // "事件后续" on an article page: the news facts of its event that made 精选, newest first.
-import type { StoryFollowupsResponse } from "@aihot/contracts/site";
+import type { StoryFollowupsResponse } from "@girlsbands/contracts/site";
 import { sql } from "../db.ts";
 import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "./representative.ts";
 import { publicSourceName } from "./rules.ts";

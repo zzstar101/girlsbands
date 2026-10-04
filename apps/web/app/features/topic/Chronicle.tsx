@@ -4,9 +4,9 @@
 // `kinds` describe it.
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import type { TopicEvent, TopicKind, TopicMilestone, TopicMilestoneKind, TopicMonth } from "@aihot/contracts/site";
+import type { TopicEvent, TopicKind, TopicMilestone, TopicMilestoneKind, TopicMonth } from "@girlsbands/contracts/site";
 import { IconArrowUpRight, IconChevronDown, IconChevronLeft, IconChevronRight } from "../../components/icons";
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate } from "@girlsbands/contracts/time";
 
 type Kinds = Record<TopicMilestoneKind, TopicKind>;
 

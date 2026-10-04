@@ -1,7 +1,7 @@
 // SelectBench: selection-model comparison runs on the human gold set. Runs come from
 // scripts/eval-selection.ts (imported automatically) or an uploaded report; the admin compares
 // models on the same cases and browses each case.
-import type { AdminSelectBenchCases, AdminSelectBenchRuns, BeforeJson } from "@aihot/contracts/admin";
+import type { AdminSelectBenchCases, AdminSelectBenchRuns, BeforeJson } from "@girlsbands/contracts/admin";
 import { randomBytes } from "node:crypto";
 import { sql } from "../db.ts";
 import { audit } from "../audit.ts";

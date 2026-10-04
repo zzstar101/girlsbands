@@ -1,9 +1,9 @@
 import { Link, useLoaderData } from "react-router";
-import type { ReportIndexEntry, ReportIndexResponse } from "@aihot/contracts/site";
-import { SITE, withSubject } from "@aihot/industry/site";
+import type { ReportIndexEntry, ReportIndexResponse } from "@girlsbands/contracts/site";
+import { SITE, withSubject } from "@girlsbands/industry/site";
 import { apiGet, edgeTtl } from "../lib/api.server";
 import { archiveLd, pageMeta } from "../lib/seo";
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate } from "@girlsbands/contracts/time";
 import { weekdayShort } from "../lib/format";
 import { ReportLayout } from "../features/report/ReportLayout";
 import { archiveGroups } from "../features/report/format";

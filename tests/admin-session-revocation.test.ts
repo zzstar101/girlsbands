@@ -5,10 +5,10 @@ import { randomBytes } from "node:crypto";
 import { after, before, beforeEach, test } from "node:test";
 import { promisify } from "node:util";
 import Fastify from "fastify";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { sha256 } from "@aihot/backend/lib/ids";
-import { completeLogin, endSession, loginRedirect, passwordLogin, SESSION_COOKIE, sessionPrincipal } from "@aihot/backend/admin/auth";
+import { config } from "@girlsbands/backend/config";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { sha256 } from "@girlsbands/backend/lib/ids";
+import { completeLogin, endSession, loginRedirect, passwordLogin, SESSION_COOKIE, sessionPrincipal } from "@girlsbands/backend/admin/auth";
 import { adminHandler, registerAdminAuth } from "../apps/api/src/routes/admin-auth.ts";
 
 const T = tag();
@@ -301,8 +301,8 @@ test("expiry, unknown token, logout isolation and explicit development mode reta
 test("a fresh process observes its effective replacement password after reload", async () => {
   const token = await password();
   const { stdout } = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", `
-    const { sessionPrincipal } = await import('@aihot/backend/admin/auth');
-    const { closeDb } = await import('@aihot/backend/db');
+    const { sessionPrincipal } = await import('@girlsbands/backend/admin/auth');
+    const { closeDb } = await import('@girlsbands/backend/db');
     try { console.log(JSON.stringify(await sessionPrincipal(process.env.TEST_SESSION_COOKIE))); } finally { await closeDb(); }
   `], { env: { ...process.env, ADMIN_PASSWORD: PASSWORD_B, TEST_SESSION_COOKIE: cookie(token) } });
   assert.equal(JSON.parse(stdout), null);

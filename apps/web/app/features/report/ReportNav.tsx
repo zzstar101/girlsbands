@@ -2,7 +2,7 @@
 // (ReportLayout) and recent-issue chips under it.
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import type { ReportNavigationEntry, ReportNavigationResponse, ReportKind } from "@aihot/contracts/site";
+import type { ReportNavigationEntry, ReportNavigationResponse, ReportKind } from "@girlsbands/contracts/site";
 import { PillTabs } from "../../components/ui/Tabs";
 import { IconChevronRight } from "../../components/icons";
 import { KINDS, KIND_LABEL, KIND_PATH, archiveGroups, archiveMark, chipLabel, reportPath } from "./format";

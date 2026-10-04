@@ -5,12 +5,12 @@
 import { stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { groupArticle } from "@aihot/backend/events/group";
-import { queueProcessing, settleNonEditorial } from "@aihot/backend/jobs/content";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle } from "@aihot/backend/publication/publish";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { groupArticle } from "@girlsbands/backend/events/group";
+import { queueProcessing, settleNonEditorial } from "@girlsbands/backend/jobs/content";
+import { stopBoss } from "@girlsbands/backend/jobs/queue";
+import { publishArticle } from "@girlsbands/backend/publication/publish";
 
 const T = tag();
 const EDITORIAL = `test-sig-ed-${T}`;

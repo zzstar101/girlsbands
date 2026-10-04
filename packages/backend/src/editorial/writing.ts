@@ -1,7 +1,8 @@
 // The writing side of the analysis: the prefilter's and the content understanding's inputs, the
 // title/summary prompts for everything else, the output parsing and the deterministic guards. The
 // wording lives in the industry pack (industry/prompts/); a failed guard falls back without a repair call.
-import { IDENTITY_CONTEXT_ALIASES, IDENTITY_LEXICON, PUBLISHER_DOMAINS } from "@aihot/industry/taxonomy";
+import { IDENTITY_CONTEXT_ALIASES, IDENTITY_LEXICON, PUBLISHER_DOMAINS } from "@girlsbands/industry/taxonomy";
+import { glossaryBlock } from "@girlsbands/industry/glossary";
 import { looksChinese } from "../lib/text.ts";
 import { onlyXArticleLink } from "../sources/x.ts";
 import type { AnalyzeInputArticle } from "./input.ts";
@@ -9,6 +10,16 @@ import { promptText } from "./prompts.ts";
 
 export const PREFILTER_SYSTEM = promptText("prefilter");
 export const UNDERSTAND_SYSTEM = promptText("understand");
+
+/**
+ * The controlled glossary for one material, appended to the user message (these prompts *are* the user
+ * message). Only the proper nouns the text actually names go in, so a Chinese title or summary keeps
+ * トゲナシトゲアリ as トゲナシトゲアリ instead of inventing a rendering. Empty when nothing matched.
+ */
+function glossaryForTexts(texts: Array<string | null | undefined>): string {
+  const block = glossaryBlock(texts.filter((t): t is string => typeof t === "string" && t.length > 0).join("\n"));
+  return block ? `\n\n${block}` : "";
+}
 
 /** A body longer than this is cut (whole bodies are sent; a few run past the context). */
 export const MAX_BODY_CHARS = 60_000;
@@ -120,7 +131,8 @@ export function missingEvidence(a: AnalyzeInputArticle): boolean {
 }
 
 export const understandUser = (a: AnalyzeInputArticle) =>
-  ["请按系统规则理解以下单篇材料，一次返回全部六个字段。", renderContext(a, { annotateQuoted: true })].join("\n\n");
+  ["请按系统规则理解以下单篇材料，一次返回全部六个字段。", renderContext(a, { annotateQuoted: true })].join("\n\n") +
+  glossaryForTexts([a.title, a.bodyText, a.excerpt, a.source.name]);
 
 // Identity context and guard
 
@@ -282,7 +294,7 @@ export function buildArticlePrompt(input: TranslateInput): string {
     identity: identityPrompt(input),
     title: input.title,
     body: input.text ? clampText(cleanArticleTextForLLM(input.text), 6000) : promptText("summarize-article-empty"),
-  });
+  }) + glossaryForTexts([input.title, input.text, input.quotedText, input.sourceName]);
 }
 
 /** The quoted post's block, appended after a blank line when there is one. */
@@ -293,12 +305,12 @@ function quotedBlock(input: TranslateInput, name: string): string {
 
 export function buildShortTweetPrompt(input: TranslateInput): string {
   const post = clampText(input.mainText || input.text || input.title, 4000);
-  return promptText("summarize-short-post", { sourceName: sourceName(input.sourceName), identity: identityPrompt(input), post }) + quotedBlock(input, "summarize-short-post-quoted");
+  return promptText("summarize-short-post", { sourceName: sourceName(input.sourceName), identity: identityPrompt(input), post }) + quotedBlock(input, "summarize-short-post-quoted") + glossaryForTexts([input.title, post, input.quotedText, input.sourceName]);
 }
 
 export function buildLongTweetPrompt(input: TranslateInput): string {
   const post = clampText(input.mainText || input.text || input.title, 4000);
-  return promptText("summarize-long-post", { sourceName: sourceName(input.sourceName), identity: identityPrompt(input), post }) + quotedBlock(input, "summarize-long-post-quoted");
+  return promptText("summarize-long-post", { sourceName: sourceName(input.sourceName), identity: identityPrompt(input), post }) + quotedBlock(input, "summarize-long-post-quoted") + glossaryForTexts([input.title, post, input.quotedText, input.sourceName]);
 }
 
 /** Prompt lines a model sometimes repeats after its answer (来源：…, 【已核验身份上下文】…, 原始标题：…). */

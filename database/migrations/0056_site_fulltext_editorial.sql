@@ -1,0 +1,17 @@
+-- Full text of the original article is now shown for every source this site publishes. That is the
+-- owner's call: the station exists so the Japanese-language official feeds can be read in Chinese in one
+-- place, and it carries the reproduction risk itself instead of waiting for a licence. Every editorial
+-- source in industry/sources.json therefore carries site_fulltext = true (publication/rules.ts
+-- bodyModeOf turns that into an on-site full text whenever the body was fetched and is healthy).
+--
+-- This migration exists because scripts/seed.ts only inserts sources that are not there yet
+-- (ON CONFLICT DO NOTHING), so an install that already ran seed keeps the old false values and would go
+-- on showing summaries. A fresh install reads the flag straight from the JSON and needs nothing.
+--
+-- hot_signal sources are deliberately untouched: they have no public page at all
+-- (publication/rules.ts hasItemPage), so the flag would change nothing for them.
+--
+-- syndicate_fulltext is also deliberately untouched. It gates redistributing the full text through the
+-- RSS feeds and the public API content field (publication/rules.ts mayRedistribute), which is a
+-- separate decision from what the site itself displays.
+UPDATE sources SET site_fulltext = true WHERE participation_mode = 'editorial' AND site_fulltext = false;

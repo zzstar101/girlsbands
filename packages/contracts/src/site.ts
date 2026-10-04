@@ -222,7 +222,7 @@ export interface HotResponse {
  * date the announcement itself gives — never converted to the reader's calendar, so a deadline that
  * closes at 23:59 JST still reads as that day.
  */
-export type DeadlineKind = "lottery_start" | "lottery_end" | "sale_start" | "event" | "stream_end" | "result" | "other";
+export type DeadlineKind = "lottery_start" | "lottery_end" | "sale_start" | "event" | "stream_end" | "result" | "release_start" | "merch_start" | "other";
 
 /**
  * How a dated point is worded. The wording stays on the action ("受理截止", "开卖") rather than on the
@@ -236,6 +236,8 @@ export const DEADLINE_LABELS: Record<DeadlineKind, { label: string; hint: string
   event: { label: "演出当天", hint: "Live / 活动当天" },
   stream_end: { label: "配信截止", hint: "配信或回看的观看期限" },
   result: { label: "结果公布", hint: "抽选结果或名单公布" },
+  release_start: { label: "发售日", hint: "CD / Blu-ray / 数字发行的发行日" },
+  merch_start: { label: "周边开订", hint: "周边开始接受订购或预约的日子" },
   other: { label: "其他", hint: "其他有明确日期的节点" },
 };
 
@@ -269,6 +271,24 @@ export interface DeadlinesResponse {
   to: string;
   /** Only the days that have something due, oldest first. */
   days: Array<{ date: string; items: DeadlineView[] }>;
+  total: number;
+}
+
+/**
+ * One JST month of dated events for a subject (a band, a project, or the whole site). It is the same
+ * rows the radar reads — the dates laid out on a grid instead of a countdown — so a date never shows
+ * up in one and not the other. `at` stays Japan wall-clock, exactly as on the radar.
+ */
+export interface CalendarResponse {
+  computedAt: string;
+  /** The entity id this calendar is for: a project or a band, whose series' dates come along. */
+  subject: string;
+  /** The JST month it covers, `YYYY-MM`. */
+  month: string;
+  /** Only the days of that month that have something, oldest first. */
+  days: Array<{ date: string; items: DeadlineView[] }>;
+  /** The months that have a date near this one, oldest first — the calendar's jump list. */
+  months: string[];
   total: number;
 }
 
@@ -605,7 +625,9 @@ export interface TopicPage {
   topic: TopicSummary & { groupName: string; /** Every listed report, selected or not. */ poolTotal: number };
   /** Every kind of milestone by key. */
   kinds: Record<TopicMilestoneKind, TopicKind>;
-  /** The rest is for the first page only. A direction's or a form's months, newest first. */
+  /** Which view the page shows: the editorial picks, or everything the topic has. */
+  scope: TopicScope;
+  /** The rest is for the first page only. A direction's months, newest first — subjects use `milestones`. */
   chronicle: TopicMonth[];
   /** A company's chronicle band, oldest first. */
   milestones: TopicMilestone[];
@@ -616,3 +638,10 @@ export interface TopicPage {
   pageCount: number;
   pageSize: number;
 }
+
+/**
+ * A topic page's two views. `picked` is the editorial selection — what the site judged worth reading;
+ * `all` is everything the site has on the topic, the same pool the pool total counts. They share the
+ * topic's membership rule, so the wider one is never a different topic, only a wider cut of it.
+ */
+export type TopicScope = "picked" | "all";

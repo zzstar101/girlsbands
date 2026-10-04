@@ -4,11 +4,11 @@
 import { gate, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { translatePending } from "@aihot/backend/editorial/translate";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle } from "@aihot/backend/publication/publish";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { translatePending } from "@girlsbands/backend/editorial/translate";
+import { stopBoss } from "@girlsbands/backend/jobs/queue";
+import { publishArticle } from "@girlsbands/backend/publication/publish";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();
@@ -121,7 +121,25 @@ test("links and images inside a paragraph survive the translation, or the paragr
   assert.equal(tr!.complete, false);
 });
 
-test("the post a selected X post quotes is translated once and shown with the item", async () => {
+test("an item the site did not pick is translated too: the pool reads in Chinese, not only the picks", async () => {
+  const { articleId: id } = await upsertMaterial({
+    sourceId: SOURCE, url: `${URL_}-pool`, title: `Pool item ${T}`, language: "en", bodyText: `The price is ten dollars (${T}).`,
+    bodyHtml: `<p>The price is ten dollars (${T}).</p>`, bodyStatus: "ok", via: "fetch", publishedAt: new Date(), discoveredAt: new Date(Date.now() + 2_400_000),
+  });
+  // It passed the prefilter, so it is listed in the pool, but it scored below the bar: not picked.
+  await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, reason_zh, score, selected)
+            VALUES (${id}, 1, 'rule', 'pass', 'live', ${`池子-${T}`}, '摘要', null, 10, false)`;
+  await publishArticle(id, { releasedAt: new Date(Date.now() - 60_000) });
+  const [pub] = await sql<{ selected: boolean; eligible: boolean; body_mode: string }[]>`
+    SELECT selected, eligible, body_mode FROM publications WHERE article_id = ${id}`;
+  assert.deepEqual({ ...pub }, { selected: false, eligible: true, body_mode: "full" });
+
+  await translatePending({ limit: 1 });
+  const [tr] = await sql<{ body_text: string }[]>`SELECT body_text FROM translations WHERE article_id = ${id}`;
+  assert.equal(tr?.body_text, "价格是十美元。", "a listed item is translated even though the site did not pick it");
+});
+
+test("the post a public X item quotes is translated once and shown with the item", async () => {
   const tweetId = `7${Date.now()}`;
   const { articleId: id } = await upsertMaterial({
     sourceId: SOURCE, url: `https://x.com/tgtg_staff/status/8${Date.now()}`, title: `開催決定 ${T}`, language: "en", bodyText: "Try it!", bodyStatus: "ok",

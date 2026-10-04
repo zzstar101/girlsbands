@@ -4,7 +4,7 @@
 import "./setup.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { looksChinese } from "@aihot/backend/lib/text";
+import { looksChinese } from "@girlsbands/backend/lib/text";
 
 test("Han without kana is Chinese; Han with kana is Japanese and still needs translating", () => {
   const chinese = ["Live 门票现已开售，抽选即将截止", "官方宣布追加席位", "演唱会延期公告", "抽选结果"];

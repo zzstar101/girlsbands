@@ -4,7 +4,7 @@
 import "./setup.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assertPublicUrl, isInternalAddress } from "@aihot/backend/lib/url";
+import { assertPublicUrl, isInternalAddress } from "@girlsbands/backend/lib/url";
 
 test("through the egress proxy only internal answers refuse a name; literals keep the full check", async () => {
   const internal = ["127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "::", "fd00::1", "fe80::1", "::ffff:127.0.0.1", "::ffff:a00:1", "64:ff9b::7f00:1", "64:ff9b:1::1", "2002:a9fe:a9fe::1"];

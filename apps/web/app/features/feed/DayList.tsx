@@ -2,9 +2,9 @@
 // (全部动态, topics, search results).
 import { useMemo } from "react";
 import { Link } from "react-router";
-import type { FeedItemSummary } from "@aihot/contracts/site";
+import type { FeedItemSummary } from "@girlsbands/contracts/site";
 import { IconChevronRight } from "../../components/icons";
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate } from "@girlsbands/contracts/time";
 import { markRead, useReadSet } from "../../lib/local-state";
 import { DayHeader, TimelineSlot } from "./Timeline";
 import { FeedItem } from "./FeedItem";

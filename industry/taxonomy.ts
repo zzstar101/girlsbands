@@ -154,13 +154,14 @@ export const TAG_SYNONYMS: Readonly<Record<string, string>> = {
  * accent 取的是**官方值**，不是我们调过的近似色：12 支 BanG Dream! 乐队抄自 bang-dream.com 官方样式表
  * （`.p-artist-list__item--<slug> .p-artist-list__item-image:before{background:…}`），GIRLS BAND CRY
  * 用官网页脚那条通栏红 `#f40000`，BanG Dream! 企划用字标墨色 `#e4004f`，クズミミズク 用
- * gbc-firstriff.com 的 `--c-band4`；トゲナシトゲアリ、Our Notes、ダイヤモンドダスト 三支官方没有
- * 公开声明过队色，沿用我们原先的值。改色前先核官方样式表，别凭印象调。
+ * gbc-firstriff.com 的 `--c-band4`，ぼっち・ざ・ろっく 用 bocchi.rocks 根站（劇場総集編）
+ * `omnibus/assets/css/common.css` 的主色 `#c45aff`；トゲナシトゲアリ、Our Notes、ダイヤモンドダスト
+ * 三支官方没有公开声明过队色，沿用我们原先的值。改色前先核官方样式表，别凭印象调。
  *
  * kind 是硬边界，不是标签：`project` 是整个系列、单部作品、游戏本身（BanG Dream!、GIRLS BAND CRY、
- * Our Notes），它们当然会被报道、也该有主题页、也能订阅，但**不是一支乐队**——订阅页要把两组分开写，
- * 头图主角优先取 `band`，免得"订了 BanG Dream! 这个企划"却拿企划字标去讲某支乐队的 Live。
- * 新增条目必须写 kind，漏写会被类型检查拦住。
+ * Our Notes、ぼっち・ざ・ろっく！），它们当然会被报道、也该有主题页、也能订阅，但**不是一支乐队**——
+ * 订阅页要把两组分开写，头图主角优先取 `band`，免得"订了 BanG Dream! 这个企划"却拿企划字标去讲某支乐队的 Live。
+ * 新增条目必须写 kind，漏写会被类型检查拦住。系列归属写在下面的 SERIES 里。
  */
 export const ENTITIES: Record<string, { name: string; displayTag: string | null; aliases: string[]; otherNames?: string[]; accent?: string; kind: "band" | "project" }> = {
   "girls-band-cry": {
@@ -211,13 +212,23 @@ export const ENTITIES: Record<string, { name: string; displayTag: string | null;
     aliases: ["Roselia", "ロゼリア"],
     otherNames: ["Roselia", "ロゼリア"],
   },
+  // 結束バンド 是《ぼっち・ざ・ろっく！》里的乐队；作品本身是下面那条 bocchi-the-rock 企划。
+  // 两者必须分开：作品的消息（动画、剧场版、联动）不是乐队的消息，乐队页也不该收作品新闻。
   "kessoku-band": {
     accent: "#e0a13a",
     kind: "band",
     name: "結束バンド",
     displayTag: "結束バンド",
-    aliases: ["結束バンド", "结束乐队", "Kessoku Band", "ぼっち・ざ・ろっく！", "ぼざろ", "Bocchi the Rock!"],
-    otherNames: ["結束バンド", "Kessoku Band", "ぼっち・ざ・ろっく！", "ぼざろ"],
+    aliases: ["結束バンド", "结束乐队", "Kessoku Band"],
+    otherNames: ["結束バンド", "Kessoku Band"],
+  },
+  "bocchi-the-rock": {
+    accent: "#c45aff",
+    kind: "project",
+    name: "ぼっち・ざ・ろっく！",
+    displayTag: "ぼっち・ざ・ろっく！",
+    aliases: ["ぼっち・ざ・ろっく！", "ぼざろ", "Bocchi the Rock!"],
+    otherNames: ["ぼっち・ざ・ろっく！", "ぼざろ", "Bocchi the Rock!"],
   },
   // BanG Dream! 企划内的乐队。综合站 bang-dream.com 一条就能覆盖它们，但它们各自的 Live、抽选、
   // 发售要能被单独追踪，所以每支都要有自己的实体、标签和主题页（只加在这里和 topics.json）。
@@ -337,6 +348,43 @@ export function isProject(id: string): boolean {
 }
 
 /**
+ * 系列：一个一级企划下面挂了哪些主体（企划自己也算一个）。企划页要把旗下乐队的消息一起收进来，靠的就是它 ——
+ * topics.json 里每个主体的归类标签会展开成「自己 + 同系列的其它主体」，标题匹配也带上整组的名字。
+ * 一支乐队不属于任何系列时不用写在这里（它自己就是一组）。
+ *
+ * our-notes 是 BanG Dream! 系列里的游戏，所以它跟 12 支乐队同组；但首页与导航只列 FRANCHISES 那三个
+ * 一级企划 —— 游戏不是粉丝认路时用的坐标。
+ */
+const SERIES: ReadonlyArray<{ id: string; members: readonly string[] }> = [
+  {
+    id: "bang-dream",
+    members: [
+      "bang-dream", "poppinparty", "afterglow", "roselia", "pastel-palettes", "hello-happy-world",
+      "morfonica", "raise-a-suilen", "mygo", "ave-mujica", "mugendai-mewtype", "millsage", "ikkadumbrock", "our-notes",
+    ],
+  },
+  { id: "girls-band-cry", members: ["girls-band-cry", "togenashi-togeari", "kuzumimizuku", "diamond-dust"] },
+  { id: "bocchi-the-rock", members: ["bocchi-the-rock", "kessoku-band"] },
+];
+
+/** 首页与导航列出的一级企划，顺序就是这里的顺序。 */
+export const FRANCHISES: readonly string[] = SERIES.map((s) => s.id);
+
+/**
+ * 这个页面该收哪些主体的消息：企划页（系列 id 就是企划自己）收整个系列，乐队页只收它自己。
+ * 归类标签、标题匹配、日历与 .ics 的 subject 都用它 —— 乐队页不能被同系列其他乐队的消息串进来，
+ * 所以这里只认「这个 id 自己是不是系列 id」，不做成员反查（那是 seriesKeyOf 的事）。
+ */
+export function seriesOf(id: string): readonly string[] {
+  return SERIES.find((s) => s.id === id)?.members ?? (ENTITIES[id] ? [id] : []);
+}
+
+/** 这个主体属于哪个系列（企划自己的 id 就是系列 id）；不认识的 id 返回 null。 */
+export function seriesKeyOf(id: string): string | null {
+  return SERIES.find((s) => s.members.includes(id))?.id ?? (ENTITIES[id] ? id : null);
+}
+
+/**
  * 身份词典：摘要和标题里出现的企划／乐队，必须在原文里也出现过，否则退回原标题、丢掉摘要（防止模型张冠李戴）。
  * 行业没有这个问题时可以留空数组。缩写（GBC／TGTG）容易误伤，只认独立的拉丁字母串或日文原名的连续写法。
  */
@@ -347,7 +395,8 @@ export const IDENTITY_LEXICON: ReadonlyArray<{ id: string; name: string; pattern
   { id: "mygo", name: "MyGO!!!!!", patterns: [/my\s?go|マイゴ/i] },
   { id: "ave-mujica", name: "Ave Mujica", patterns: [/ave\s?mujica|アヴェムジカ|アヴェ・ムジカ/i] },
   { id: "roselia", name: "Roselia", patterns: [/roselia|ロゼリア/i] },
-  { id: "kessoku-band", name: "結束バンド", patterns: [/結束バンド|kessoku\s?band|ぼっち・ざ・ろっく|ぼざろ|bocchi/i] },
+  { id: "kessoku-band", name: "結束バンド", patterns: [/結束バンド|kessoku\s?band/i] },
+  { id: "bocchi-the-rock", name: "ぼっち・ざ・ろっく！", patterns: [/ぼっち・ざ・ろっく|ぼざろ|bocchi\s?the\s?rock/i] },
   { id: "poppinparty", name: "Poppin'Party", patterns: [/poppin'?\s?party|ポッピンパーティ|ポピパ/i] },
   { id: "afterglow", name: "Afterglow", patterns: [/afterglow|アフターグロウ/i] },
   { id: "pastel-palettes", name: "Pastel*Palettes", patterns: [/pastel\s?\*?\s?palettes|パステルパレット/i] },
@@ -378,5 +427,7 @@ export const PUBLISHER_DOMAINS: ReadonlyArray<{ entityId: string; domains: reado
   { entityId: "mygo", domains: ["mygo.bang-dream.com"] },
   { entityId: "ave-mujica", domains: ["avemujica.bang-dream.com"] },
   { entityId: "roselia", domains: ["roselia.bang-dream.com"] },
-  { entityId: "kessoku-band", domains: ["bocchi.rocks"] },
+  // bocchi.rocks 是整个作品（动画、劇場総集編、乐队）的官方站，所以发布方算作品；乐队自己的信息页
+  // 由信源的 owner_entity_id 带出 結束バンド，两条路都在 identityContext 的 allowed 里。
+  { entityId: "bocchi-the-rock", domains: ["bocchi.rocks"] },
 ];

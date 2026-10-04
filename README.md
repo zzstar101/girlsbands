@@ -1,8 +1,8 @@
-<h1 align="center">AniBand Radar</h1>
+<h1 align="center">少女乐队's</h1>
 
 <p align="center">
-  <b>少女乐队领域的情报雷达：Live / 票务 / 抽选 / 发售，一页看清。</b><br>
-  基于 <a href="https://github.com/KKKKhazix/AIHOT">AIHOT</a> 开源框架改造，行业差异全部落在 <code>industry/</code>。
+  <b>BanG Dream! · GIRLS BAND CRY · ぼっち・ざ・ろっく，中文一次看完。</b><br>
+  官方源全是日文，这里把 Live、抽选、发售、周边、成员动态收成一条时间线，还有国内的邦O、刺O 同人活动。
 </p>
 
 <p align="center">
@@ -14,45 +14,22 @@
 
 <p align="center">
   <a href="#跑起来">跑起来</a> ·
-  <a href="docs/customize.md">改成你的行业</a> ·
   <a href="#它是怎么工作的">它是怎么工作的</a> ·
-  <a href="#文档">文档</a> ·
-  <a href="https://github.com/KKKKhazix/AIHOT">上游框架</a>
+  <a href="#配置与改造">配置与改造</a> ·
+  <a href="#文档">文档</a>
 </p>
 
 <br>
 
-## 本仓库相对上游的改动
-
-上游框架默认是一个 AI 行业的示例站，本仓库把它改成了少女乐队情报站，改动边界如下：
-
-- **纯配置（不碰 Core）**：站名与文案（`industry/site.ts`）、类别与词表（`industry/taxonomy.ts`）、主题页（`industry/topics.json`）、信源（`industry/sources.json`）、全部提示词（`industry/prompts/`）、入选门槛（`industry/selection.ts`）、编年史规则（`industry/chronicle.ts`）、品牌与图标（`industry/brand/`）、条款模板（`industry/pages/`）。
-- **Core 改动（都很小，逐条可回退）**：删掉两个只服务 AI 行业的可选模块（模型榜 `leaderboard/`、Codex 重置监控 `monitor/`）并追加迁移 `0053_drop_leaderboard_monitor.sql`；把品牌标记组件从 `features/leaderboard/` 移到 `components/ui/`；`packages/contracts` 里的来源标签改为从行业配置读取；主题分组新增 `band` 一类；公开读取层为卡片补上 `subjects` 字段（乐队实体，来自原本只留在库内的 `entity:` 标记）；修正「日文被当成中文而跳过翻译」的判断（`packages/backend/src/lib/text.ts` 的 `looksChinese`）。**新增截止雷达**：结构步骤从公告原文里读出带日期的节点（`industry/prompts/structure.md` 的 `deadlines`，逐条保留原句作凭据），`packages/backend/src/publication/deadlines.ts` 按日本时间分桶读出，由 `/api/site/deadlines` 与 `/deadlines` 页面呈现——原文没写日期的节点不会出现，我们不会替官方推算。
-- **刻意不改**：`@aihot/*` 包名、环境变量名、后台 cookie 名、备份文件名等内部标识保留原样——它们不是读者可见的品牌，改名只会让上游同步和已存数据变难。
-- **Phase 1 不做**：账号、App、推送、完整票务库，以及 `/calendar` 页面。
-
 ## 这是什么
 
-[AIHOT](https://aihot.news) 是我做的一个 AI 热点网站。它每天从一批信源里收资料，用大模型先筛一遍、再独立打两次分，挑出真正值得看的，写成中文标题和摘要；把不同来源说的同一件事聚成一个事件，按有多少人在说排出热点；每天早上出一份日报。
+一个公开的情报站，只盯三个企划：**BanG Dream!**、**GIRLS BAND CRY**、**ぼっち・ざ・ろっく**。
 
-这个仓库是它的完整框架：网站、后台、精选流程、聚簇和热度算法，**所有提示词的原文和入选门槛**，都在这里。
+它每天从信源里收资料，用模型筛掉噪声、写成中文，把不同来源说的同一件事聚成一个事件，每天早上出一份日报。不用注册，打开就看。
 
-## 为什么开源
+日文信息太碎：官网、官方 X、唱片公司、票务页各发各的，一场 Live 从公布到开演能拆成十几次公告。这个站存在的理由是**中文看全**——把散在几十个源里的东西收成一处，用中文讲清楚。
 
-这半年，很多做法律、做 HR、做金融、做贵金属的朋友问我，能不能也给他们的行业做一个。
-
-我做不了。我不懂你们的行业，不知道哪些信源有用，也不知道什么样的消息，对你们来说才叫热点。
-
-但你们懂。
-
-既然我没办法满足所有人，那就把火种交到大家自己手上。
-
-## 说在前面
-
-- **我不是专业的开发者。** 我是设计师出身，半年前还看不太懂代码。这套代码是我和 AI 一起重写的，比以前干净了很多，但一定还有写得不好的地方。发现问题欢迎提 Issue，我不一定能很快回复，先说声抱歉。
-- **这是一份快照。** 它来自 AIHOT 正在线上跑的代码，不是精心打磨的通用框架。以后 AIHOT 的更新，我会尽量同步过来，但没法保证每一次都同步。
-- **里面没有 AIHOT 的信源名单和运营数据。** 仓库带了 16 个公开信源做示范（默认配置是一个少女乐队情报站），够你跑起来看效果；真正的信源，要换成你自己行业的。
-- **请不要用 AIHOT 的名字和 Logo。** 换上你自己的名字，它就是你的站。
+> 站还没上线。下面写的是改造完成后的样子，进度见 [`docs/refit-plan.md`](docs/refit-plan.md)。
 
 ## 它是怎么工作的
 
@@ -63,6 +40,14 @@
 
 一条资料从信源进来，先判重，再预筛；可能重要的独立打两次分，写好中文标题和摘要，和别的报道聚成事件，算进热度。分数过了门槛、又不是精选里已有新闻的重复，才进精选；日报按规则编出当天要闻，周报、月报再从日报里汇编。每一步的提示词都在 [`industry/prompts/`](industry/prompts/)，改标准不用改代码。详见 [精选与校准](docs/selection.md)。
 
+### 中文看全
+
+入选的外文内容整篇翻成中文再展示。乐队名、成员名、会场、票务平台、碟名照抄原文，日期价格照原文，不增删信息。术语走一份受控词表，翻错的地方重跑，不靠“看起来还行”。
+
+### 截止雷达
+
+公告原文里写了日期的节点（先行抽选开始、一般发售、追加席）会被单独读出来，按日本时间分桶，快到期的挑出来。**原文没写日期的不会出现**——不替官方推算。
+
 ### 聚簇与热点
 
 <picture>
@@ -70,7 +55,7 @@
   <img src="docs/assets/cluster-light.png" alt="五个来源的报道聚成一个事件，事件进入当前热点榜" width="100%">
 </picture>
 
-同一件事，官网发一篇、媒体转十篇、X 上吵一天，读者只需要看到一次。AIHOT 把它们聚成一个**事件**：先用标题摘要的向量（没配向量服务时比文字重合度）在最近两周里找候选，再让模型判断是同一件事、后续进展，还是两件事；拿不准的合并，换一家模型再确认一遍。
+同一件事，官网发一篇、媒体转十篇、X 上吵一天，读者只需要看到一次。先把它们聚成一个**事件**：先用标题摘要的向量（没配向量服务时比文字重合度）在最近两周里找候选，再让模型判断是同一件事、后续进展，还是两件事；拿不准的合并，换一家模型再确认一遍。
 
 **热度**按事件算，不按文章算：48 小时内，每个独立来源只算一次，24 小时减半。重复抓取不会多算，一家媒体发十篇也只算一次，所以排在前面的，是真正有很多人在说的事。
 
@@ -78,20 +63,21 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/perf-dark.png">
-  <img src="docs/assets/perf-light.png" alt="AIHOT 线上实测：页面中位数 10 毫秒，95% 在 50 毫秒内；接口中位数 6 毫秒，95% 在 12 毫秒内；文章页 95% 在 14 毫秒内" width="100%">
+  <img src="docs/assets/perf-light.png" alt="线上实测：页面中位数 10 毫秒，95% 在 50 毫秒内；接口中位数 6 毫秒，95% 在 12 毫秒内；文章页 95% 在 14 毫秒内" width="100%">
 </picture>
 
 ## 你会得到什么
 
 | | |
 |---|---|
-| **六种信源** | RSS、网页列表、JSON 接口、X 账号、微信公众号，以及你自己脚本推送进来的内容。信源分级（官方一手 / 媒体个人），抓取频率按产出自动调整 |
-| **精选** | 预筛，同一份评分标准独立打两次分，再按信源分级的门槛决定入选；同一条新闻只占一条，换个说法的重复不进。提示词和门槛全部公开，全部可以改；用你自己标注的样本在 SelectBench 里校准 |
-| **写作** | 中文标题、答案先行的摘要、推荐理由，外文全文翻译；分类、标签和新闻事实单独抽取；防止模型把原文没提到的公司写进标题 |
+| **信源** | RSS、网页列表、JSON 接口、X 账号、微信公众号，以及自己脚本推送进来的内容。日本官方源为主，国内的同人活动平台单独一套；信源分级（官方一手 / 媒体个人），抓取频率按产出自动调整 |
+| **精选** | 预筛，同一份评分标准独立打两次分，再按信源分级的门槛决定入选；同一条新闻只占一条，换个说法的重复不进。提示词和门槛全部公开，全部可以改；用自己标注的样本在 SelectBench 里校准 |
+| **写作** | 中文标题、答案先行的摘要、推荐理由，外文全文翻译；分类、标签和新闻事实单独抽取；防止模型把原文没提到的乐队写进标题 |
 | **聚簇** | 不同来源报道的同一件事聚成一个事件，后续进展挂在同一个事件下，事件页有综述；进展和报道时间线可一起切换“最新在前”或“最早在前”；人工改过的归属不会被覆盖 |
 | **热点** | 按事件算热度：独立来源越多越靠前，X 上的讨论也算进来；和 6 小时前比，涨得快的标上升，新出现的标“新” |
 | **日报、周报、月报** | 每天 08:00 出日报，按规则编出当天要闻：一件事一条，报过的事只在有新进展时跟进，不调模型。每周一出周报、每月 1 日出月报，从日报里汇编，模型只写总述和栏目导读 |
-| **主题与搜索** | 公司、方向、内容形态三类主题页，带近 12 个月的大事记（公司是横向编年史）；标题摘要搜索和全文相关搜索 |
+| **乐队页** | 三个企划和每支乐队一个页面，带近 12 个月的横向编年史；标题摘要搜索和全文相关搜索 |
+| **截止日历** | 每个企划一个月历视图，把所有带日期的内容摊在日历上，另给一份 `.ics` 订阅地址，可以导进手机日历 |
 | **邮件订阅** | 按乐队订阅：抽选与先行受理截止前 48 小时提醒，每天一封精选摘要；双重确认、一键退订，四套邮件外观（号外 / 简报 / 历书 / 活版）任选，默认关闭 |
 | **给 Agent 用** | RSS（精选、全部、全文、日报、周报、月报）、公开 API、MCP、Agent Markdown、`llms.txt`，同一份内容给人看也给 Agent 用 |
 | **后台** | 信源管理与试抓、内容诊断、精选评测、每一步单独换模型、付费服务的预算熔断、运行记录与告警 |
@@ -103,17 +89,13 @@
   <img src="docs/assets/shots-light.png" alt="首页的当前热点与精选，关于页的信源河" width="100%">
 </picture>
 
-<p align="center"><sub>截图来自用示范信源跑起来的本地站，站名是默认的 AniBand Radar。</sub></p>
-
 ## 跑起来
-
-想创建自己的独立站点，可以先点 [Use this template](https://github.com/KKKKhazix/AIHOT/generate)，再克隆你生成的仓库。想持续合并上游更新或贡献代码，建议先 Fork。下面的命令适合直接试用。
 
 需要 [Docker](https://docs.docker.com/get-docker/)，和一个 OpenAI 兼容的模型 API Key（DeepSeek、千问、智谱都可以）。
 
 ```bash
-git clone https://github.com/KKKKhazix/AIHOT.git myhot
-cd myhot
+git clone https://github.com/RinneBeat/girlsbands.git
+cd girlsbands
 node scripts/init-env.ts --llm-key <你的模型 API Key>
 docker compose up -d --build
 ```
@@ -122,36 +104,32 @@ docker compose up -d --build
 
 机器上没有 Node、服务器在中国大陆、要配域名和 HTTPS，见 [部署](docs/deploy.md)。
 
-## 把它改成你的行业
+## 接进你的工具
 
-部署后打开 `/agent`，可以复制 Agent Markdown、MCP、RSS 或 API 的接入方式（默认打开 Agent Markdown，MCP 在 `/agent?tab=mcp`）。只支持网页读取的 Agent 从 `/api/v1/agent` 开始，那里列出精选、搜索、热点、事件、日报、周报和月报的 Markdown 地址。结构化数据用 `/api/v1/`，周报与月报在 `/api/v1/weeklies`、`/api/v1/monthlies`，追加 `/latest` 或一期的 ISO 周、月份即可读取；接口契约在 `/openapi-v1.json`。这些出口共同遵循文章撤回与全文许可，站名、链接和分类取自你的行业配置。
+打开 `/agent`，可以复制 Agent Markdown、MCP、RSS 或 API 的接入方式（默认打开 Agent Markdown，MCP 在 `/agent?tab=mcp`）。只支持网页读取的 Agent 从 `/api/v1/agent` 开始，那里列出精选、搜索、热点、事件、日报、周报和月报的 Markdown 地址。结构化数据用 `/api/v1/`，周报与月报在 `/api/v1/weeklies`、`/api/v1/monthlies`，追加 `/latest` 或一期的 ISO 周、月份即可读取；接口契约在 `/openapi-v1.json`。
 
-最省事的办法：打开你的 Agent（Claude Code、Codex 都可以），把这个仓库交给它，然后说：
+## 配置与改造
 
-```text
-请读 AGENTS.md 和 docs/customize.md，把这个站改成「法律」行业的热点站。
-我关心的是：……（你想盯哪些信源，你觉得什么消息重要、什么不重要，越具体越好）。
-```
+站名、分类、信源、评分标准这些全在 [`industry/`](industry/) 这一个文件夹里，通常不需要改 `apps/` 和 `packages/`：
 
-要改的东西几乎都在 [`industry/`](industry/) 这一个文件夹里，代码基本不用动：
-
-| 文件 | 改什么 |
+| 文件 | 管什么 |
 |---|---|
 | `site.ts` | 站名、行业词、首页文案、关于页 |
-| `taxonomy.ts`、`topics.json` | 分类、标签、主题 |
-| `chronicle.ts` | 主题页“大事记”的规则；公司的人工历史放 `chronicles/`（可选） |
+| `taxonomy.ts`、`topics.json` | 分类、标签、企划与乐队 |
+| `chronicle.ts` | 乐队页“大事记”的规则 |
 | `sources.json` | 首次启动时导入的信源 |
-| `prompts/` | 精选标准和写作要求。**你的行业 KnowHow，就写在这里** |
+| `prompts/` | 精选标准和写作要求。**行业 KnowHow 就写在这里** |
 | `selection.ts` | 入选门槛 |
 | `brand/`、`pages/` | 图标、使用规则和隐私说明 |
 
-最值得花时间的是评分标准（`prompts/selection-score.md`）和门槛：拿一两百条你自己标注过的资料，用 `scripts/eval-selection.ts` 跑一遍，看它选得准不准，再回去改。怎么做写在 [精选与校准](docs/selection.md) 里。
+最值得花时间的是评分标准（`prompts/selection-score.md`）和门槛：拿一两百条自己标注过的资料，用 `scripts/eval-selection.ts` 跑一遍，看它选得准不准，再回去改。怎么做写在 [精选与校准](docs/selection.md) 里。
 
 ## 文档
 
 | 文档 | 内容 |
 |---|---|
-| [把它改成你的行业](docs/customize.md) | 站名、分类、主题与大事记、信源、提示词、门槛、品牌，一步一步来 |
+| [改造计划](docs/refit-plan.md) | 这个站要改成什么样，分几批做，每批的验收标准 |
+| [配置与改造](docs/customize.md) | 站名、分类、主题与大事记、信源、提示词、门槛、品牌，一步一步来 |
 | [信源](docs/sources.md) | 六种信源怎么配，分级和全文，外部推送接口 |
 | [精选与校准](docs/selection.md) | 一条资料怎么变成精选、怎么编进日报周报月报，怎么用自己的样本校准 |
 | [事件归组与关系评测](docs/grouping.md) | 事件关系怎么判断，怎么用自己的 pairwise gold set 评测 |
@@ -161,26 +139,10 @@ docker compose up -d --build
 
 技术栈：Node.js 24 · TypeScript · React Router（服务端渲染）· Fastify · PostgreSQL · pg-boss · Tailwind CSS · Docker Compose。
 
-## 交流与贡献
+## 提 Issue
 
-部署和使用问题到 [问答区](https://github.com/KKKKhazix/AIHOT/discussions/categories/q-a)，新想法到 [想法交流区](https://github.com/KKKKhazix/AIHOT/discussions/categories/ideas)，欢迎在 [作品展示区](https://github.com/KKKKhazix/AIHOT/discussions/categories/show-and-tell) 分享你做出的行业热点站。
-
-发现 Bug 或有明确的功能建议，可以 [提交 Issue](https://github.com/KKKKhazix/AIHOT/issues/new/choose)。准备改代码前，先看 [贡献说明](CONTRIBUTING.md)；安全漏洞请走 [私密报告入口](SECURITY.md)。
-
-## 最后
-
-AIHOT 曾经只是我无数个深夜里，一个很小、很小的念头。
-
-我不知道它会被改成什么样子，会走到多远的地方。但这可能就是开源最浪漫的地方。
-
-剩下的路，就交给你们了。
-
-<p align="right">—— 数字生命卡兹克</p>
+发现 Bug 或有明确的功能建议，[提交 Issue](https://github.com/RinneBeat/girlsbands/issues/new/choose)。准备改代码前，先看 [贡献说明](CONTRIBUTING.md)；安全漏洞请走 [私密报告入口](SECURITY.md)。
 
 ## 许可
 
-代码使用 [MIT 许可证](LICENSE)。AIHOT 的名字和 Logo 不在许可范围内。字体、模型厂商和评测来源的标志各有自己的许可和商标归属，见 [NOTICE](NOTICE)。
-
----
-
-<sub>**In English:** AIHOT ([aihot.news](https://aihot.news)) is an AI news site that collects from many sources, lets a language model filter and score every item twice, writes Chinese headlines and summaries, clusters reports of the same story into one event, ranks events by how many independent sources discuss them, and publishes a daily briefing. This repository is its complete framework, including every prompt and threshold. Hand it to your coding agent with `AGENTS.md` and `docs/customize.md` to turn it into a news site for your own field. The documentation is in Chinese.</sub>
+代码使用 [MIT 许可证](LICENSE)。本站基于 AIHOT 框架改造，上游版权与商标归属见 [NOTICE](NOTICE)。字体、模型厂商和评测来源的标志各有自己的许可和商标归属，同样见 [NOTICE](NOTICE)。

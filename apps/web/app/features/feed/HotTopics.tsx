@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import type { HotStripEntry } from "@aihot/contracts/site";
+import type { HotStripEntry } from "@girlsbands/contracts/site";
 import { IconArrowRight, IconMinus, IconTrendDown, IconTrendUp } from "../../components/icons";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { Faces } from "../hot/Faces";

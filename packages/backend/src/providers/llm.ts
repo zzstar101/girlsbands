@@ -36,7 +36,7 @@ export const MODELS: Record<string, ModelSpec> = {
     get jsonMode() { return process.env.LLM_JSON_MODE !== "false"; },
     get vision() { return process.env.LLM_VISION === "true"; },
   },
-  // Named presets (the models AIHOT itself runs on); each needs its own key.
+  // Named presets (the models this site runs on); each needs its own key.
   // GLM 5.3 Flash always reasons; the lowest effort keeps short structured tasks fast.
   "glm-5.3-flash": {
     key: "glm-5.3-flash", service: "zhipu", model: "glm-5.3-flash",

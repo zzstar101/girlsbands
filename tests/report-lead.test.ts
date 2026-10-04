@@ -3,8 +3,8 @@
 import "./setup.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { ReportCitation } from "@aihot/contracts/site";
-import { leadItemOf } from "@aihot/backend/publication/reports";
+import type { ReportCitation } from "@girlsbands/contracts/site";
+import { leadItemOf } from "@girlsbands/backend/publication/reports";
 
 const cite = (itemId: string, title: string, available = true) => ({ itemId, title, available }) as ReportCitation;
 const chart = cite("a", "結束バンド「ギターと孤独と蒼い惑星」が ORICON 週間シングルランキングで 1 位");

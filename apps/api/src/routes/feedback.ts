@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { FeedbackRejected, submitFeedback, type FeedbackInput } from "@aihot/backend/operations/feedback";
+import { FeedbackRejected, submitFeedback, type FeedbackInput } from "@girlsbands/backend/operations/feedback";
 import { sendProblem } from "../http/respond.ts";
 
 type FeedbackBody = Pick<FeedbackInput, "content" | "email" | "pageUrl" | "screenshot">;

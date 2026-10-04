@@ -1,5 +1,5 @@
-import { SITE } from "@aihot/industry/site";
-import copy from "@aihot/industry/pages/terms.md?raw";
+import { SITE } from "@girlsbands/industry/site";
+import copy from "@girlsbands/industry/pages/terms.md?raw";
 import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { prepareCopy } from "../lib/site-copy";
@@ -24,7 +24,7 @@ export default function TermsPage() {
       doc={TERMS.doc}
       rendered={TERMS.rendered}
       eyebrow={SITE.name}
-      footer={<LegalFooterLinks links={[{ to: "/privacy", label: "隐私说明" }, { to: "/agent", label: "Agent 接入页" }]} note={`使用规则 ${TERMS.doc.meta["版本"] ?? ""} · ${TERMS.doc.meta["生效日期"] ?? ""}`} />}
+      footer={<LegalFooterLinks links={[{ to: "/privacy", label: "隐私说明" }, { to: "/rights", label: "权利与删除" }, { to: "/agent", label: "Agent 接入页" }]} note={`使用规则 ${TERMS.doc.meta["版本"] ?? ""} · ${TERMS.doc.meta["生效日期"] ?? ""}`} />}
     />
   );
 }

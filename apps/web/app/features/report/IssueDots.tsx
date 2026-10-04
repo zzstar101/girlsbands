@@ -5,7 +5,7 @@
 // to the same issues.
 import { useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router";
-import type { ReportNavigationEntry, ReportKind } from "@aihot/contracts/site";
+import type { ReportNavigationEntry, ReportKind } from "@girlsbands/contracts/site";
 import { KIND_PATH, periodGrid } from "./format";
 
 const ROW = 20;

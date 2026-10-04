@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 import { Wordmark } from "../Logo";
 import { useChangelogSeen } from "../../lib/local-state";
 import { SIDEBAR, sidebarIsActive, type NavItem } from "./nav";

@@ -31,7 +31,7 @@ export type MailerState = { ready: true; mailer: Mailer } | { ready: false; reas
 let cached: { key: string; mailer: Mailer } | null = null;
 
 /**
- * SMTP 设置在 integrations 组（.env 或 AIHOT_CREDENTIALS_DIR/integrations.env）：
+ * SMTP 设置在 integrations 组（.env 或 GIRLSBANDS_CREDENTIALS_DIR/integrations.env）：
  * SMTP_HOST、SMTP_PORT、SMTP_USER、SMTP_PASS、SMTP_SECURE、EMAIL_FROM、EMAIL_REPLY_TO。
  * 缺任何一项必要的，就当作「没配好」——宁可明说没配，也不要静默地发不出去。
  */

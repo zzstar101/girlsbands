@@ -1,22 +1,22 @@
 // Cron-style schedules (Asia/Shanghai). Each run is recorded in job_runs; missed slots run once.
 import type { PgBoss } from "pg-boss";
-import { ensureQueue, recordRun } from "@aihot/backend/jobs/queue";
-import { sweepUnprocessed } from "@aihot/backend/jobs/content";
-import { translatePending } from "@aihot/backend/editorial/translate";
-import { adaptIntervals, scheduleDueSources } from "@aihot/backend/sources/collect";
-import { scheduleMpReconcile } from "@aihot/backend/sources/mp";
-import { refreshSourceIcons } from "@aihot/backend/sources/icons";
-import { computeHotRanking, snapshotHeat } from "@aihot/backend/events/hot";
-import { linkRelatedStories } from "@aihot/backend/events/consolidate";
-import { composeDueReports } from "@aihot/backend/reports/compose";
-import { dailyRetention } from "@aihot/backend/operations/retention";
-import { submitIndexNow } from "@aihot/backend/operations/indexnow";
-import { checkAlerts, sendDigest } from "@aihot/backend/operations/alerts";
-import { recoverStaleWork } from "@aihot/backend/operations/recover";
-import { forwardPendingFeedback } from "@aihot/backend/operations/feedback";
-import { sendDeadlineReminders, sendDigest as sendSubscriberDigest } from "@aihot/backend/subscriptions/notify";
-import { backupConfigured, runBackup } from "@aihot/backend/operations/backup";
-import { sourceHealthWeekly } from "@aihot/backend/operations/reports";
+import { ensureQueue, recordRun } from "@girlsbands/backend/jobs/queue";
+import { sweepUnprocessed } from "@girlsbands/backend/jobs/content";
+import { translatePending } from "@girlsbands/backend/editorial/translate";
+import { adaptIntervals, scheduleDueSources } from "@girlsbands/backend/sources/collect";
+import { scheduleMpReconcile } from "@girlsbands/backend/sources/mp";
+import { refreshSourceIcons } from "@girlsbands/backend/sources/icons";
+import { computeHotRanking, snapshotHeat } from "@girlsbands/backend/events/hot";
+import { linkRelatedStories } from "@girlsbands/backend/events/consolidate";
+import { composeDueReports } from "@girlsbands/backend/reports/compose";
+import { dailyRetention } from "@girlsbands/backend/operations/retention";
+import { submitIndexNow } from "@girlsbands/backend/operations/indexnow";
+import { checkAlerts, sendDigest } from "@girlsbands/backend/operations/alerts";
+import { recoverStaleWork } from "@girlsbands/backend/operations/recover";
+import { forwardPendingFeedback } from "@girlsbands/backend/operations/feedback";
+import { sendDeadlineReminders, sendDigest as sendSubscriberDigest } from "@girlsbands/backend/subscriptions/notify";
+import { backupConfigured, runBackup } from "@girlsbands/backend/operations/backup";
+import { sourceHealthWeekly } from "@girlsbands/backend/operations/reports";
 
 interface Scheduled {
   name: string;

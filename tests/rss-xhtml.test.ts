@@ -3,9 +3,9 @@ import './setup.ts';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { after, test } from 'node:test';
-import { config } from '@aihot/backend/config';
-import { fetchRss } from '@aihot/backend/sources/rss';
-import { escapeXml } from '@aihot/backend/lib/text';
+import { config } from '@girlsbands/backend/config';
+import { fetchRss } from '@girlsbands/backend/sources/rss';
+import { escapeXml } from '@girlsbands/backend/lib/text';
 
 const body = `<p>Before <strong>bold</strong>, between <em>italic</em>, after.</p><p>${'A complete research article with enough text for the feed body. '.repeat(8)}</p>`;
 const xhtml = (html: string) => `<div xmlns="http://www.w3.org/1999/xhtml">${html}</div>`;

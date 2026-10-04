@@ -3,8 +3,8 @@ import "./setup.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
+import { config } from "@girlsbands/backend/config";
+import { closeDb, sql } from "@girlsbands/backend/db";
 import { buildApp } from "../apps/api/src/app.ts";
 
 process.env.FEISHU_INTERNAL_ENABLED = "false";

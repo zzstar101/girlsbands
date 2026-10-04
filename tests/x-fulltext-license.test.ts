@@ -5,12 +5,12 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { updateSource } from "@aihot/backend/admin/sources";
-import { upsertMaterial, type XPostData } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { ITEM_COLUMNS, ITEM_FROM, toFeedItemSummary, type ItemRow } from "@aihot/backend/publication/items";
-import { publishArticle, republishSource } from "@aihot/backend/publication/publish";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { updateSource } from "@girlsbands/backend/admin/sources";
+import { upsertMaterial, type XPostData } from "@girlsbands/backend/content/materials";
+import { stopBoss } from "@girlsbands/backend/jobs/queue";
+import { ITEM_COLUMNS, ITEM_FROM, toFeedItemSummary, type ItemRow } from "@girlsbands/backend/publication/items";
+import { publishArticle, republishSource } from "@girlsbands/backend/publication/publish";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = `x-license-${tag()}`;

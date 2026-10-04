@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouteLoaderData } from "react-router";
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 import type { loader as rootLoader } from "../root";
 import { useChangelogDot } from "../components/shell/Sidebar";
 import { PhoneBar } from "../components/shell/PhoneBar";
@@ -9,7 +9,7 @@ import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { useStarred } from "../lib/local-state";
 import { ThemeSwitch } from "../components/shell/ThemeSwitch";
-import { IconBookmark, IconChevronRight, IconGrid, IconHeart, IconMail, IconMessage, IconMoon, IconPlug, IconSparkles } from "../components/icons";
+import { IconBookmark, IconChevronRight, IconHeart, IconMail, IconMessage, IconMoon, IconPlug, IconSparkles } from "../components/icons";
 
 export const handle: Screen = { tab: "me", name: "我的" };
 
@@ -29,7 +29,6 @@ type Row = { to: string; label: string; icon: ReactNode; detail?: ReactNode };
 
 const TOOLS: Row[] = [
   { to: "/subscribe", label: "邮件订阅", icon: <IconMail size={20} />, detail: "截止提醒 · 精选摘要" },
-  { to: "/topics", label: "主题", icon: <IconGrid size={20} /> },
   { to: "/agent", label: "Agent 接入", icon: <IconPlug size={20} />, detail: "MCP · RSS · API" },
 ];
 
@@ -94,6 +93,7 @@ export default function MorePage() {
       <div className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[12px] leading-[2] text-ink-4">
         <Link viewTransition to="/terms" className="hover:text-ink-2">使用规则</Link>
         <Link viewTransition to="/privacy" className="hover:text-ink-2">隐私说明</Link>
+        <Link viewTransition to="/rights" className="hover:text-ink-2">权利与删除</Link>
         <a href="/feed.xml" className="hover:text-ink-2">RSS</a>
         {SITE.icp && <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-ink-2">{SITE.icp}</a>}
       </div>

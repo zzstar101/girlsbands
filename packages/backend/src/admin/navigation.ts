@@ -1,4 +1,4 @@
-import type { AdminNavCounts } from "@aihot/contracts/admin";
+import type { AdminNavCounts } from "@girlsbands/contracts/admin";
 import { sql } from "../db.ts";
 
 /** Items waiting for the admin, on the navigation: new feedback, failing sources, receipts and deliveries in doubt. */

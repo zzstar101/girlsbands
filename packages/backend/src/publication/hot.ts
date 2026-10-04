@@ -1,7 +1,7 @@
 // The latest hot ranking through the public read layer. A stored entry is shown only while its
 // representative is still listed evidence of the story (regrouping or a withdrawal can undo it before
 // the next ranking); the web shows heat values, machine exits only ranks (stories.ts).
-import type { HotParticipant, HotStripEntry } from "@aihot/contracts/site";
+import type { HotParticipant, HotStripEntry } from "@girlsbands/contracts/site";
 import { sql } from "../db.ts";
 import { storedHotRanking, tierRank, type HotEntry, type HotRanking } from "../events/hot.ts";
 import { cached, cachedByKey, SHARED_ONLY } from "../lib/cache.ts";

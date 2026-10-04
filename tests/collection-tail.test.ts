@@ -4,10 +4,10 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { after, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
-import { collectSource } from "@aihot/backend/sources/collect";
+import { config } from "@girlsbands/backend/config";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { QUEUES, stopBoss } from "@girlsbands/backend/jobs/queue";
+import { collectSource } from "@girlsbands/backend/sources/collect";
 
 type Kind = "rss" | "json_list" | "web_list";
 interface Item { url: string; title: string; date: string | null; summary: string; category?: string }
@@ -158,7 +158,7 @@ for (const reverse of [false, true]) {
 test("the first import keeps its count and age limits; the next regular run fills in the rest before accepting 304", async () => {
   const rows = items("initial", 100);
   rows[0]!.date = new Date(Date.now() - 400 * 86400000).toISOString();
-  const { id, listing } = await source("initial", "rss", rows, { _aihot: { initialBackfillLimit: 7, initialBackfillMonths: 12 } }, false);
+  const { id, listing } = await source("initial", "rss", rows, { _girlsbands: { initialBackfillLimit: 7, initialBackfillMonths: 12 } }, false);
   assert.equal((await collectSource(id)).created, 7);
   assert.equal((await cursor(id)).rss, undefined);
   const imported = await sql`SELECT url,backfill,backfill_reason FROM articles WHERE source_id=${id}`;

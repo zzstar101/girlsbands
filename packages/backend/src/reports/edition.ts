@@ -6,8 +6,8 @@
 // carried even when none of its reports was selected; entries rank by importance (score, the day's
 // independent participants, first-hand), and the first one leads. Sections are the industry pack's
 // (industry/taxonomy.ts CATEGORIES).
-import { addDays } from "@aihot/contracts/time";
-import { CATEGORIES } from "@aihot/industry/taxonomy";
+import { addDays } from "@girlsbands/contracts/time";
+import { CATEGORIES } from "@girlsbands/industry/taxonomy";
 import { sql } from "../db.ts";
 import { currentSignals } from "../events/hot.ts";
 import { pickRepresentative, representativePriority, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "../publication/representative.ts";

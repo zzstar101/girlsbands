@@ -5,8 +5,8 @@
 需要一台装了 Docker（带 Compose）的机器。云服务器建议至少 2 核、4 GB 内存，构建镜像时要用到。
 
 ```bash
-git clone https://github.com/KKKKhazix/AIHOT.git myhot
-cd myhot
+git clone https://github.com/RinneBeat/girlsbands.git myband
+cd myband
 node scripts/init-env.ts --llm-key <你的模型 API Key>
 ```
 
@@ -96,6 +96,14 @@ docker compose run --rm setup && docker compose up -d
 
 定时任务 `leaderboard.round`、`monitor.tick`、`monitor.lookback` 不再登记，worker 启动时会注销同名的 `cron.*` 任务。`.env` 里的 `MONITOR_MODEL`、`ARTIFICIAL_ANALYSIS_API_KEY` 不再被读取，可以删掉；`SOCIALDATA_API_KEY` 保留，普通 X 信源还在用它。页面 `/leaderboard*`、`/codex-reset`、后台“Codex 重置”页和公开接口 `/api/v1/codex-resets*` 一并消失，引用过它们的程序要改。
 
+#### 全文搬运与删除请求（迁移 `0056`）
+
+这个站把 editorial 信源的每一条公开内容整篇搬进站内、再翻成中文（`site_fulltext` 全开），所以必须随时能回应删除请求。
+
+- **迁移 `0056_site_fulltext_editorial.sql` 只改 `sources` 行，不会重算已经发布出去的内容**：它把 `participation_mode = 'editorial'` 的源设成 `site_fulltext = true`，但 `publications.body_mode` 还是升级前的值（`summary`）。要让老内容真的变成全文，得让这些源重新投影一次 —— 在后台信源页改一下任一发布字段（`participation_mode`、`site_fulltext`、`syndicate_fulltext`、`tier`、`name`、`first_party`、`owner_entity_id`）就会自动排 `publication.republish-source`。改 `industry/sources.json` 本身不会触发，`scripts/seed.ts` 是 `ON CONFLICT (id) DO NOTHING`，也不会。
+- **删除请求走后台，不用改数据库**：单条在内容页「公开范围」里选「下架」（所有出口移除，链接 404）；整个来源在信源页点「整源下架」，它会把该源已经发布出去的条目整批写成 `withdrawn`、逐条重新投影、并暂停这个源，之后不再采集。两种操作都写进审计日志（`content.visibility` / `source.withdraw`）。
+- **联系入口**：`industry/site.ts` 的 `contactEmail`。现在填的是 `contact@girlsbands.com` 占位，**上线前必须确认这个邮箱真的能收信**（它还喂 `/.well-known/security.txt`、llms.txt 和 RSS 的 author）。读者看到的说明在 `/rights`（`industry/pages/rights.md`）。
+
 ### 管理员会话与配置变更
 
 会话绑定迁移排在 `0041`。此前已试用会话绑定迁移的数据库可直接升级，已有列和绑定会被保留，无需手动修改迁移记录。
@@ -108,14 +116,14 @@ docker compose run --rm setup && docker compose up -d
 
 ### 备份
 
-在 `.env` 里配置 `DB_BACKUP_STORE_*`（任何 S3 兼容的对象存储），每天 04:10 自动备份到那里。一次完整备份包含同一时间戳的数据库 `.dump` 和文件 `aihot-files-*.tar.gz`：文件包保留 `uploads/` 以及仍存本地的 `feedback-screenshots/`，不包含图片缓存或本地备份目录。已经转发到飞书的图片只保留数据库中的外部引用，文件包不保存飞书上的图片。
+在 `.env` 里配置 `DB_BACKUP_STORE_*`（任何 S3 兼容的对象存储），每天 04:10 自动备份到那里。一次完整备份包含同一时间戳的数据库 `.dump` 和文件 `girlsbands-files-*.tar.gz`：文件包保留 `uploads/` 以及仍存本地的 `feedback-screenshots/`，不包含图片缓存或本地备份目录。已经转发到飞书的图片只保留数据库中的外部引用，文件包不保存飞书上的图片。
 
-恢复时同时取回这一对文件：使用与数据库版本兼容的 `pg_restore` 将 `.dump` 恢复到空数据库，再把文件包解压到数据目录根目录（Docker 中为 `/data`，非 Docker 使用 `AIHOT_DATA_DIR`，默认 `.data`），保留包内的子目录结构，并确保运行进程可读取这些文件。只恢复数据库不能找回仍由 `local:` 引用的反馈截图；旧备份中没有包含的文件也无法凭数据库引用恢复。
+恢复时同时取回这一对文件：使用与数据库版本兼容的 `pg_restore` 将 `.dump` 恢复到空数据库，再把文件包解压到数据目录根目录（Docker 中为 `/data`，非 Docker 使用 `GIRLSBANDS_DATA_DIR`，默认 `.data`），保留包内的子目录结构，并确保运行进程可读取这些文件。只恢复数据库不能找回仍由 `local:` 引用的反馈截图；旧备份中没有包含的文件也无法凭数据库引用恢复。
 
 下面的手动导出只包含数据库，不包含上述附件目录：
 
 ```bash
-docker compose exec -T db pg_dump -U aihot aihot | gzip > myhot-$(date +%F).sql.gz
+docker compose exec -T db pg_dump -U girlsbands girlsbands | gzip > myband-$(date +%F).sql.gz
 ```
 
 数据都在三个 Docker 卷里：`db`（数据库）、`data`（上传的图片、图片缓存、本地备份）、`caddy`（证书）。`docker compose down` 不会删除它们；`docker compose down -v` 会。
@@ -132,7 +140,7 @@ docker compose logs -f --tail 100 api worker web
 
 订阅默认关着：`.env` 里 `EMAIL_ENABLED=false`，`/api/site/subscribe` 会明确回答“邮件订阅暂未开放”，两个定时任务直接返回，连 SMTP 都不连。
 
-打开它需要一组 SMTP 凭据（`integrations` 组，写在 `.env` 或 `AIHOT_CREDENTIALS_DIR/integrations.env`）：
+打开它需要一组 SMTP 凭据（`integrations` 组，写在 `.env` 或 `GIRLSBANDS_CREDENTIALS_DIR/integrations.env`）：
 
 ```bash
 EMAIL_ENABLED=true
@@ -140,7 +148,7 @@ SMTP_HOST=smtp.example.com
 SMTP_PORT=587            # 465 会自动走 TLS
 SMTP_USER=apikey         # 本机或内网中继可以留空，留空就不认证
 SMTP_PASS=...
-EMAIL_FROM="AniBand Radar <radar@example.com>"   # 必填，发信人
+EMAIL_FROM="少女乐队's <radar@example.com>"   # 必填，发信人
 EMAIL_REPLY_TO=reply@example.com                 # 选填
 EMAIL_STYLE=cover        # 目前只有 cover，见 docs/subscribe.md
 ```
@@ -164,13 +172,13 @@ EMAIL_STYLE=cover        # 目前只有 cover，见 docs/subscribe.md
 ```bash
 npm ci
 node scripts/init-env.ts --llm-key <你的模型 API Key>
-createdb myhot
+createdb girlsbands
 ```
 
 在 `.env` 里加上：
 
 ```bash
-DATABASE_URL=postgres://你的用户名@127.0.0.1:5432/myhot
+DATABASE_URL=postgres://你的用户名@127.0.0.1:5432/girlsbands
 API_BASE_URL=http://127.0.0.1:3001
 ```
 
@@ -179,7 +187,7 @@ API_BASE_URL=http://127.0.0.1:3001
 ```bash
 node --env-file=.env scripts/migrate.ts
 node --env-file=.env scripts/seed.ts
-npm run build -w @aihot/web
+npm run build -w @girlsbands/web
 
 node --env-file=.env apps/api/src/main.ts          # 接口，3001 端口
 node --env-file=.env apps/worker/src/main.ts       # 后台任务

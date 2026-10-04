@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { ChangelogRelease, ChangelogResponse } from "@aihot/contracts/site";
-import { SITE } from "@aihot/industry/site";
+import type { ChangelogRelease, ChangelogResponse } from "@girlsbands/contracts/site";
+import { SITE } from "@girlsbands/industry/site";
 import { Link, useLoaderData } from "react-router";
 import { apiGet, edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";

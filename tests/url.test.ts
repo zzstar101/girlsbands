@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { after, test } from "node:test";
 import { Agent, fetch as undiciFetch } from "undici";
-import { guardedFetch } from "@aihot/backend/lib/http-fetch";
-import { assertPublicUrl, guardedLookup, isBlockedAddress } from "@aihot/backend/lib/url";
+import { guardedFetch } from "@girlsbands/backend/lib/http-fetch";
+import { assertPublicUrl, guardedLookup, isBlockedAddress } from "@girlsbands/backend/lib/url";
 
 const server = http.createServer((_req, res) => res.end("internal"));
 await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));

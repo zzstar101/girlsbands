@@ -1,4 +1,4 @@
-import { beijingDate, beijingTime, beijingWeekday } from "@aihot/contracts/time";
+import { beijingDate, beijingTime, beijingWeekday } from "@girlsbands/contracts/time";
 
 /** "9月28日" of a calendar date (YYYY-MM-DD). */
 export function monthDay(date: string): string {

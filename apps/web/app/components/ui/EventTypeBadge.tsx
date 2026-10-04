@@ -1,5 +1,5 @@
-import type { CategoryKey } from "@aihot/contracts/taxonomy";
-import { CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
+import type { CategoryKey } from "@girlsbands/contracts/taxonomy";
+import { CATEGORY_LABELS } from "@girlsbands/contracts/taxonomy";
 
 /**
  * The category, as a poster stamp: a Latin code so a card reads at a glance, with the Chinese label

@@ -1,10 +1,10 @@
 import { motion } from "motion/react";
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 import { NavLink, Outlet, useLocation, useNavigation, type ShouldRevalidateFunction } from "react-router";
 import type { Route } from "./+types/layout";
 import { RingMark } from "../../components/Logo";
 import { NavigationProgress } from "../../components/shell/Chrome";
-import type { AdminMe, AdminNavCounts } from "@aihot/contracts/admin";
+import type { AdminMe, AdminNavCounts } from "@girlsbands/contracts/admin";
 import { Toaster } from "../../features/admin/toast";
 import { adminGet } from "../../lib/admin.server";
 
@@ -25,6 +25,7 @@ const NAV: Array<{ group: string; items: Array<{ to: string; label: string; coun
     group: "内容",
     items: [
       { to: "/admin/content", label: "内容诊断" },
+      { to: "/admin/review", label: "中文抽检" },
       { to: "/admin/sources", label: "信源", count: "sources", tone: "bad" },
       { to: "/admin/feedback", label: "反馈", count: "feedback", tone: "accent" },
     ],

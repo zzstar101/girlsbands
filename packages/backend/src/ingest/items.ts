@@ -21,7 +21,7 @@ interface ItemIn {
   url?: unknown;
   publishedAt?: unknown;
   author?: unknown;
-  raw?: { _aihot?: { backfill?: boolean; baseline?: boolean } } & Record<string, unknown>;
+  raw?: { _girlsbands?: { backfill?: boolean; baseline?: boolean } } & Record<string, unknown>;
 }
 
 export async function ingestItems(body: { sourceId?: unknown; sourceName?: unknown; items?: unknown }): Promise<{ ok: true; created: number }> {
@@ -49,7 +49,7 @@ export async function ingestItems(body: { sourceId?: unknown; sourceName?: unkno
     if (!url || seen.has(url)) continue;
     seen.add(url);
     const published = typeof it.publishedAt === "string" ? new Date(it.publishedAt) : null;
-    const flags = it.raw?._aihot ?? {};
+    const flags = it.raw?._girlsbands ?? {};
     const res = await upsertMaterial({
       sourceId: source!.id,
       // Normalize only for deduplication. Ownership needs the reported origin (including www and

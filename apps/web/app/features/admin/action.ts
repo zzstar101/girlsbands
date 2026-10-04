@@ -2,7 +2,7 @@
 // stable Idempotency-Key per submitted command, and a revalidation of the page's loaders on success.
 import { useCallback, useRef, useState } from "react";
 import { useRevalidator, useRouteLoaderData } from "react-router";
-import type { AdminMe } from "@aihot/contracts/admin";
+import type { AdminMe } from "@girlsbands/contracts/admin";
 import { toast } from "./toast";
 
 /** A command the api refused; the message is its explanation. */

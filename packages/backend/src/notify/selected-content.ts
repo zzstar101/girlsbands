@@ -2,8 +2,8 @@
 import { sql } from "../db.ts";
 import { itemUrl } from "../publication/links.ts";
 import { publicSourceName } from "../publication/rules.ts";
-import { CATEGORY_LABELS, type CategoryKey } from "@aihot/contracts/taxonomy";
-import { SITE } from "@aihot/industry/site";
+import { CATEGORY_LABELS, type CategoryKey } from "@girlsbands/contracts/taxonomy";
+import { SITE } from "@girlsbands/industry/site";
 
 const MAX_AGE_MS = 12 * 3600_000;
 /** Content groups get first-party (T1) and near-first-party (T1_5) sources only. */

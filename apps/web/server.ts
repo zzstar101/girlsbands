@@ -7,7 +7,7 @@ import { createServer, request as httpRequest } from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequestListener } from "@react-router/node";
-import { isApiOwned, resolveRedirect } from "@aihot/contracts/http-policy";
+import { isApiOwned, resolveRedirect } from "@girlsbands/contracts/http-policy";
 import { API_BASE_URL } from "./app/lib/api.server.ts";
 
 const PORT = Number(process.env.WEB_PORT || 3000);

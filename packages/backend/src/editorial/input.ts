@@ -1,5 +1,5 @@
 // What the judging steps read about an article: loaded once per analysis and rendered per step.
-import { beijingDate, beijingTime } from "@aihot/contracts/time";
+import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
 import { sql } from "../db.ts";
 import { collapseWhitespace, truncate } from "../lib/text.ts";
 import { produceImage } from "../media/images.ts";

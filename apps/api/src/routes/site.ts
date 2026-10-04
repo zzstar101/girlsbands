@@ -1,25 +1,26 @@
 // First-party site API (/api/site/*). Not public, not versioned, never called /api/v2.
 // Reads through the same public read layer as v1; no cookies are read or set.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { isCategoryKey, isChannelKey, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
-import type { ReportIndexResponse, ReportLatestPage, ReportNavigationResponse, SiteContact } from "@aihot/contracts/site";
-import { InvalidCursorError } from "@aihot/backend/lib/cursor";
-import { exportMarkdown, loadItemDetail } from "@aihot/backend/publication/detail";
-import { loadPool, SearchBusyError } from "@aihot/backend/publication/pool";
-import { loadTimeline } from "@aihot/backend/publication/timeline";
-import { loadStoryFollowups } from "@aihot/backend/publication/followups";
-import { loadGroupReports } from "@aihot/backend/publication/groups";
-import { loadHotStrip } from "@aihot/backend/publication/hot";
-import { upcomingDeadlines } from "@aihot/backend/publication/deadlines";
-import { loadChangelog, siteMeta } from "@aihot/backend/site/meta";
-import { loadContact, loadMakerAvatar } from "@aihot/backend/site/contact";
-import { loadSiteStats } from "@aihot/backend/site/stats";
-import { itemAvailability } from "@aihot/backend/publication/availability";
-import { listTopicSummaries, loadTopicPage } from "@aihot/backend/publication/topics";
+import { isCategoryKey, isChannelKey, type CategoryKey, type ChannelKey } from "@girlsbands/contracts/taxonomy";
+import type { ReportIndexResponse, ReportLatestPage, ReportNavigationResponse, SiteContact, TopicScope } from "@girlsbands/contracts/site";
+import { InvalidCursorError } from "@girlsbands/backend/lib/cursor";
+import { exportMarkdown, loadItemDetail } from "@girlsbands/backend/publication/detail";
+import { loadPool, SearchBusyError } from "@girlsbands/backend/publication/pool";
+import { loadTimeline } from "@girlsbands/backend/publication/timeline";
+import { loadStoryFollowups } from "@girlsbands/backend/publication/followups";
+import { loadGroupReports } from "@girlsbands/backend/publication/groups";
+import { loadHotStrip } from "@girlsbands/backend/publication/hot";
+import { upcomingDeadlines } from "@girlsbands/backend/publication/deadlines";
+import { loadChangelog, siteMeta } from "@girlsbands/backend/site/meta";
+import { loadContact, loadMakerAvatar } from "@girlsbands/backend/site/contact";
+import { loadSiteStats } from "@girlsbands/backend/site/stats";
+import { itemAvailability } from "@girlsbands/backend/publication/availability";
+import { listTopicSummaries, loadTopicPage } from "@girlsbands/backend/publication/topics";
+import { calendarPage, calendarSubject } from "@girlsbands/backend/publication/calendar";
 import { registerFeedback } from "./feedback.ts";
 import { registerSubscribe } from "./subscribe.ts";
-import { loadHot, loadStoryDetail, resolveStory } from "@aihot/backend/publication/stories";
-import { listReports, loadReport, reportNavigation, loadReportNavigation, loadReportMonth, type ReportKind } from "@aihot/backend/publication/reports";
+import { loadHot, loadStoryDetail, resolveStory } from "@girlsbands/backend/publication/stories";
+import { listReports, loadReport, reportNavigation, loadReportNavigation, loadReportMonth, type ReportKind } from "@girlsbands/backend/publication/reports";
 import { looseQuery, sendJsonWithEtag, sendProblem } from "../http/respond.ts";
 
 type Handler = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
@@ -139,9 +140,20 @@ export function registerSite(app: FastifyInstance) {
 
   app.get("/api/site/topics/:slug", siteHandler(async (req, reply) => {
     const slug = (req.params as { slug: string }).slug;
-    const data = await loadTopicPage(slug, Number(looseQuery(req).page ?? 1));
+    const query = looseQuery(req);
+    // Anything other than the one documented value is the picked set: an unknown query never widens a page.
+    const scope: TopicScope = query.scope === "all" ? "all" : "picked";
+    const data = await loadTopicPage(slug, Number(query.page ?? 1), undefined, scope);
     if (!data) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "topic page not found", cacheControl: "public, max-age=60" });
     return sendJsonWithEtag(req, reply, data, { etagPrefix: "topic", cacheControl: "public, max-age=60, s-maxage=60" });
+  }));
+
+  app.get("/api/site/calendar/:subject", siteHandler(async (req, reply) => {
+    const subject = calendarSubject((req.params as { subject: string }).subject);
+    if (!subject) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "no calendar for that subject", cacheControl: "public, max-age=60" });
+    const data = await calendarPage(new Date(), looseQuery(req).month ?? null, subject.id);
+    if (!data) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "no such month", cacheControl: "public, max-age=60" });
+    return sendJsonWithEtag(req, reply, data, { etagPrefix: "calendar", cacheControl: "public, max-age=300, s-maxage=300" });
   }));
 
   registerFeedback(app);

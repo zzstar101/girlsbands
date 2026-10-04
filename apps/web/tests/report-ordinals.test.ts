@@ -7,8 +7,8 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import type { ReportDetail, ReportKind, ReportNavigationEntry } from "@aihot/contracts/site";
-import { isoWeekLabel } from "@aihot/contracts/time";
+import type { ReportDetail, ReportKind, ReportNavigationEntry } from "@girlsbands/contracts/site";
+import { isoWeekLabel } from "@girlsbands/contracts/time";
 import { issueNumber, periodGrid } from "../app/features/report/format.ts";
 
 const kinds: ReportKind[] = ["daily", "weekly", "monthly"];

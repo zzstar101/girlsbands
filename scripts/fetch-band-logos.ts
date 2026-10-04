@@ -11,8 +11,8 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { REPO_ROOT } from "@aihot/backend/config";
-import { ENTITIES } from "@aihot/industry/taxonomy";
+import { REPO_ROOT } from "@girlsbands/backend/config";
+import { ENTITIES } from "@girlsbands/industry/taxonomy";
 
 const OUT_DIR = path.join(REPO_ROOT, "assets/band-logos");
 /** The sites serve the same bytes to any modern browser; a plain fetch UA gets 403 on two of them. */
@@ -40,6 +40,8 @@ const SOURCES: Record<string, string> = {
   "ave-mujica": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_avemujica.webp",
   roselia: "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_roselia.webp",
   "kessoku-band": "https://bocchi.rocks/kessokuband/assets/img/common/header/logo_kessoku.svg",
+  // 企划自己的字标（作品标题），取自 TV 版官网页脚的标题 logo；`/omnibus` 那张是剧场总集编的。
+  "bocchi-the-rock": "https://bocchi.rocks/tv/assets/img/common/footer/ttl_logo.svg",
   poppinparty: "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_poppinparty.webp",
   afterglow: "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_afterglow.webp",
   "pastel-palettes": "https://bang-dream.com/wordpress/wp-content/themes/bangdream-portal/assets/webp/common/artist/logo_pastel-palettes.webp",

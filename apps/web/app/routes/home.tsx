@@ -1,7 +1,7 @@
 import { data as withHeaders, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/home";
-import type { TimelineResponse } from "@aihot/contracts/site";
-import { SITE } from "@aihot/industry/site";
+import type { TimelineResponse } from "@girlsbands/contracts/site";
+import { SITE } from "@girlsbands/industry/site";
 import { apiDeadlineCache, loadOr404 } from "../lib/api.server";
 import { filterParams, itemListLd, listPath, pageMeta, readFilters, siteLd } from "../lib/seo";
 import type { Screen } from "../components/shell/screens";
@@ -9,6 +9,7 @@ import { SectionHeader } from "../components/ui/SectionHeader";
 import { Timeline } from "../features/feed/Timeline";
 import { HotTopics } from "../features/feed/HotTopics";
 import { TrackRail } from "../features/feed/TrackRail";
+import { ProjectRail } from "../features/feed/ProjectRail";
 import { ActiveFilters, CategoryTabs, FeedBar, SearchField } from "../features/feed/Filters";
 
 export const handle: Screen = { tab: "featured", name: "首页" };
@@ -69,7 +70,8 @@ export default function Home() {
         </div>
       </div>
 
-      {!sliced && <TrackRail className="mt-4 lg:mt-0" />}
+      {!sliced && <ProjectRail className="mt-4 lg:mt-0" />}
+      {!sliced && <TrackRail className="mt-3" />}
 
       {!sliced && (
         <div className="mb-3 lg:hidden">

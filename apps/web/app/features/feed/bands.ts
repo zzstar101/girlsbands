@@ -1,4 +1,4 @@
-import { ENTITIES } from "@aihot/industry/taxonomy";
+import { ENTITIES, seriesKeyOf } from "@girlsbands/industry/taxonomy";
 
 /**
  * Bands, projects and their fan aliases, read from the industry pack so adding a band is a config
@@ -39,6 +39,15 @@ const BY_KEY: ReadonlyMap<string, Subject> = new Map([...BY_ID.values()].flatMap
 /** The subject a stored `entity:<id>` marker or an entity id names. */
 export function subjectOfId(id: string): Subject | null {
   return BY_ID.get(id) ?? null;
+}
+
+/**
+ * The project a band belongs to, when it belongs to one: a band page then leads back to the project
+ * page that already carries it. A project's own page has no parent, and neither has a lone band.
+ */
+export function parentOf(id: string): Subject | null {
+  const key = seriesKeyOf(id);
+  return key && key !== id ? subjectOfId(key) : null;
 }
 
 /** The subject a public tag names, when the tag is a band or project name rather than a topic tag. */

@@ -1,17 +1,17 @@
-// 站点身份和读者看得到的文案。换成你的行业时，先改这个文件。
+// 站点身份和读者看得到的文案。站名、行业词、首页标题、联系方式都在这里。
 // 网页和后端都读它；改完重新构建（docker compose up --build）即可生效。
 // 域名不在这里：部署时用环境变量 SITE_URL 设置。
 
 export const SITE = {
   /** 站名：导航、页面标题、分享图、RSS、MCP、后台都用它。 */
-  name: "AniBand Radar",
+  name: "少女乐队's",
   /**
    * 行业词：拼进默认说法里，比如“少女乐队日报”“少女乐队动态”。
-   * 改成“法律”“HR”“黄金”之类，页面上就会变成“法律日报”“法律动态”。
+   * 站名带撇号，不适合直接拼进句子，所以单列一个词。
    */
   subject: "少女乐队",
   /** 首页的完整标题（浏览器标签、搜索结果）。 */
-  homeTitle: "AniBand Radar — 少女乐队情报雷达 · Live / 抽选 / 发售",
+  homeTitle: "少女乐队's — 少女乐队情报站 · Live / 抽选 / 发售",
   /** 一句话介绍：搜索引擎、分享卡片、RSS、llms.txt 会用。 */
   description: "盯住官方站点、官方社交账号与专业媒体，把一场 Live 的公布、先行抽选、一般发售、追加席串成一条时间线，标出马上要截止的抽选和预约。",
   /** 首页左上角和侧边栏下面的一行小字。 */
@@ -21,24 +21,24 @@ export const SITE = {
   /** 默认域名，只在没设置 SITE_URL 时使用。 */
   defaultUrl: "http://localhost:3000",
   /**
-   * MCP 工具名的前缀（小写字母、数字、下划线），工具会叫 aniband_get_latest、aniband_search……
+   * MCP 工具名的前缀（小写字母、数字、下划线），工具会叫 girlsbands_get_latest、girlsbands_search……
    * 已经有人接入后就不要再改。
    */
-  mcpPrefix: "aniband",
+  mcpPrefix: "girlsbands",
   /** 对外联系邮箱（选填）：使用规则、llms.txt、响应头里会写。 */
-  contactEmail: null as string | null,
+  contactEmail: "contact@girlsbands.com" as string | null,
   /** 页脚的一行小字（选填）。 */
-  footerNote: "本站是聚合摘要与索引，信息以官方发布为准",
+  footerNote: "本站聚合各来源原文并译成中文，信息以官方发布为准",
   /** 中国大陆网站的 ICP 备案号（选填），填了就显示在页脚并链接到工信部备案系统。 */
   icp: null as string | null,
   /** 结构化数据里的网站运营者（搜索引擎用）。 */
   organization: {
-    name: "AniBand Radar",
+    name: "少女乐队's",
     /** 创始人（选填）：{ name, url, description }。 */
     founder: null as null | { name: string; url?: string; description?: string },
   },
   /** 抓取信源时报上的名字（User-Agent 里用），不要冒用别的站。 */
-  crawlerName: "AniBandRadarBot",
+  crawlerName: "GirlsBandsBot",
 } as const;
 
 /** 关于页的文案。数字（信源数、收录数、精选数、日报期数）来自站内实时统计，不用写在这里。 */

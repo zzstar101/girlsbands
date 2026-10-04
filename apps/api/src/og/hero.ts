@@ -2,12 +2,12 @@
 // （他的原稿是 .data/event-mail-v1/build.ts，1200×450 的 SVG；这里是同一份几何用 satori 重画）。
 //
 // 版面（坐标逐条对着用户那版 SVG，只把「基线 y」换算成 CSS 上沿）：
-//   左上 `ANIBAND RADAR` 22px 粗、字距 3｜右上 `EVENT SUBSCRIPTION` 20px 字距 2
+//   左上 `SITE.name`（现在画出来是 `少女乐队's`）30px 粗、字距 1、品牌字族 ZCOOL KuaiLe｜右上 `EVENT SUBSCRIPTION` 20px 字距 2
 //   → 右上角 220px 的鬼影日号（应援色/墨色，透明度 .13）→ 中间偏上 650×215 的官方 logo
 //   → y332 一条 1px 细线 → 左下乐队名 24px 粗 → 它下面 `LIVE / TICKET / RELEASE` 17px 字距 3
 //   → 右下 `10 / 04 · JST` 24px。整版左右对齐在 x=64（HERO_PAD）。
 //
-// 为什么底不能直接用应援色：逐像素量过 19 支官方 logo，只有 4 支的墨迹能直接压在应援色上，
+// 为什么底不能直接用应援色：逐像素量过 20 个官方 logo，只有 4 个的墨迹能直接压在应援色上，
 // 其余各支的应援色都是中间调，墨迹对比度掉到 1.5:1 上下。所以按「丢掉多少墨迹」在四块底里挑一块
 // （见 plateFor），另有 4 支按用户那版画廊里的实际效果手工覆盖（PLATE_OVERRIDE）。
 //
@@ -28,14 +28,14 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import type { OverlayOptions } from "sharp";
-import { REPO_ROOT } from "@aihot/backend/config";
-import { SITE } from "@aihot/industry/site";
-import { dateParts, HERO_H, HERO_PAD, HERO_W, type HeroSpec } from "@aihot/industry/email/hero";
-import { inkOn } from "@aihot/industry/email/layout";
-import { h, JP_FAMILY, renderPng, type Node } from "./render.ts";
+import { REPO_ROOT } from "@girlsbands/backend/config";
+import { SITE } from "@girlsbands/industry/site";
+import { dateParts, HERO_H, HERO_PAD, HERO_W, type HeroSpec } from "@girlsbands/industry/email/hero";
+import { inkOn } from "@girlsbands/industry/email/layout";
+import { BRAND_FAMILY, h, JP_FAMILY, renderPng, type Node } from "./render.ts";
 
 /** 画面改一次就升一次：它是 ETag 与磁盘缓存的一部分，不升的话旧图会一直被命中。 */
-export const HERO_TEMPLATE_VERSION = "hero-2026-10-04.16";
+export const HERO_TEMPLATE_VERSION = "hero-2026-10-05.18";
 
 /**
  * 基线 → CSS 上沿。Noto Sans JP 的 hhea ascender/descender 是 1160/288（每 em 1000），
@@ -45,8 +45,8 @@ export const HERO_TEMPLATE_VERSION = "hero-2026-10-04.16";
 const BASELINE_RATIO = 0.936;
 const topOf = (baseline: number, size: number): number => Math.round(baseline - size * BASELINE_RATIO);
 
-const BRAND_SIZE = 22;
-const BRAND_TRACK = 3;
+const BRAND_SIZE = 30;
+const BRAND_TRACK = 1;
 const BRAND_BASE = 66;
 const KIND_SIZE = 20;
 const KIND_TRACK = 2;
@@ -69,8 +69,9 @@ const RULE_ALPHA = 0.18;
 const LOGO_W = 650;
 const LOGO_H = 215;
 const LOGO_CENTER_Y = 203;
-/** 画面上写死的三处固定词。站名从 SITE 取，不在这里另写一个。 */
-const BRAND_WORDS = SITE.name.toUpperCase();
+/** 画面上写死的三处固定词。站名从 SITE 取、原样照画（**不做 toUpperCase**：品牌字是「少女乐队's」，
+ *  大写会把撇号后的 s 顶成 S，字族里也没有那个字形组合的用法），不在这里另写一个。 */
+const BRAND_WORDS = SITE.name;
 const KIND_WORDS = "EVENT SUBSCRIPTION";
 const TAG_WORDS = "LIVE / TICKET / RELEASE";
 
@@ -94,7 +95,7 @@ const DEEP_MIX = 0.18;
 
 /**
  * 用户那版画廊里手工定下的四块底（其余 15 支走 plateFor 的度量）。
- * 来源是 .data/event-mail-v1/build.ts；改了就要重跑 19 支的对照图，别凭印象动。
+ * 来源是 .data/event-mail-v1/build.ts；改了就要重跑 20 个的对照图，别凭印象动。
  */
 export const PLATE_OVERRIDE: Record<string, string> = {
   mygo: "#102b3b",
@@ -350,7 +351,7 @@ function heroTree(spec: HeroSpec, plate: string, base: string): Node {
     h("div", { position: "absolute", display: "flex", lineHeight: 1, fontFamily: JP_FAMILY, ...style }, content);
   const rows: (Node | null)[] = [
     h("img", { position: "absolute", top: 0, left: 0, width: HERO_W, height: HERO_H }, null, { src: base }),
-    text({ top: topOf(BRAND_BASE, BRAND_SIZE), left: HERO_PAD, fontSize: BRAND_SIZE, fontWeight: 700, letterSpacing: BRAND_TRACK, color: on }, BRAND_WORDS),
+    text({ top: topOf(BRAND_BASE, BRAND_SIZE), left: HERO_PAD, fontFamily: BRAND_FAMILY, fontSize: BRAND_SIZE, fontWeight: 700, letterSpacing: BRAND_TRACK, color: on }, BRAND_WORDS),
     text({ top: topOf(KIND_BASE, KIND_SIZE), right: HERO_PAD, fontSize: KIND_SIZE, letterSpacing: KIND_TRACK, color: on }, KIND_WORDS),
     day
       ? text(

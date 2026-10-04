@@ -1,8 +1,8 @@
 // RSS feeds. GUID = article id (isPermaLink=false), <link> = the site's page, pubDate = source
 // publication time. Summary feeds never carry content:encoded; full feeds inline bodies only for
 // sources that explicitly allow redistribution. Titles come from the site's name and categories.
-import { CATEGORY_LABELS, PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
-import { SITE, withSubject } from "@aihot/industry/site";
+import { CATEGORY_LABELS, PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@girlsbands/contracts/taxonomy";
+import { SITE, withSubject } from "@girlsbands/industry/site";
 import { config } from "../config.ts";
 import { sql } from "../db.ts";
 import { escapeXml } from "../lib/text.ts";
@@ -87,7 +87,7 @@ const FEED_IMAGE_SECONDS = 7 * 86400;
  * it quotes, translated too), else a complete Chinese translation of the article, else the original. It
  * ends with an attribution line (also a mark on copies taken from the feed).
  */
-function fullContent(r: FeedRow, aihot: string): string | null {
+function fullContent(r: FeedRow, siteUrl: string): string | null {
   let html: string | null = null;
   const x = r.channel === "x" ? xView({ x_post: r.x_post ?? null, zh_text: r.zh_text ?? null, quoted_zh: r.quoted_zh ?? null }) : null;
   if (x?.text) {
@@ -99,24 +99,24 @@ function fullContent(r: FeedRow, aihot: string): string | null {
     html = exportTranslation(r) ?? r.body_html;
   }
   if (!html) return null;
-  return `${proxyBodyImages(html, true, FEED_IMAGE_SECONDS)}<p>—— 本文由 ${escapeXml(SITE.name)} 聚合整理，完整版与更多动态见 <a href="${aihot}">${aihot}</a></p>`;
+  return `${proxyBodyImages(html, true, FEED_IMAGE_SECONDS)}<p>—— 本文由 ${escapeXml(SITE.name)} 聚合整理，完整版与更多动态见 <a href="${siteUrl}">${siteUrl}</a></p>`;
 }
 
 function itemXml(r: FeedRow, includeContent: boolean): string {
-  const aihot = itemUrl(r.id);
+  const siteUrl = itemUrl(r.id);
   const summary = r.summary ?? "";
-  const description = `<p>${escapeXml(summary)}</p>\n<p>🔗 <a href="${escapeXml(r.url)}">阅读原文</a></p>\n<p>via ${escapeXml(SITE.name)} · <a href="${aihot}">${aihot}</a></p>`;
+  const description = `<p>${escapeXml(summary)}</p>\n<p>🔗 <a href="${escapeXml(r.url)}">阅读原文</a></p>\n<p>via ${escapeXml(SITE.name)} · <a href="${siteUrl}">${siteUrl}</a></p>`;
   const label = r.category ? CATEGORY_LABELS[r.category as PublicApiCategoryKey] : undefined;
   const category = label ? `\n      <category>${escapeXml(label)}</category>` : "";
   let content = "";
   if (includeContent && r.syndicate) {
-    const html = fullContent(r, aihot);
+    const html = fullContent(r, siteUrl);
     if (html) content = `\n      <content:encoded>${cdata(html)}</content:encoded>`;
   }
   const pub = r.published_at ?? r.discovered_at;
   return `    <item>
       <title>${cdata(r.title)}</title>
-      <link>${aihot}</link>
+      <link>${siteUrl}</link>
       <description>${cdata(description)}</description>${content}${category}
       <pubDate>${rfc822(pub)}</pubDate>
       <guid isPermaLink="false">${escapeXml(r.id)}</guid>

@@ -2,8 +2,8 @@
 // admin session) and their own rate limit, kept in the process: no proxy in front limits it.
 import { timingSafeEqual } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { credential } from "@aihot/backend/config";
-import { IngestError, ingestItems } from "@aihot/backend/ingest/items";
+import { credential } from "@girlsbands/backend/config";
+import { IngestError, ingestItems } from "@girlsbands/backend/ingest/items";
 
 const PLACEHOLDER = /^(|changeme|change-me|placeholder|xxx+|todo|test|dev|your[-_]?token.*)$/i;
 

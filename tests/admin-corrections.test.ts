@@ -1,15 +1,15 @@
 import { createHmac } from "node:crypto";
-import { config } from "@aihot/backend/config";
+import { config } from "@girlsbands/backend/config";
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { sql, closeDb } from "@aihot/backend/db";
-import { createSource, updateSource } from "@aihot/backend/admin/sources";
-import { overrideFields, rerun, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { publishArticle } from "@aihot/backend/publication/publish";
-import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
-import { sha256 } from "@aihot/backend/lib/ids";
+import { sql, closeDb } from "@girlsbands/backend/db";
+import { createSource, updateSource, withdrawSource } from "@girlsbands/backend/admin/sources";
+import { overrideFields, rerun, setSeoIndexed, setVisibility } from "@girlsbands/backend/admin/content";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { publishArticle } from "@girlsbands/backend/publication/publish";
+import { getBoss, stopBoss } from "@girlsbands/backend/jobs/queue";
+import { sha256 } from "@girlsbands/backend/lib/ids";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();
@@ -147,7 +147,7 @@ test("bad admin input is a client error and never starts processing", async () =
   config.adminUnionIds = [claims.unionId];
   const binding = createHmac("sha256", process.env.SESSION_SECRET!).update(JSON.stringify(["admin-session-v1", "feishu", claims])).digest("hex");
   await sql`INSERT INTO admin_sessions (id_hash, user_id, csrf_token, expires_at, auth_method, auth_binding, auth_claims) VALUES (${sha256(token)}, ${user!.id}, 'review-csrf', now() + interval '1 hour', 'feishu', ${binding}, ${sql.json(claims)})`;
-  const headers = { cookie: `aihot_admin=${token}`, "x-csrf-token": "review-csrf", "idempotency-key": `invalid-${T}` };
+  const headers = { cookie: `girlsbands_admin=${token}`, "x-csrf-token": "review-csrf", "idempotency-key": `invalid-${T}` };
   const source = await app.inject({ method: "POST", url: "/api/admin/sources", headers, payload: { id: "bad" } });
   assert.equal(source.statusCode, 400);
   const id = await article();
@@ -156,4 +156,43 @@ test("bad admin input is a client error and never starts processing", async () =
   assert.equal(response.statusCode, 400);
   const [state] = await sql`SELECT processing_state FROM articles WHERE id = ${id}`;
   assert.equal(state!.processing_state, "analyzed");
+});
+
+test("withdrawing a whole source takes its published items off every exit and pauses the source", async () => {
+  // Its own source: this test withdraws everything, and the shared one is still in use above.
+  const src = `withdraw-${T}`;
+  await sql`INSERT INTO sources (id, name, kind, tier) VALUES (${src}, '权利方站点', 'rss', 'T1')`;
+  const ids: string[] = [];
+  for (const n of [1, 2]) {
+    const { articleId } = await upsertMaterial({
+      sourceId: src, url: `https://example.com/${src}/${n}`, title: `材料 ${n}`, bodyText: "正文", bodyStatus: "ok", via: "fetch", publishedAt: new Date(),
+    });
+    await publishArticle(articleId);
+    ids.push(articleId);
+  }
+  for (const id of ids) {
+    const [p] = await sql`SELECT visibility FROM publications WHERE article_id = ${id}`;
+    assert.equal(p!.visibility, "public");
+  }
+
+  assert.equal(await withdrawSource(src, { reason: "权利方来信要求删除" }, "test-withdraw"), 2);
+  for (const id of ids) {
+    const [p] = await sql`SELECT visibility FROM publications WHERE article_id = ${id}`;
+    assert.equal(p!.visibility, "withdrawn");
+    const [o] = await sql`SELECT visibility, reason, updated_by FROM editorial_overrides WHERE article_id = ${id}`;
+    assert.equal(o!.visibility, "withdrawn");
+    assert.equal(o!.reason, "权利方来信要求删除");
+    assert.equal(o!.updated_by, "test-withdraw");
+  }
+  const [s] = await sql`SELECT enabled, health FROM sources WHERE id = ${src}`;
+  assert.equal(s!.enabled, false);
+  assert.equal(s!.health, "paused");
+
+  // Already withdrawn rows are not rewritten, so a second click is 0 and the override version stays put.
+  const [before] = await sql`SELECT version FROM editorial_overrides WHERE article_id = ${ids[0]}`;
+  assert.equal(await withdrawSource(src, { reason: "再点一次" }, "test-withdraw"), 0);
+  const [after] = await sql`SELECT version FROM editorial_overrides WHERE article_id = ${ids[0]}`;
+  assert.equal(after!.version, before!.version);
+  assert.equal(await withdrawSource(`no-such-${T}`, { reason: "不存在" }, "test-withdraw"), null);
+  await assert.rejects(withdrawSource(src, { reason: "  " }, "test-withdraw"));
 });

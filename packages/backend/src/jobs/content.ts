@@ -2,8 +2,8 @@
 // Every article reaches the queues through queueProcessing, which records when it was queued. A failed
 // step records when to try again, and the sweep (content.sweep) is the timer that queues it then; it
 // also queues articles whose job was never created or has waited half an hour. A provider outage makes
-// an article wait and retry with backoff; only a permanent refusal or exhausted retries end in
-// "failed", which the admin re-queues in bulk.
+// an article wait and retry with backoff; a permanent refusal, exhausted retries, or an item the writer
+// could give no Chinese copy for end in "failed", which the admin re-queues in bulk.
 import type { PgBoss } from "pg-boss";
 import { sql, type Db } from "../db.ts";
 import { extractArticleBody, pageFetchable } from "../content/extract.ts";
@@ -273,6 +273,9 @@ export async function requeueFailed(group: string | null): Promise<{ requeued: n
     WHERE processing_state = 'failed' AND discovered_at > now() - interval '30 days'
       AND (${group}::text IS NULL OR ${failureGroupSql()} = ${group})
     RETURNING id`;
-  for (const r of rows.slice(0, 500)) await queueProcessing(r.id);
+  // A retry the owner asked for has to be a new request: repeating the same one would replay its
+  // receipt and come back with the same answer, which is exactly how a failed article never recovers.
+  const tag = `retry-${Date.now().toString(36)}`;
+  for (const r of rows.slice(0, 500)) await queueProcessing(r.id, { attemptTag: tag });
   return { requeued: rows.length };
 }

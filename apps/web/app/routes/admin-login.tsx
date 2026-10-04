@@ -2,7 +2,7 @@
 // straight to the API, which sets the session cookie and sends the browser on.
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/admin-login";
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 import { apiGet } from "../lib/api.server";
 import { Wordmark } from "../components/Logo";
 import { buttonClass } from "../components/ui/Controls";

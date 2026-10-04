@@ -1,5 +1,7 @@
 // Publication rules. Each rule is defined once here and used by every exit.
 
+import { seriesOf } from "@girlsbands/industry/taxonomy";
+
 export interface SourceFacts {
   id: string;
   name: string;
@@ -68,6 +70,16 @@ export function displayTags(tags: string[]): string[] {
 /** The entity ids a stored tag list was filed under, in order and without duplicates. */
 export function entityIds(tags: string[]): string[] {
   return [...new Set(tags.filter((t) => t.startsWith("entity:")).map((t) => t.slice("entity:".length)).filter(Boolean))];
+}
+
+/**
+ * The tags that put a report under one entity: the entity itself plus everything in its series, so a
+ * project's page, calendar and feed carry its bands' news as well as its own (industry/taxonomy.ts SERIES).
+ * `entityIds` reads them back out, which is why a project's report shows the band it is about too.
+ */
+export function entityTags(entityId: string): string[] {
+  const ids = seriesOf(entityId);
+  return (ids.length > 0 ? ids : [entityId]).map((id) => `entity:${id}`);
 }
 
 /**

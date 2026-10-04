@@ -1,12 +1,12 @@
 import { createHmac } from "node:crypto";
-import { config } from "@aihot/backend/config";
+import { config } from "@girlsbands/backend/config";
 // Malformed optional client data must not break admin authentication or drop valid ingest entries.
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { sha256 } from "@aihot/backend/lib/ids";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { stopBoss } from "@girlsbands/backend/jobs/queue";
+import { sha256 } from "@girlsbands/backend/lib/ids";
 import { buildApp } from "../apps/api/src/app.ts";
 
 process.env.INGEST_TOKEN = "private-route-test-ingest-token";
@@ -28,13 +28,13 @@ test("an unrelated malformed cookie leaves a real admin session usable without a
   await sql`INSERT INTO admin_sessions (id_hash, user_id, csrf_token, expires_at, auth_method, auth_binding, auth_claims)
             VALUES (${sha256(token)}, ${user!.id}, 'cookie-test-csrf', now() + interval '1 hour', 'feishu', ${binding}, ${sql.json(claims)})`;
 
-  for (const cookie of ["unrelated=%", "aihot_admin=%; unrelated=%E0%A4", "aihot_admin=forged; unrelated=%"]) {
+  for (const cookie of ["unrelated=%", "girlsbands_admin=%; unrelated=%E0%A4", "girlsbands_admin=forged; unrelated=%"]) {
     const denied = await app.inject({ url: "/api/auth/check", headers: { cookie } });
     assert.equal(denied.statusCode, 401);
     assert.equal(denied.headers["cache-control"], "no-store");
   }
 
-  const headers = { cookie: `unrelated=%; aihot_admin=${token}; another=%E0%A4` };
+  const headers = { cookie: `unrelated=%; girlsbands_admin=${token}; another=%E0%A4` };
   const check = await app.inject({ url: "/api/auth/check", headers });
   assert.equal(check.statusCode, 204);
   const me = await app.inject({ url: "/api/admin/me", headers });

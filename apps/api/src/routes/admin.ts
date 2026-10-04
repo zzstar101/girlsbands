@@ -2,19 +2,20 @@
 // Every route goes through adminHandler (session + CSRF); manual changes are audited in the modules.
 import { readFile } from "node:fs/promises";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { actorOf } from "@aihot/backend/admin/auth";
-import { navCounts } from "@aihot/backend/admin/navigation";
-import { listAudit } from "@aihot/backend/audit";
-import { importSelectBenchRun, listSelectBenchRuns, selectBenchRun } from "@aihot/backend/admin/selectbench";
-import { modelsOverview, switchModel } from "@aihot/backend/admin/models";
-import { contentChain, overrideFields, rerun, searchContent, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
-import { detachFromFact, mergeStories } from "@aihot/backend/events/corrections";
-import { banSource, eraseFeedback, feedbackScreenshot, listFeedback, unbanSource, updateFeedback } from "@aihot/backend/admin/feedback";
-import { requeueFailedArticles, runsOverview } from "@aihot/backend/admin/runs";
-import { resolveDelivery } from "@aihot/backend/notify/deliver";
-import { releaseReceipt } from "@aihot/backend/operations/recover";
-import { replaceContactQr, setTargetEnabled, settingsOverview, updateBudget } from "@aihot/backend/admin/settings";
-import { createSource, fetchNow, listSources, previewSource, previewStoredSource, sourceDetail, updateSource } from "@aihot/backend/admin/sources";
+import { actorOf } from "@girlsbands/backend/admin/auth";
+import { navCounts } from "@girlsbands/backend/admin/navigation";
+import { listAudit } from "@girlsbands/backend/audit";
+import { importSelectBenchRun, listSelectBenchRuns, selectBenchRun } from "@girlsbands/backend/admin/selectbench";
+import { modelsOverview, switchModel } from "@girlsbands/backend/admin/models";
+import { contentChain, overrideFields, rerun, searchContent, setSeoIndexed, setVisibility } from "@girlsbands/backend/admin/content";
+import { detachFromFact, mergeStories } from "@girlsbands/backend/events/corrections";
+import { banSource, eraseFeedback, feedbackScreenshot, listFeedback, unbanSource, updateFeedback } from "@girlsbands/backend/admin/feedback";
+import { requeueFailedArticles, runsOverview } from "@girlsbands/backend/admin/runs";
+import { reviewSample } from "@girlsbands/backend/admin/review";
+import { resolveDelivery } from "@girlsbands/backend/notify/deliver";
+import { releaseReceipt } from "@girlsbands/backend/operations/recover";
+import { replaceContactQr, setTargetEnabled, settingsOverview, updateBudget } from "@girlsbands/backend/admin/settings";
+import { createSource, fetchNow, listSources, previewSource, previewStoredSource, sourceDetail, updateSource, withdrawSource } from "@girlsbands/backend/admin/sources";
 import { sendProblem } from "../http/respond.ts";
 import { adminHandler } from "./admin-auth.ts";
 
@@ -47,6 +48,11 @@ export function registerAdmin(app: FastifyInstance) {
   }));
   app.post("/api/admin/sources/:id/preview", adminHandler(async (req, reply) => orNotFound(req, reply, await previewStoredSource(param(req, "id")))));
   app.post("/api/admin/sources/:id/fetch", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await fetchNow(param(req, "id"), actorOf(admin)))));
+  app.post("/api/admin/sources/:id/withdraw", adminHandler(async (req, reply, admin) => {
+    const b = body<{ reason: string }>(req);
+    const n = await withdrawSource(param(req, "id"), b, actorOf(admin));
+    return orNotFound(req, reply, { withdrawn: n });
+  }));
 
   // Content and events
   app.get("/api/admin/content", adminHandler(async (req) => ({ rows: await searchContent(q(req).q ?? "") })));
@@ -85,6 +91,9 @@ export function registerAdmin(app: FastifyInstance) {
     await unbanSource(param(req, "hash"), actorOf(admin));
     return reply.code(204).send();
   }));
+
+  // Chinese copy
+  app.get("/api/admin/review", adminHandler(async (req) => reviewSample(q(req).seed)));
 
   // Runs
   app.get("/api/admin/runs", adminHandler(async () => runsOverview()));

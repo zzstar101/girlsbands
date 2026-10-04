@@ -4,8 +4,9 @@
 //   today  — money at risk or only the owner can act: sent at once, repeated at most daily, recovery reported.
 //   digest — other follow-ups: one 09:00 message a day, meant to be handed to the AI.
 // Delivery goes through sendAlert (ops chat, internal-chat fallback; off unless FEISHU_INTERNAL_ENABLED).
-import { beijingDate, beijingTime } from "@aihot/contracts/time";
+import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
 import { sql } from "../db.ts";
+import { MAX_CHARS } from "../editorial/translate.ts";
 import { beijingDay, beijingStamp, duration, formatAlert, formatRecovery, sendAlert, type Finding, type Level } from "../notify/feishu.ts";
 import { backupConfigured } from "./backup.ts";
 import { GROUPING_WARN_AFTER_MS, waitingSelectedNews } from "./grouping.ts";
@@ -17,6 +18,12 @@ const collecting = () => process.env.COLLECT_ENABLED === "true";
 const modelsOn = () => process.env.MODEL_CALLS_ENABLED === "true";
 /** How long the site may go without a new article before it counts as stalled (small source lists are quieter). */
 const QUIET_MS = Number(process.env.ALERT_QUIET_MINUTES || 360) * 60_000;
+
+// Chinese is what this site is for, so the translation chain is watched like the collection chain.
+// translatePending runs every five minutes with a four-minute budget, so two hours is not a queue.
+const TRANSLATE_STUCK_MS = 2 * 3600_000;
+/** Batches are 3500 characters, so a healthy answer is well under a minute. */
+const TRANSLATE_SLOW_MS = 3 * 60_000;
 
 /** Everything wrong right now, with its level. */
 export async function collectFindings(now = Date.now()): Promise<Finding[]> {
@@ -99,6 +106,9 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
       }
     }
   }
+
+  // Chinese, which is the point of this site, and so as important as the collection chain itself.
+  if (collecting() && modelsOn()) out.push(...(await translationFindings(now)));
 
   // Money, and things only the owner can do
   out.push(...(await providerFindings()));
@@ -218,6 +228,82 @@ async function providerFindings(): Promise<Finding[]> {
       detail: `24 小时内 ${c.used} 次，上限 ${c.per_day}（budgets 表）`,
     });
   }
+  return out;
+}
+
+/**
+ * The translation chain. Chinese is what this site is for — every public item with a full text is
+ * supposed to arrive in Chinese — so a reader looking at a Japanese page is a defect worth a message,
+ * not a number on a dashboard. Attempts and outcomes are recorded in translation_attempts, where
+ * `partial` and three failed attempts are both terminal: nothing retries them on its own.
+ */
+async function translationFindings(now: number): Promise<Finding[]> {
+  const out: Finding[] = [];
+
+  // Public full texts that never got a Chinese translation. Items the translator deliberately skipped
+  // (already Chinese, no foreign body, a short X post) are excluded: those are fine to read as they are.
+  const [stuck] = await sql<{ n: number; gave_up: number; oldest: Date | null }[]>`
+    SELECT count(*)::int AS n,
+           count(*) FILTER (WHERE coalesce(ta.attempts, 0) >= 3)::int AS gave_up,
+           min(p.discovered_at) AS oldest
+    FROM publications p
+    JOIN articles a ON a.id = p.article_id
+    LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh' AND tr.revision >= a.revision
+    LEFT JOIN translation_attempts ta ON ta.article_id = p.article_id AND ta.revision = a.revision
+    WHERE p.visibility = 'public' AND p.body_mode = 'full'
+      AND coalesce(a.language, '') <> 'zh'
+      AND tr.article_id IS NULL
+      AND coalesce(ta.outcome, '') <> 'skipped'
+      AND p.discovered_at < ${new Date(now - TRANSLATE_STUCK_MS)}`;
+  if (stuck!.n >= 3) {
+    out.push({
+      key: "translate.stuck",
+      level: "now",
+      title: "有全文搬进来的文章还没翻成中文",
+      impact: `${stuck!.n} 条公开的全文内容还没有中文译文，读者打开看到的还是日文`,
+      heals: stuck!.gave_up ? `${stuck!.gave_up} 条已经试满 3 次，不会再自动重试` : "会，翻译任务每 5 分钟跑一次",
+      action: stuck!.gave_up ? "转给 AI 处理：这些不会自己恢复" : "转给 AI 看 content.translate 的运行记录",
+      detail: `最早一条从收录算起等了 ${duration(now - stuck!.oldest!.getTime())}（阈值 ${Math.round(TRANSLATE_STUCK_MS / 3600_000)} 小时）`,
+      since: stuck!.oldest!,
+    });
+  }
+
+  // A half-translated body reads as a page that changes language mid-way. Bodies longer than the cap
+  // are incomplete on purpose, so only those short enough to have been translated whole are reported.
+  const [partial] = await sql<{ n: number; oldest: Date | null }[]>`
+    SELECT count(*)::int AS n, min(tr.created_at) AS oldest
+    FROM translations tr JOIN articles a ON a.id = tr.article_id
+    WHERE NOT tr.complete AND tr.origin = 'model'
+      AND length(coalesce(a.body_html, '')) < ${MAX_CHARS}
+      AND tr.created_at > ${new Date(now - 24 * 3600_000)}`;
+  if (partial!.n > 0) {
+    out.push({
+      key: "translate.partial",
+      level: "today",
+      title: "有文章的译文只翻了一部分",
+      impact: `${partial!.n} 条内容的正文一半是中文一半是日文`,
+      heals: "不会，这版译文不会再自动重试",
+      action: "转给 AI 处理：看 translation_attempts 里这些条目的 reason，需要时重新排队",
+      detail: `过去 24 小时 ${partial!.n} 条；原文都没到 ${MAX_CHARS} 字的上限，所以不是长文只翻开头`,
+      since: partial!.oldest ?? undefined,
+    });
+  }
+
+  // Batches are large, so unusually slow answers show up here before they turn into a backlog.
+  const [slow] = await sql<{ p90: number | null; n: number }[]>`
+    SELECT percentile_cont(0.9) WITHIN GROUP (ORDER BY ra.latency_ms)::int AS p90, count(*)::int AS n
+    FROM receipt_attempts ra JOIN receipts r ON r.id = ra.receipt_id
+    WHERE r.purpose IN ('translate_body', 'translate_quoted') AND ra.status = 'received'
+      AND ra.latency_ms IS NOT NULL AND ra.started_at > ${new Date(now - 24 * 3600_000)}`;
+  if (slow!.n >= 5 && (slow!.p90 ?? 0) > TRANSLATE_SLOW_MS) {
+    out.push({
+      key: "translate.slow",
+      level: "digest",
+      title: "翻译请求明显变慢",
+      detail: `过去 24 小时 ${slow!.n} 次翻译请求，九成在 ${duration(slow!.p90!)} 内返回；超过 ${duration(TRANSLATE_SLOW_MS)} 就该看模型服务商的状况`,
+    });
+  }
+
   return out;
 }
 

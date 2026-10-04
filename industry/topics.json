@@ -1,9 +1,9 @@
 {
-  "$comment": "主题页与筛选栏的归类表。group 决定页面形态：band 是企划／乐队页（有编年史带），field 按信息领域，genre 按内容形态。slug 会出现在网址里（/topics/<slug>），上线后不要改；name、aliases、definition 可以随时改。band 的 entityId 必须是 industry/taxonomy.ts 里 ENTITIES 的 id；aliases 与 ENTITIES 一起决定哪些写法能被认出来。field 的 chronicleTerms 决定大事记里哪些标题算这个方向的消息。",
+  "$comment": "主题页与筛选栏的归类表。group 决定页面形态：band 是企划／乐队页（有编年史带，企划页还汇总旗下乐队），field 按信息领域；genre 只用来给消息打标签，不出页面（没有自己的网址，也不进目录与站点地图）。slug 会出现在网址里（/topics/<slug>），上线后不要改；name、aliases、definition 可以随时改。band 的 entityId 必须是 industry/taxonomy.ts 里 ENTITIES 的 id；aliases 与 ENTITIES 一起决定哪些写法能被认出来，系列归属（企划收哪些乐队）写在 taxonomy.ts 的 SERIES 里，不要在这里重复。field 的 chronicleTerms 决定大事记里哪些标题算这个方向的消息。",
   "groups": [
     { "key": "band", "name": "企划与乐队", "blurb": "按乐队追踪：下一场 Live、正在进行的抽选、最新发售" },
     { "key": "field", "name": "情报领域", "blurb": "按粉丝要做的事分类：Live、票务、发售、周边、直播……" },
-    { "key": "genre", "name": "内容形态", "blurb": "按消息类型浏览：抽选、追加席、店铺特典、成员动态……" }
+    { "key": "genre", "name": "内容形态", "blurb": "按内容形态给消息打标签（不单独出页面）：抽选、追加席、店铺特典、成员动态……" }
   ],
   "topics": [
     {
@@ -65,9 +65,18 @@
       "name": "結束バンド",
       "group": "band",
       "entityId": "kessoku-band",
-      "aliases": ["结束乐队", "Kessoku Band", "ぼっち・ざ・ろっく！", "ぼざろ", "Bocchi the Rock!"],
+      "aliases": ["结束乐队", "Kessoku Band"],
       "orgNames": ["結束バンド", "Kessoku Band"],
-      "definition": "結束バンド／ぼっち・ざ・ろっく！ 的全部动态：Live、乐曲与专辑、抽选、周边与成员动态。"
+      "definition": "結束バンド 的全部动态：Live、乐曲与专辑、抽选、周边与成员动态。"
+    },
+    {
+      "slug": "bocchi-the-rock",
+      "name": "ぼっち・ざ・ろっく！",
+      "group": "band",
+      "entityId": "bocchi-the-rock",
+      "aliases": ["ぼざろ", "Bocchi the Rock!"],
+      "orgNames": ["ぼっち・ざ・ろっく！", "ぼざろ", "Bocchi the Rock!"],
+      "definition": "《ぼっち・ざ・ろっく！》作品本身的动态：动画与剧场版、乐曲、联动、企划公告，以及结束乐队的联合消息。"
     },
     {
       "slug": "poppinparty",

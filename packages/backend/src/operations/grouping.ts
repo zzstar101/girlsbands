@@ -1,5 +1,5 @@
 // Selected candidates waiting for a news identity: one reader-impact view for alerts and the admin.
-import type { AdminRuns, BeforeJson } from "@aihot/contracts/admin";
+import type { AdminRuns, BeforeJson } from "@girlsbands/contracts/admin";
 import { sql } from "../db.ts";
 import { AUTO_RELEASE_NOTE } from "./recover.ts";
 

@@ -5,16 +5,16 @@
 import { stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { extractArticleBody } from "@aihot/backend/content/extract";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { loadAnalyzeInput } from "@aihot/backend/editorial/input";
-import { renderContext } from "@aihot/backend/editorial/writing";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { collectXShard } from "@aihot/backend/sources/collect";
-import { tweetToCandidate } from "@aihot/backend/sources/x";
-import type { SdTweet } from "@aihot/backend/providers/socialdata";
+import { config } from "@girlsbands/backend/config";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { extractArticleBody } from "@girlsbands/backend/content/extract";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { loadAnalyzeInput } from "@girlsbands/backend/editorial/input";
+import { renderContext } from "@girlsbands/backend/editorial/writing";
+import { stopBoss } from "@girlsbands/backend/jobs/queue";
+import { collectXShard } from "@girlsbands/backend/sources/collect";
+import { tweetToCandidate } from "@girlsbands/backend/sources/x";
+import type { SdTweet } from "@girlsbands/backend/providers/socialdata";
 
 const T = tag();
 const HANDLE = `xa${T}`;

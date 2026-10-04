@@ -4,9 +4,10 @@
 // tracking views (Live, tickets, releases) that answer "what am I about to miss", then the archive
 // and the site's own pages. Every target here is a real page.
 import type { ReactNode } from "react";
-import { subjectAfter, withSubject } from "@aihot/industry/site";
+import { ENTITIES, FRANCHISES } from "@girlsbands/industry/taxonomy";
+import { subjectAfter, withSubject } from "@girlsbands/industry/site";
 import {
-  IconBell, IconBolt, IconBookmark, IconCalendar, IconClock, IconDisc, IconDoc, IconFlame, IconGrid, IconHeart, IconHistory, IconList, IconMail, IconMessage, IconPlug, IconTicket, IconUser,
+  IconBell, IconBolt, IconBookmark, IconCalendar, IconClock, IconDisc, IconDoc, IconFlame, IconHeart, IconHistory, IconList, IconMail, IconMessage, IconPlug, IconTicket, IconUser,
 } from "../icons";
 
 export interface NavItem {
@@ -30,6 +31,16 @@ export const SIDEBAR: Array<{ title: string; items: NavItem[] }> = [
       { to: "/starred", label: "收藏", icon: IconBookmark },
     ],
   },
+  // The franchises the site covers (industry/taxonomy.ts FRANCHISES), one entry each. A project's page
+  // carries its bands' news too, so this is a fan's home base rather than a filter.
+  {
+    title: "企划",
+    items: FRANCHISES.map((id, i) => ({
+      to: `/topics/${id}`,
+      label: ENTITIES[id].displayTag ?? ENTITIES[id].name,
+      icon: [IconFlame, IconHeart, IconDisc][i] ?? IconDisc,
+    })),
+  },
   // The tracking views. Each is a topic page over one 情报领域, so the taxonomy drives navigation.
   {
     title: "追踪",
@@ -44,7 +55,6 @@ export const SIDEBAR: Array<{ title: string; items: NavItem[] }> = [
   {
     title: "更多",
     items: [
-      { to: "/topics", label: "全部主题", icon: IconGrid },
       { to: "/agent", label: "Agent 接入", icon: IconPlug },
       { to: "/about", label: "关于", icon: IconHeart },
       { to: "/changelog", label: "更新日志", icon: IconHistory, changelog: true },
@@ -58,8 +68,6 @@ export const SIDEBAR: Array<{ title: string; items: NavItem[] }> = [
 export function sidebarIsActive(item: NavItem, pathname: string): boolean {
   if (item.end) return pathname === item.to;
   if (item.to === "/daily") return /^\/(daily|weekly|monthly)(\/|$)/.test(pathname);
-  // 全部主题 must not stay lit on the tracking views (/topics/live, /topics/ticket, …).
-  if (item.to === "/topics") return pathname === "/topics" || /^\/topics\/[^/]+\/page\/\d+$/.test(pathname);
   return pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 

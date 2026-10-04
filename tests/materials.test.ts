@@ -6,9 +6,9 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { identityKeyForUrl } from "@aihot/backend/lib/url";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { identityKeyForUrl } from "@girlsbands/backend/lib/url";
 
 const SOURCE = `test-materials-${tag()}`;
 const OTHER = `test-materials-other-${tag()}`;

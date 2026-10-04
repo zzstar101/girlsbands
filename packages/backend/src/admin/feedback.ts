@@ -1,6 +1,6 @@
 // Feedback handling: list, status and note, per-source bans, and deletion on request
 // (privacy notice: feedback material is removed once handling ends or when the sender asks).
-import type { AdminFeedback, BeforeJson } from "@aihot/contracts/admin";
+import type { AdminFeedback, BeforeJson } from "@girlsbands/contracts/admin";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config.ts";

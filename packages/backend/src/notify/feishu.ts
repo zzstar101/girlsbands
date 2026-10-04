@@ -4,7 +4,7 @@
 // Everything outward is off unless explicitly enabled (development and tests stay silent).
 import { readFile, unlink } from "node:fs/promises";
 import path from "node:path";
-import { beijingDate, beijingTime } from "@aihot/contracts/time";
+import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
 import { config, credential } from "../config.ts";
 import { sql } from "../db.ts";
 

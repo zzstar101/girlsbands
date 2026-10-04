@@ -1,10 +1,10 @@
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/report-latest";
-import type { ReportLatestPage } from "@aihot/contracts/site";
-import { SITE, subjectAfter, withSubject } from "@aihot/industry/site";
+import type { ReportLatestPage } from "@girlsbands/contracts/site";
+import { SITE, subjectAfter, withSubject } from "@girlsbands/industry/site";
 import { edgeTtl, loadOr404 } from "../lib/api.server";
 import { pageMeta, reportLd } from "../lib/seo";
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate } from "@girlsbands/contracts/time";
 import { EmptyState } from "../components/ui/Page";
 import { ReportLayout } from "../features/report/ReportLayout";
 import { ReportPaper, reportOutline } from "../features/report/ReportPaper";

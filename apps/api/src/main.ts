@@ -1,7 +1,7 @@
-import { assertProductionSecrets, config } from "@aihot/backend/config";
-import { closeDb } from "@aihot/backend/db";
-import { startHeartbeat } from "@aihot/backend/operations/heartbeat";
-import { startWorkerWatchdog } from "@aihot/backend/operations/watch";
+import { assertProductionSecrets, config } from "@girlsbands/backend/config";
+import { closeDb } from "@girlsbands/backend/db";
+import { startHeartbeat } from "@girlsbands/backend/operations/heartbeat";
+import { startWorkerWatchdog } from "@girlsbands/backend/operations/watch";
 import { buildApp } from "./app.ts";
 
 assertProductionSecrets([

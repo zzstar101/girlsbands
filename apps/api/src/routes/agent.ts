@@ -2,12 +2,12 @@
 // errors are the usual v1 Problem JSON. New abilities become new addresses listed in the guide, which
 // agents read without updating.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
-import { isValidDate } from "@aihot/contracts/time";
-import { agentGuide, dailyAnswer, hotAnswer, latestAnswer, periodAnswer, searchAnswer, searchItems, storyAnswer } from "@aihot/backend/publication/agent";
-import { v1Items } from "@aihot/backend/publication/v1";
-import { resolveStory, v1HotTopics, v1Story } from "@aihot/backend/publication/stories";
-import { dailyWithNotes, isPeriodKey, v1Period } from "@aihot/backend/publication/reports";
+import { PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@girlsbands/contracts/taxonomy";
+import { isValidDate } from "@girlsbands/contracts/time";
+import { agentGuide, dailyAnswer, hotAnswer, latestAnswer, periodAnswer, searchAnswer, searchItems, storyAnswer } from "@girlsbands/backend/publication/agent";
+import { v1Items } from "@girlsbands/backend/publication/v1";
+import { resolveStory, v1HotTopics, v1Story } from "@girlsbands/backend/publication/stories";
+import { dailyWithNotes, isPeriodKey, v1Period } from "@girlsbands/backend/publication/reports";
 import { QueryError, sendProblem, sendTextWithEtag, strictQuery } from "../http/respond.ts";
 import { enumParam, intParam, publicHandler, V1_OPERATIONS } from "./v1.ts";
 

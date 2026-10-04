@@ -3,7 +3,7 @@
 // see one story. Stories that stay apart though reports keep tying them list each other as related
 // events (linkRelatedStories, hourly).
 import { modelFor } from "../editorial/models.ts";
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate } from "@girlsbands/contracts/time";
 import { sql } from "../db.ts";
 import { chatJson } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";

@@ -1,4 +1,4 @@
-import type { BrandMarkRef } from "@aihot/contracts/site";
+import type { BrandMarkRef } from "@girlsbands/contracts/site";
 
 // Marks drawn in white for a dark tile sit on their own dark plate.
 const DARK_TILE = new Set(["/model-providers/moonshot.svg"]);

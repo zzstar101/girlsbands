@@ -7,14 +7,14 @@ import { Reply, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { analyzeArticle, buildMaterial, loadAnalyzeInput, normalizeStructure, StructureSchema, tierThreshold } from "@aihot/backend/editorial/analyze";
-import { queueProcessing } from "@aihot/backend/jobs/content";
-import { QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
-import { compactAnswerFirstSummary, enforceIdentity, MAX_BODY_CHARS, parseTranslateOutput, PREFILTER_SYSTEM } from "@aihot/backend/editorial/writing";
-import { promptText } from "@aihot/backend/editorial/prompts";
-import { SITE } from "@aihot/industry/site";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { analyzeArticle, buildMaterial, loadAnalyzeInput, normalizeStructure, NO_COPY_ERROR, StructureSchema, tierThreshold } from "@girlsbands/backend/editorial/analyze";
+import { queueProcessing, requeueFailed } from "@girlsbands/backend/jobs/content";
+import { QUEUES, stopBoss } from "@girlsbands/backend/jobs/queue";
+import { compactAnswerFirstSummary, enforceIdentity, MAX_BODY_CHARS, parseTranslateOutput, PREFILTER_SYSTEM } from "@girlsbands/backend/editorial/writing";
+import { promptText } from "@girlsbands/backend/editorial/prompts";
+import { SITE } from "@girlsbands/industry/site";
 
 const T = tag();
 const SOURCE = `test-analyze-${T}`;
@@ -23,8 +23,8 @@ const X_SOURCE = `test-analyze-x-${T}`;
 type Step = "prefilter" | "score" | "understand" | "summarize" | "structure";
 interface Req { step: Step; marker: string; system: string; user: string }
 const requests: Req[] = [];
-const MARKERS = ["CLEAR", "RESCUE", "LOW", "OFFTOPIC", "BARE", "VAGUE", "THIN", "SENSITIVE", "推文"];
-const scoreAnswers: Record<string, number[]> = { CLEAR: [78, 72], RESCUE: [56, 50], LOW: [45, 40], THIN: [70, 70], SENSITIVE: [80, 80], 推文: [40, 40], BARE: [30, 34], VAGUE: [60, 62] };
+const MARKERS = ["CLEAR", "RESCUE", "LOW", "OFFTOPIC", "BARE", "VAGUE", "THIN", "SENSITIVE", "推文", "BLANK", "EMPTY"];
+const scoreAnswers: Record<string, number[]> = { CLEAR: [78, 72], RESCUE: [56, 50], LOW: [45, 40], THIN: [70, 70], SENSITIVE: [80, 80], 推文: [40, 40], BARE: [30, 34], VAGUE: [60, 62], BLANK: [40, 40], EMPTY: [40, 40] };
 
 const stepOf = (system: string, user: string): Step =>
   system.includes("宽召回的行业相关性预筛") ? "prefilter" : system.includes("事件注意力评分器") ? "score"
@@ -48,6 +48,11 @@ const provider = await stub((_hit, req) => {
     return answer({ itemType: "live_announcement", authorRole: "principal", tags: ["新 Live", "联动企划", "声优", "不存在的标签"], editorialJudgment: `理由 ${marker}`, titleZh: `理解标题 ${marker}`, summaryZh: `理解摘要 ${marker}。第二句补充一个关键数字。` });
   }
   if (step === "structure") return answer({ category: "live", tags: ["新 Live", "出演阵容"], subjects: ["togenashi-togeari", "unknown-co"], scope: "single", fact: { title: `事实 ${marker}`, subject: "トゲナシトゲアリ", action: "公布", object: "新 Live", occurredAt: null, evidence: "a band announced a live tour", conditions: [] } });
+  // BLANK and EMPTY both name a band the material never mentions, so the identity guard drops the
+  // copy; BLANK writes properly once the retry says so, EMPTY never does.
+  if (marker === "EMPTY" || (marker === "BLANK" && !user.includes("上一次的中文标题里出现了原文没有提到的名字"))) {
+    return answer("title_zh: Roselia 公布新 Live\nsummary_zh: Roselia 发布了新的演出信息。");
+  }
   return answer(`title_zh: 翻译标题 ${marker}\nsummary_zh: 翻译摘要 ${marker}。第二句补充影响。`);
 });
 for (const env of ["DASHSCOPE_BASE_URL", "ZHIPU_BASE_URL", "DEEPSEEK_BASE_URL"]) process.env[env] = `${provider.url}/v1`;
@@ -170,6 +175,31 @@ test("the prefilter's BLOCK stops everything; UNKNOWN goes on like PASS", async 
   const bare = await analyzeArticle(await article("BARE", { bodyText: null, excerpt: null, bodyStatus: "none" }));
   assert.deepEqual([bare!.output!.relevance, bare!.output!.selected, bare!.output!.score], ["unknown", false, 32]);
   assert.deepEqual(calls("BARE").sort(), ["prefilter", "score", "score", "structure"]);
+});
+
+test("a writer that gives no Chinese copy is asked again, as a new request, and the item goes out", async () => {
+  const id = await article("BLANK");
+  const res = await analyzeArticle(id);
+  assert.deepEqual(calls("BLANK").sort(), ["prefilter", "score", "score", "structure", "summarize", "summarize"], "the retry is a second paid call, not a replay");
+  assert.deepEqual([res!.output!.relevance, res!.output!.titleZh, res!.output!.summaryZh], ["pass", "翻译标题 BLANK", "翻译摘要 BLANK。第二句补充影响。"]);
+  const retry = requests.filter((r) => r.marker === "BLANK" && r.step === "summarize")[1]!;
+  assert.match(retry.user, /上一次的中文标题里出现了原文没有提到的名字/, "the model is told what was wrong");
+  assert.equal(res!.receiptIds.length, 6, "every request of the retried run is on record");
+  assert.equal((await sql`SELECT processing_state FROM articles WHERE id = ${id}`)[0]!.processing_state, "analyzed");
+});
+
+test("an item whose writer gives no Chinese copy twice ends failed, and the owner's retry asks again", async () => {
+  const id = await article("EMPTY");
+  const res = await analyzeArticle(id);
+  assert.deepEqual([res!.output!.relevance, res!.output!.titleZh], ["unknown", ""]);
+  const [failed] = await sql<{ processing_state: string; processing_error: string }[]>`SELECT processing_state, processing_error FROM articles WHERE id = ${id}`;
+  // Not "analyzed": that state is terminal and nothing sweeps it again, so the item would vanish.
+  assert.deepEqual([failed!.processing_state, failed!.processing_error], ["failed", NO_COPY_ERROR]);
+  await requeueFailed(null);
+  const [queued] = await sql<{ processing_state: string; processing_attempt_tag: string | null }[]>`
+    SELECT processing_state, processing_attempt_tag FROM articles WHERE id = ${id}`;
+  assert.equal(queued!.processing_state, "new");
+  assert.match(queued!.processing_attempt_tag ?? "", /^retry-[0-9a-z]+$/, "an explicit retry is a new request, not the same one again");
 });
 
 test("a feed summary alone: the article page is fetched first, then the whole article is judged", async () => {

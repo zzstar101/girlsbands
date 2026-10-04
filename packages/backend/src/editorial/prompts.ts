@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 import { REPO_ROOT } from "../config.ts";
 
 const DIR = path.join(REPO_ROOT, "industry/prompts");

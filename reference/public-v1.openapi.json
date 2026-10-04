@@ -3450,11 +3450,11 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot",
+              "site",
               "original"
             ],
             "properties": {
-              "aihot": {
+              "site": {
                 "type": "string",
                 "format": "uri"
               },
@@ -3542,10 +3542,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "site"
             ],
             "properties": {
-              "aihot": {
+              "site": {
                 "type": "string",
                 "format": "uri"
               }
@@ -3732,11 +3732,11 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot",
+              "site",
               "original"
             ],
             "properties": {
-              "aihot": {
+              "site": {
                 "type": "string",
                 "format": "uri"
               },
@@ -3844,10 +3844,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "site"
             ],
             "properties": {
-              "aihot": {
+              "site": {
                 "type": "string",
                 "format": "uri"
               },
@@ -3880,11 +3880,11 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot",
+              "site",
               "api"
             ],
             "properties": {
-              "aihot": {
+              "site": {
                 "type": "string",
                 "format": "uri"
               },
@@ -3962,10 +3962,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "site"
             ],
             "properties": {
-              "aihot": {
+              "site": {
                 "type": "string",
                 "format": "uri"
               }
@@ -4062,10 +4062,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "site"
             ],
             "properties": {
-              "aihot": {
+              "site": {
                 "type": "string",
                 "format": "uri"
               }
@@ -4079,11 +4079,11 @@
       "DailyContentLinks": {
         "type": "object",
         "required": [
-          "aihot",
+          "site",
           "original"
         ],
         "properties": {
-          "aihot": {
+          "site": {
             "type": [
               "string",
               "null"
@@ -4128,10 +4128,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "site"
             ],
             "properties": {
-              "aihot": {
+              "site": {
                 "type": "string",
                 "format": "uri"
               }
@@ -4523,10 +4523,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "site"
             ],
             "properties": {
-              "aihot": {
+              "site": {
                 "type": "string",
                 "format": "uri"
               }
@@ -4667,10 +4667,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "site"
             ],
             "properties": {
-              "aihot": {
+              "site": {
                 "type": "string",
                 "format": "uri"
               }

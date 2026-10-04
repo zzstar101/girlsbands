@@ -1,14 +1,14 @@
 // Public API v1 (long-term). Field shapes follow reference/public-v1.openapi.json (the paths stay /api/v1);
 // each operation's query parameters and Cache-Control are listed in V1_OPERATIONS.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
-import { config } from "@aihot/backend/config";
-import { InvalidCursorError } from "@aihot/backend/lib/cursor";
-import { SearchBusyError } from "@aihot/backend/publication/pool";
-import { selectedChanges, selectedSnapshot, SnapshotRequiredError, v1Items } from "@aihot/backend/publication/v1";
-import { resolveStory, v1HotTopics, v1Story } from "@aihot/backend/publication/stories";
-import { isPeriodKey, v1Dailies, v1Daily, v1Period, v1Periods } from "@aihot/backend/publication/reports";
-import { isValidDate } from "@aihot/contracts/time";
+import { PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@girlsbands/contracts/taxonomy";
+import { config } from "@girlsbands/backend/config";
+import { InvalidCursorError } from "@girlsbands/backend/lib/cursor";
+import { SearchBusyError } from "@girlsbands/backend/publication/pool";
+import { selectedChanges, selectedSnapshot, SnapshotRequiredError, v1Items } from "@girlsbands/backend/publication/v1";
+import { resolveStory, v1HotTopics, v1Story } from "@girlsbands/backend/publication/stories";
+import { isPeriodKey, v1Dailies, v1Daily, v1Period, v1Periods } from "@girlsbands/backend/publication/reports";
+import { isValidDate } from "@girlsbands/contracts/time";
 import { applyPublicHeaders, QueryError, sendJsonWithEtag, sendProblem, strictQuery } from "../http/respond.ts";
 
 type Handler = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;

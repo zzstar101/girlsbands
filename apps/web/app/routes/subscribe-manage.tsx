@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import type { SubscriptionState } from "@aihot/contracts/site";
-import { SITE } from "@aihot/industry/site";
+import type { SubscriptionState } from "@girlsbands/contracts/site";
+import { SITE } from "@girlsbands/industry/site";
 import { IconCheck } from "../components/icons";
 import { RingMark } from "../components/Logo";
 import { ReadingLayout } from "../components/ui/Page";

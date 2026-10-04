@@ -96,6 +96,7 @@ export const OAUTH_PROBE_PATHS = [
 export const API_OWNED_PATTERNS: RegExp[] = [
   /^\/api\//,
   /^\/feed(\.xml|\/.*)?$/,
+  /^\/calendar(\.ics|\/[^/]+\.ics)$/,
   /^\/(rss|rss\.xml|atom\.xml)$/,
   /^\/openapi-v1\.json$/,
   /^\/(llms\.txt|robots\.txt|sitemap\.xml|manifest\.webmanifest)$/,

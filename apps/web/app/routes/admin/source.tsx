@@ -1,8 +1,8 @@
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 import { useState } from "react";
 import { Link } from "react-router";
 import type { Route } from "./+types/source";
-import type { AdminSource, AdminSourceDetail, AdminSourcePreview } from "@aihot/contracts/admin";
+import type { AdminSource, AdminSourceDetail, AdminSourcePreview } from "@girlsbands/contracts/admin";
 import { adminGet } from "../../lib/admin.server";
 import { useAdminAction } from "../../features/admin/action";
 import { bj, duration, num } from "../../features/admin/format";
@@ -44,7 +44,7 @@ export default function SourceDetail({ loaderData }: Route.ComponentProps) {
   const [draft, setDraft] = useState<Draft>(() => draftOf(s));
   const [draftFor, setDraftFor] = useState(s.updated_at);
   const [preview, setPreview] = useState<AdminSourcePreview | null>(null);
-  const [dialog, setDialog] = useState<null | "save" | "toggle">(null);
+  const [dialog, setDialog] = useState<null | "save" | "toggle" | "withdraw">(null);
   const [configError, setConfigError] = useState<string | null>(null);
   if (draftFor !== s.updated_at) {
     // The source changed (our own save or someone else's): start from the saved state.
@@ -112,6 +112,9 @@ export default function SourceDetail({ loaderData }: Route.ComponentProps) {
           </Button>
           <Button tone={s.enabled ? "danger" : "primary"} onClick={() => setDialog("toggle")}>
             {s.enabled ? "暂停" : "恢复"}
+          </Button>
+          <Button tone="danger" onClick={() => setDialog("withdraw")}>
+            整源下架
           </Button>
         </>
       }
@@ -301,6 +304,19 @@ export default function SourceDetail({ loaderData }: Route.ComponentProps) {
         onClose={() => setDialog(null)}
         onSubmit={async (reason) => {
           const r = await run("PATCH", base, { patch: { enabled: !s.enabled }, version: new Date(s.updated_at).toISOString(), reason }, { label: "toggle", success: s.enabled ? "已暂停" : "已恢复" });
+          return r !== null;
+        }}
+      />
+      <ReasonDialog
+        open={dialog === "withdraw"}
+        title={`整源下架：${s.name}`}
+        description="把这个信源已经发布出去的内容全部撤掉：网站、RSS、公开 API、MCP 和 sitemap 一起消失，站内链接返回 404；同时暂停这个信源，之后不再采集。用于权利方的删除请求。"
+        danger
+        confirmLabel="全部下架"
+        busy={pending === "withdraw"}
+        onClose={() => setDialog(null)}
+        onSubmit={async (reason) => {
+          const r = await run<{ withdrawn: number }>("POST", `${base}/withdraw`, { reason }, { label: "withdraw", success: "已整源下架" });
           return r !== null;
         }}
       />

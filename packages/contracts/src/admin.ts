@@ -200,6 +200,44 @@ export interface AdminContentChain {
   history: AdminAuditEntry[];
 }
 
+// Chinese copy
+
+/** How much of each side of the weekly spot check travels to the page: enough for a whole press release, bounded for a runaway one. */
+export const REVIEW_CHARS = 20_000;
+
+/** One item of the weekly spot check: the original next to its Chinese translation. */
+export interface AdminReviewItem {
+  article_id: string;
+  source: string;
+  source_kind: string;
+  language: string | null;
+  url: string;
+  selected: boolean | null;
+  title: string;
+  title_zh: string | null;
+  /** Original body, cut at REVIEW_CHARS. */
+  body: string;
+  /** Translation of the same stretch, cut at REVIEW_CHARS. */
+  body_zh: string | null;
+  /** Whether either side was cut, so a short page is never mistaken for a short article. */
+  cut: boolean;
+  complete: boolean;
+  published_at: Timestamp | null;
+  discovered_at: Timestamp;
+  /** Preferred spelling of every controlled name the original mentions: what to check by eye. */
+  names: string[];
+}
+
+export interface AdminReview {
+  /** What the sample was drawn from: an ISO week label, or whatever the page passed as `seed`. */
+  seed: string;
+  /** Monday..Sunday (Beijing) of that week; null when the seed is not a week label. */
+  week: { start: string; end: string } | null;
+  /** How many items were eligible when this sample was drawn. */
+  total: number;
+  rows: AdminReviewItem[];
+}
+
 // Feedback
 
 export interface AdminFeedbackRow {

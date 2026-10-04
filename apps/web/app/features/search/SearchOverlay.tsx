@@ -3,7 +3,7 @@
 // (/all?q=…). Below the field: this browser's recent searches, topics to browse and what is hot now.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Form, Link, useLocation, useNavigation } from "react-router";
-import type { HotResponse, TopicsResponse } from "@aihot/contracts/site";
+import type { HotResponse, TopicsResponse } from "@girlsbands/contracts/site";
 import { IconClose, IconSearch } from "../../components/icons";
 import { addRecentSearch, clearRecentSearches, useRecentSearches } from "../../lib/local-state";
 import { useModal } from "../../components/ui/modal";
@@ -195,9 +195,6 @@ export function SearchOverlay() {
                     <span className="truncate">{t.name}</span>
                   </Link>
                 ))}
-                <Link viewTransition to="/topics" className={`${chip} gap-0.5 font-medium text-accent`}>
-                  全部 {more!.topics.length} 个主题
-                </Link>
               </div>
             </section>
           )}

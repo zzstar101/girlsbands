@@ -4,7 +4,7 @@
 // post it replies to or quotes. A membership counts as evidence only when its report is not a
 // composite (latestCompositeCondition).
 import { sql } from "../db.ts";
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate } from "@girlsbands/contracts/time";
 import { sha256 } from "../lib/ids.ts";
 import { embeddingsAvailable, ensureEmbeddings } from "../providers/embeddings.ts";
 import { lexicalSimilarity, reportText, type CandidateView, type ReportView, type ReadingContext } from "./relate.ts";

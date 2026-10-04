@@ -6,7 +6,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { REPO_ROOT } from "@aihot/backend/config";
+import { REPO_ROOT } from "@girlsbands/backend/config";
 import type { RelationGoldRow } from "../scripts/eval-relations-core.ts";
 
 const exec = promisify(execFile);

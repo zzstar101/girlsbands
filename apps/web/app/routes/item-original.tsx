@@ -1,5 +1,5 @@
 import type { Route } from "./+types/item-original";
-import type { SiteItemDetail } from "@aihot/contracts/site";
+import type { SiteItemDetail } from "@girlsbands/contracts/site";
 import { loadOr404 } from "../lib/api.server";
 export { default, handle, headers, meta } from "./item";
 

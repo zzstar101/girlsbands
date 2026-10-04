@@ -3,11 +3,11 @@
 // industry; the kinds, how a report is classified, and merging and naming beyond plain equality are
 // the industry pack's (industry/chronicle.ts). Deterministic rules on fields the reports already have,
 // no model calls; offline replay imports the same functions.
-import type { CategoryKey } from "@aihot/contracts/taxonomy";
-import type { TopicEvent, TopicGroupKey, TopicKind, TopicMilestoneKind, TopicMonth } from "@aihot/contracts/site";
-import { tracksAsSubject } from "@aihot/contracts/site";
-import { beijingDate } from "@aihot/contracts/time";
-import { CHRONICLE } from "@aihot/industry/chronicle";
+import type { CategoryKey } from "@girlsbands/contracts/taxonomy";
+import type { TopicEvent, TopicGroupKey, TopicKind, TopicMilestoneKind, TopicMonth } from "@girlsbands/contracts/site";
+import { tracksAsSubject } from "@girlsbands/contracts/site";
+import { beijingDate } from "@girlsbands/contracts/time";
+import { CHRONICLE } from "@girlsbands/industry/chronicle";
 import { ENTITIES, entityIdentity, isRelease } from "../editorial/vocabulary.ts";
 
 export { tracksAsSubject };
@@ -109,7 +109,7 @@ const kindRules = (t: ChronicleTopic, kind: TopicMilestoneKind) =>
 /**
  * What the report is to the topic, or null when it is no milestone of it whatever its score: a kind the
  * topic's pages take; on a subject's page its own launch or its own news; on a direction's page a title
- * naming the direction; on a form's page a kind the form takes.
+ * naming the direction. A content form has no page, so nothing is a milestone of it.
  */
 function milestoneKind(t: ChronicleTopic, r: ChronicleReport): TopicMilestoneKind | null {
   if (!r.topicSlugs.includes(t.slug) || r.category === null || r.scope === "composite" || !readable(r.title)) return null;
@@ -117,7 +117,7 @@ function milestoneKind(t: ChronicleTopic, r: ChronicleReport): TopicMilestoneKin
   if (!kind || !kindRules(t, kind)) return null;
   if (tracksAsSubject(t.group)) return t.entityId && (CHRONICLE.kinds[kind].launch ? ownLaunch(t.entityId, r) : ownNews(t.entityId, r)) ? kind : null;
   if (t.group === "field") return t.terms?.test(`${r.title} ${r.originalTitle ?? ""}`) ? kind : null;
-  return CHRONICLE.forms[t.slug]?.kinds.includes(kind) ? kind : null;
+  return null;
 }
 
 /** Its score reaches the kind's minimum; a missing score never acquires a default. */
@@ -205,10 +205,10 @@ function candidates(t: ChronicleTopic, reports: ChronicleReport[], window: Chron
   return merged.filter((c) => monthOf(c.at) >= start && c.at <= window.now);
 }
 
-/** A subject keeps up to its kinds' allowance by importance; another topic its most important events. */
+/** A subject keeps up to its kinds' allowance by importance; a direction its most important events. */
 function pick(t: ChronicleTopic, list: Candidate[]): Candidate[] {
   const ranked = [...list].sort(importance);
-  if (!tracksAsSubject(t.group)) return ranked.slice(0, CHRONICLE.forms[t.slug]?.perMonth ?? MONTH_LIMIT);
+  if (!tracksAsSubject(t.group)) return ranked.slice(0, MONTH_LIMIT);
   const taken = new Map<TopicMilestoneKind, number>();
   return ranked.filter((c) => {
     taken.set(c.kind, (taken.get(c.kind) ?? 0) + 1);

@@ -1,9 +1,11 @@
 // Source administration: list, detail, preview (fetch without storing), edit, create with
 // duplicate checks, pause/resume and manual collection. Every change is audited.
 import { z } from "zod";
-import type { AdminSource, AdminSourceCreated, AdminSourceDetail, AdminSourcePreview, AdminSourceRow, AdminSources, BeforeJson } from "@aihot/contracts/admin";
+import type { AdminSource, AdminSourceCreated, AdminSourceDetail, AdminSourcePreview, AdminSourceRow, AdminSources, BeforeJson } from "@girlsbands/contracts/admin";
 import { audit, auditHistory, Conflict } from "../audit.ts";
 import { groupingReset } from "../content/provenance.ts";
+import { computeHotRanking } from "../events/hot.ts";
+import { publishArticleTx } from "../publication/publish.ts";
 import { sql, type Db } from "../db.ts";
 import { enqueue, QUEUES } from "../jobs/queue.ts";
 import { republishKey } from "../jobs/publication.ts";
@@ -175,7 +177,8 @@ const CreateSchema = z
 
 /** The address a source collects from, used to find duplicates before creating one. */
 export function sourceIdentity(kind: string, config: Record<string, unknown>): string | null {
-  const raw = (config.feedUrl ?? config.url ?? config.listUrl ?? config.endpoint ?? null) as string | null;
+  const raw = (config.feedUrl ?? config.url ?? config.listUrl ?? config.endpoint
+    ?? (Array.isArray(config.urls) ? config.urls[0] : null) ?? null) as string | null;
   if (kind === "x_search") {
     const m = /from:([A-Za-z0-9_]{1,15})/.exec(String(config.query ?? ""));
     return m ? `x:${m[1]!.toLowerCase()}` : null;
@@ -224,4 +227,47 @@ export async function fetchNow(id: string, actor: string) {
       : await enqueue(QUEUES.fetchSource, { sourceId: id, force: true }, { singletonKey: `manual:${id}` });
   await audit(actor, "source.fetch", `source:${id}`, null, null, { jobId });
   return { jobId };
+}
+
+/**
+ * 整源下架：权利方说「把我家的内容全撤掉」时用。一个源就是一个发布者，所以这就是「按域名整批下架」。
+ *
+ * 走的是和单条下架同一张表（editorial_overrides.visibility = 'withdrawn'）和同一个出口投影，
+ * 所以网站、RSS、公开 API、MCP、sitemap 会一起消失；最后把源停掉，之后不再采。
+ * 返回下架了多少条，源不存在返回 null。
+ */
+export async function withdrawSource(id: string, input: { reason: string }, actor: string) {
+  z.object({ reason: z.string().trim().min(1).max(500) }).parse(input);
+  const withdrawn = await sql.begin(async (tx) => {
+    const [source] = await tx<{ enabled: boolean }[]>`SELECT enabled FROM sources WHERE id = ${id} FOR UPDATE`;
+    if (!source) return null;
+    // Only what the public projection has ever seen: an article without a publications row is not out there.
+    const rows = await tx<{ id: string }[]>`
+      SELECT a.id FROM articles a
+      JOIN publications p ON p.article_id = a.id
+      LEFT JOIN editorial_overrides o ON o.article_id = a.id
+      WHERE a.source_id = ${id} AND coalesce(o.visibility, 'public') <> 'withdrawn'`;
+    if (rows.length) {
+      await tx`
+        INSERT INTO editorial_overrides (article_id, visibility, reason, version, updated_by)
+        SELECT a.id, 'withdrawn', ${input.reason}, 1, ${actor} FROM articles a
+        JOIN publications p ON p.article_id = a.id
+        LEFT JOIN editorial_overrides o ON o.article_id = a.id
+        WHERE a.source_id = ${id} AND coalesce(o.visibility, 'public') <> 'withdrawn'
+        ON CONFLICT (article_id) DO UPDATE SET visibility = 'withdrawn', reason = EXCLUDED.reason,
+          version = editorial_overrides.version + 1, updated_by = EXCLUDED.updated_by, updated_at = now()`;
+      // The exits read publications, not the override: every one of them has to be re-derived.
+      for (const r of rows) await publishArticleTx(tx, r.id);
+      const stories = await tx<{ story_id: number }[]>`
+        SELECT DISTINCT f.story_id FROM fact_articles fa JOIN facts f ON f.id = fa.fact_id
+        WHERE fa.article_id IN ${tx(rows.map((r) => r.id))} AND f.story_id IS NOT NULL`;
+      for (const s of stories) await enqueue(QUEUES.digest, { storyId: s.story_id }, { singletonKey: `story:${s.story_id}` }, tx);
+    }
+    await tx`UPDATE sources SET enabled = false, health = 'paused', updated_at = now() WHERE id = ${id}`;
+    await audit(actor, "source.withdraw", `source:${id}`, input.reason, { enabled: source.enabled }, { enabled: false, withdrawn: rows.length }, { db: tx });
+    return rows.length;
+  });
+  // The ranking reads committed publications, and the withdrawn ones are no longer eligible.
+  if (withdrawn) await computeHotRanking();
+  return withdrawn;
 }

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
+import { closeDb, sql } from "@girlsbands/backend/db";
 
 after(closeDb);
 
@@ -27,7 +27,7 @@ const specifiers = (text: string) => [...text.matchAll(/\b(?:from|import)\s*\(?\
 
 /** A specifier as a path under packages/backend/src (`events/group.ts`), or null outside the backend. */
 function backendPath(file: string, spec: string): string | null {
-  if (spec.startsWith("@aihot/backend/")) return `${spec.slice("@aihot/backend/".length)}.ts`;
+  if (spec.startsWith("@girlsbands/backend/")) return `${spec.slice("@girlsbands/backend/".length)}.ts`;
   if (!spec.startsWith(".")) return null;
   const target = path.relative(BACKEND, path.resolve(ROOT, path.dirname(file), spec));
   return target.startsWith("..") ? null : target;
@@ -38,7 +38,7 @@ function violations(files: Array<{ file: string; text: string }>, broken: (file:
 }
 
 test("the web reaches the backend only over HTTP", () => {
-  const found = violations(sources("apps/web"), (_file, spec) => spec.startsWith("@aihot/backend") || spec.includes("packages/backend") || spec === "postgres" || spec === "pg-boss");
+  const found = violations(sources("apps/web"), (_file, spec) => spec.startsWith("@girlsbands/backend") || spec.includes("packages/backend") || spec === "postgres" || spec === "pg-boss");
   assert.deepEqual(found, [], "apps/web imports backend code; read it through /api/site or /api/admin instead");
 });
 

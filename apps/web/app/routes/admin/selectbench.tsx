@@ -1,8 +1,8 @@
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 import { useRef } from "react";
 import { Link } from "react-router";
 import type { Route } from "./+types/selectbench";
-import type { AdminSelectBenchRuns } from "@aihot/contracts/admin";
+import type { AdminSelectBenchRuns } from "@girlsbands/contracts/admin";
 import { adminGet } from "../../lib/admin.server";
 import { useAdminAction } from "../../features/admin/action";
 import { bj, num, pct } from "../../features/admin/format";

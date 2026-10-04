@@ -10,13 +10,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
 import sharp from "sharp";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { forwardFeedbackToFeishu } from "@aihot/backend/notify/feishu";
-import { forwardPendingFeedback, submitFeedback } from "@aihot/backend/operations/feedback";
+import { config } from "@girlsbands/backend/config";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { forwardFeedbackToFeishu } from "@girlsbands/backend/notify/feishu";
+import { forwardPendingFeedback, submitFeedback } from "@girlsbands/backend/operations/feedback";
 
 const T = tag();
-config.dataDir = mkdtempSync(path.join(tmpdir(), "aihot-feedback-"));
+config.dataDir = mkdtempSync(path.join(tmpdir(), "girlsbands-feedback-"));
 process.env.FEISHU_APP_ID = "test-app";
 process.env.FEISHU_APP_SECRET = "test-secret";
 process.env.FEISHU_INTERNAL_CHAT_ID = "oc_test";

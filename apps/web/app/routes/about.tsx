@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLoaderData } from "react-router";
-import type { SiteContact, SiteStats } from "@aihot/contracts/site";
-import { ABOUT, SITE, subjectAfter } from "@aihot/industry/site";
+import type { SiteContact, SiteStats } from "@girlsbands/contracts/site";
+import { ABOUT, SITE, subjectAfter } from "@girlsbands/industry/site";
 import { apiGet, edgeTtl } from "../lib/api.server";
 import { organizationLd, pageMeta } from "../lib/seo";
 import { Kicker } from "../components/ui/Kicker";
@@ -280,12 +280,15 @@ export default function AboutPage() {
 
       <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-[12.5px] text-ink-4">
         <span>{SITE.footerNote}</span>
-        <nav className="flex gap-5" aria-label="规则与隐私">
+        <nav className="flex gap-5" aria-label="规则、隐私与权利">
           <Link viewTransition to="/terms" className="transition-colors hover:text-accent">
             使用规则
           </Link>
           <Link viewTransition to="/privacy" className="transition-colors hover:text-accent">
             隐私说明
+          </Link>
+          <Link viewTransition to="/rights" className="transition-colors hover:text-accent">
+            权利与删除
           </Link>
         </nav>
       </footer>

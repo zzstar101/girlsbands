@@ -3,8 +3,8 @@
 import { stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { checkWorkerHeartbeat } from "@aihot/backend/operations/watch";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { checkWorkerHeartbeat } from "@girlsbands/backend/operations/watch";
 
 const T = tag();
 const keys = ["heartbeat.worker", "watchdog.worker"];

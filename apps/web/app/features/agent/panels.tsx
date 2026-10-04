@@ -2,10 +2,10 @@
 // connect, then the details folded away. Addresses are the site's configured public address (`base`).
 import { useState } from "react";
 import { Link } from "react-router";
-import { PUBLIC_INTERFACE_VERSION } from "@aihot/contracts/http-policy";
-import { MCP_TOOL_NAMES as T, MCP_TOOLS } from "@aihot/contracts/mcp";
-import { CATEGORY_KEYS, CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
-import { SITE, subjectAfter, withSubject } from "@aihot/industry/site";
+import { PUBLIC_INTERFACE_VERSION } from "@girlsbands/contracts/http-policy";
+import { MCP_TOOL_NAMES as T, MCP_TOOLS } from "@girlsbands/contracts/mcp";
+import { CATEGORY_KEYS, CATEGORY_LABELS } from "@girlsbands/contracts/taxonomy";
+import { SITE, subjectAfter, withSubject } from "@girlsbands/industry/site";
 import { CodeBlock, CopyButton } from "../../components/CodeBlock";
 import { PillTabs } from "../../components/ui/Tabs";
 import { Address, Ask, Block, Bullets, Details, Mono, PanelHead, Step, Steps, Table, Tips } from "./parts";

@@ -7,8 +7,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { ENTITIES } from "@aihot/industry/taxonomy";
-import { jpCharset } from "../scripts/og/build-og-jp-font.ts";
+import { SITE } from "@girlsbands/industry/site";
+import { ENTITIES } from "@girlsbands/industry/taxonomy";
+import { brandCharset, jpCharset } from "../scripts/og/build-og-jp-font.ts";
 import { MAIL_TITLE_IDS, MAIL_TITLES } from "../apps/api/src/og/title.ts";
 
 type Font = { charToGlyphIndex(ch: string): number };
@@ -21,7 +22,7 @@ async function load(file: string) {
 }
 const has = (font: Font, ch: string) => font.charToGlyphIndex(ch) > 0;
 
-test("头图字库：19 支乐队与企划的名字，每个字都有字形", async () => {
+test("头图字库：20 个主体的名字，每个字都有字形", async () => {
   const sc = (await load("noto-sans-sc-700.ttf")).font;
   const jp = (await load("noto-sans-jp-700.ttf")).font;
   const missing: string[] = [];
@@ -71,7 +72,7 @@ test("头图字库：400 与 700 两个字重收同一套字", async () => {
   assert.deepEqual(diff, [], `两个字重的字集不一致：${diff.join("")}`);
 });
 
-test("显示字体：19 支乐队与企划的名字一个不缺，且体积受控", async () => {
+test("显示字体：20 个主体的名字一个不缺，且体积受控", async () => {
   const { font, bytes } = await load("dela-gothic-one.ttf");
   const missing: string[] = [];
   for (const [id, entity] of Object.entries(ENTITIES)) {
@@ -118,4 +119,18 @@ test("邮件卡片图：标题图的日文大字与中文小字、日期图的�
   // 也不报错。所以日文标题的每一个字都必须由 Dela 自己画。
   const fallen = MAIL_TITLE_IDS.flatMap((id) => [...MAIL_TITLES[id].jp]).filter((ch) => !has(dela, ch));
   assert.deepEqual(fallen, [], `日文标题缺显示字体字形，会静默回退成中文字形：${fallen.join("")}`);
+});
+
+test("品牌字体：站名一个字符不缺，而且子集是照站名裁的", async () => {
+  // 站名是唯一走这个字族的词：render.ts 的 nameMark() 画分享图与海报的角标、邮件头图左上角，
+  // hero.ts 的 BRAND_WORDS 也画一次。文字来源是 industry/site.ts 的 SITE.name。
+  const { font, bytes } = await load("zcool-kuaile.ttf");
+  const gone = [...SITE.name].filter((ch) => !has(font, ch));
+  assert.deepEqual(gone, [], `品牌字体缺字（改过站名就要重跑 scripts/og/build-og-jp-font.ts）：${gone.join("")}`);
+  // 撇号最容易漏：它在汉字区外面，缺了就是豆腐块，satori 也不报错。
+  assert.equal(has(font, "'"), true, "品牌字体缺 ASCII 撇号——站名「少女乐队's」会画成豆腐块");
+  // 子集按 brandCharset() 裁（SITE.name 的每个字 + 常用标点与拉丁区）。这个字族**只画站名**，
+  // 别拿它画别的词。改站名必须重跑脚本，否则新字画不出来。
+  assert.ok(brandCharset().length > 100, `品牌字集太小了：${brandCharset().length} 个字符`);
+  assert.ok(bytes <= 200 * 1024, `品牌字体子集不该超过 200KB，现在是 ${Math.round(bytes / 1024)}KB`);
 });

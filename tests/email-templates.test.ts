@@ -3,8 +3,8 @@
 import "./setup.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { EMAIL_STYLES } from "@aihot/industry/email/registry";
-import { dateHandle, dateStamp, titleHandle } from "@aihot/industry/email/title";
+import { EMAIL_STYLES } from "@girlsbands/industry/email/registry";
+import { dateHandle, dateStamp, titleHandle } from "@girlsbands/industry/email/title";
 import { checkStyle } from "./email-rules.ts";
 
 const STYLES = Object.values(EMAIL_STYLES);
@@ -17,9 +17,9 @@ test("每一套邮件模板都通过排版与收发检查", () => {
 });
 
 test("标题牌与日期牌：尺寸、地址、替代文字都对得上", () => {
-  const site = "https://aniband.example";
+  const site = "https://girlsbands.example";
   assert.deepEqual(titleHandle("deadline", site), {
-    src: "https://aniband.example/og/email/title/deadline.png",
+    src: "https://girlsbands.example/og/email/title/deadline.png",
     alt: "截止提醒",
     width: 552,
     height: 109,
@@ -27,7 +27,7 @@ test("标题牌与日期牌：尺寸、地址、替代文字都对得上", () =>
   // alt 是图片被屏蔽时唯一读得到的东西，所以必须是「哪一天」而不是文件名。
   for (const kind of ["deadline", "digest", "confirm"] as const) assert.notEqual(titleHandle(kind, site).alt, kind);
   assert.deepEqual(dateHandle("2026-10-04", site), {
-    src: "https://aniband.example/og/email/date/10-04.png",
+    src: "https://girlsbands.example/og/email/date/10-04.png",
     alt: "10/04",
     width: 64,
     height: 80,

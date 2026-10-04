@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as cheerio from "cheerio";
-import { markdownBody } from "@aihot/backend/content/markdown";
+import { markdownBody } from "@girlsbands/backend/content/markdown";
 
 test("reader Markdown preserves block structure and still passes through the HTML whitelist", () => {
   const html = markdownBody(`Page title

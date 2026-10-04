@@ -2,8 +2,8 @@
 //
 // 每个人单独一封信：乐队过滤、退订链接、去重键都是按人算的。全量数据（雷达、精选）一轮只查一次。
 // 没有要紧事就不发信，所以「这次发了 0 封」是正常结果，不是故障。
-import { emailStyle } from "@aihot/industry/email/registry";
-import { beijingDate } from "@aihot/contracts/time";
+import { emailStyle } from "@girlsbands/industry/email/registry";
+import { beijingDate } from "@girlsbands/contracts/time";
 import { config } from "../config.ts";
 import { deadlineData, digestData } from "./content.ts";
 import { deliverEmail, mailer, markStaleEmailSends } from "./send.ts";

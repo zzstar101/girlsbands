@@ -3,11 +3,11 @@
 import { tag } from './setup.ts';
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { closeDb, sql } from '@aihot/backend/db';
-import { loadPool } from '@aihot/backend/publication/pool';
-import { v1Items } from '@aihot/backend/publication/v1';
-import { itemFeed } from '@aihot/backend/publication/feeds';
-import { issueLead, listReports, reportIndexRows, unavailableIds } from '@aihot/backend/publication/reports';
+import { closeDb, sql } from '@girlsbands/backend/db';
+import { loadPool } from '@girlsbands/backend/publication/pool';
+import { v1Items } from '@girlsbands/backend/publication/v1';
+import { itemFeed } from '@girlsbands/backend/publication/feeds';
+import { issueLead, listReports, reportIndexRows, unavailableIds } from '@girlsbands/backend/publication/reports';
 import { buildApp } from '../apps/api/src/app.ts';
 
 const T = `readperf${tag()}`;

@@ -4,12 +4,12 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { releaseReceipt } from "@aihot/backend/operations/recover";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { pushSelected } from "@aihot/backend/notify/selected";
-import { publishArticle } from "@aihot/backend/publication/publish";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { releaseReceipt } from "@girlsbands/backend/operations/recover";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { stopBoss } from "@girlsbands/backend/jobs/queue";
+import { pushSelected } from "@girlsbands/backend/notify/selected";
+import { publishArticle } from "@girlsbands/backend/publication/publish";
 
 const T = tag();
 const SOURCE = `test-ops-${T}`;

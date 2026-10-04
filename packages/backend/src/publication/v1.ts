@@ -1,5 +1,5 @@
 // v1 items and the selected sync (snapshot + changes), read from the same public read layer.
-import type { PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
+import type { PublicApiCategoryKey } from "@girlsbands/contracts/taxonomy";
 import { sql, type Db } from "../db.ts";
 import { decodeCursor, encodeCursor, InvalidCursorError, queryBinding } from "../lib/cursor.ts";
 import { newShortId } from "../lib/ids.ts";
@@ -108,7 +108,7 @@ export async function ledgerWatermark(): Promise<number> {
 function minimalOf(item: V1ItemPayload) {
   return {
     id: item.id, title: item.title, source: item.source, publishedAt: item.publishedAt, discoveredAt: item.discoveredAt,
-    category: item.category, score: item.score, selected: item.selected, links: { aihot: item.links.aihot },
+    category: item.category, score: item.score, selected: item.selected, links: { site: item.links.site },
   };
 }
 

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import type { Route } from "./+types/models";
-import type { AdminModels } from "@aihot/contracts/admin";
-import { SITE } from "@aihot/industry/site";
+import type { AdminModels } from "@girlsbands/contracts/admin";
+import { SITE } from "@girlsbands/industry/site";
 import { adminGet } from "../../lib/admin.server";
 import { useAdminAction } from "../../features/admin/action";
 import { bj, money, num } from "../../features/admin/format";

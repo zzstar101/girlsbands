@@ -6,16 +6,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 
-const dir = await mkdtemp(path.join(tmpdir(), "aihot-media-test-"));
-process.env.AIHOT_DATA_DIR = dir;
+const dir = await mkdtemp(path.join(tmpdir(), "girlsbands-media-test-"));
+process.env.GIRLSBANDS_DATA_DIR = dir;
 process.env.ALLOW_PRIVATE_NETWORK_FETCH = "true";
 process.env.MODEL_CALLS_ENABLED = "false";
-const { produceImage } = await import("@aihot/backend/media/images");
+const { produceImage } = await import("@girlsbands/backend/media/images");
 const { renderOg } = await import("../apps/api/src/og/render.ts");
 const { renderPoster } = await import("../apps/api/src/og/poster.ts");
-const { xView } = await import("@aihot/backend/publication/items");
+const { xView } = await import("@girlsbands/backend/publication/items");
 
 let imageHits = 0;
 let failureHits = 0;
@@ -52,8 +52,8 @@ const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 after(async () => {
   server.closeAllConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));
-  const { closeDb } = await import("@aihot/backend/db");
-  const { stopBoss } = await import("@aihot/backend/jobs/queue");
+  const { closeDb } = await import("@girlsbands/backend/db");
+  const { stopBoss } = await import("@girlsbands/backend/jobs/queue");
   await stopBoss();
   await closeDb();
   await rm(dir, { recursive: true, force: true });
@@ -107,7 +107,7 @@ test("successive responsive candidates reuse the completed original download", a
 });
 
 test("responsive URLs and web body candidates retain exact signatures and stable expiry", async () => {
-  const { proxiedImageSet, proxyBodyImages, verifyProxyRequest } = await import("@aihot/backend/media/imgproxy");
+  const { proxiedImageSet, proxyBodyImages, verifyProxyRequest } = await import("@girlsbands/backend/media/imgproxy");
   const now = Date.parse("2026-09-28T08:00:00Z");
   const candidates = proxiedImageSet("https://example.org/image.png", "card", false, now)!;
   assert.equal(candidates, proxiedImageSet("https://example.org/image.png", "card", false, now + 1000));
@@ -134,7 +134,7 @@ test("responsive URLs and web body candidates retain exact signatures and stable
 test("image HTTP responses keep earlier URLs valid, reject tampering before fetching and do not vary on Accept", async () => {
   const { default: Fastify } = await import("fastify");
   const { registerMedia } = await import("../apps/api/src/routes/media.ts");
-  const { signature } = await import("@aihot/backend/media/imgproxy");
+  const { signature } = await import("@girlsbands/backend/media/imgproxy");
   const app = Fastify();
   registerMedia(app);
   const url = `${base}/http-image`;
@@ -154,7 +154,7 @@ test("image HTTP responses keep earlier URLs valid, reject tampering before fetc
   const old = new URLSearchParams({ u: url, exp, sig: signature(url, "default", exp) });
   assert.equal((await app.inject({ url: `/api/img-proxy?${old}` })).statusCode, 200);
   // Current URLs carry the first 16 hex digits; a wrong short signature is refused like a long one.
-  const { proxiedImage } = await import("@aihot/backend/media/imgproxy");
+  const { proxiedImage } = await import("@girlsbands/backend/media/imgproxy");
   const short = proxiedImage(url, "image-336")!;
   assert.match(short, /&sig=[0-9a-f]{16}$/);
   assert.equal((await app.inject({ url: short })).statusCode, 200);
@@ -167,7 +167,7 @@ test("image HTTP responses keep earlier URLs valid, reject tampering before fetc
 test("image validators save unchanged bytes only after signature verification", async () => {
   const { default: Fastify } = await import("fastify");
   const { registerMedia } = await import("../apps/api/src/routes/media.ts");
-  const { signature } = await import("@aihot/backend/media/imgproxy");
+  const { signature } = await import("@girlsbands/backend/media/imgproxy");
   const app = Fastify();
   registerMedia(app);
   const url = `${base}/validated-image`;
@@ -217,7 +217,7 @@ test("image validators save unchanged bytes only after signature verification", 
 test("image failures are cached for at most a minute and never beyond the signature", async () => {
   const { default: Fastify } = await import("fastify");
   const { registerMedia } = await import("../apps/api/src/routes/media.ts");
-  const { signature } = await import("@aihot/backend/media/imgproxy");
+  const { signature } = await import("@girlsbands/backend/media/imgproxy");
   const app = Fastify();
   registerMedia(app);
   try {
@@ -241,9 +241,9 @@ test("image failures are cached for at most a minute and never beyond the signat
 test("pending animations expire at caches, then publish the prepared disk rendition without refetching", async () => {
   const { default: Fastify } = await import("fastify");
   const { registerMedia } = await import("../apps/api/src/routes/media.ts");
-  const { signature } = await import("@aihot/backend/media/imgproxy");
-  const { convertAnimated } = await import("@aihot/backend/media/images");
-  const { getBoss, QUEUES } = await import("@aihot/backend/jobs/queue");
+  const { signature } = await import("@girlsbands/backend/media/imgproxy");
+  const { convertAnimated } = await import("@girlsbands/backend/media/images");
+  const { getBoss, QUEUES } = await import("@girlsbands/backend/jobs/queue");
   const app = Fastify();
   registerMedia(app);
   const url = `${base}/anim.gif`;
@@ -286,7 +286,7 @@ test("pending animations expire at caches, then publish the prepared disk rendit
 test("binary-labelled real images work, but binary-labelled error pages still return 502", async () => {
   const { default: Fastify } = await import("fastify");
   const { registerMedia } = await import("../apps/api/src/routes/media.ts");
-  const { proxiedImage } = await import("@aihot/backend/media/imgproxy");
+  const { proxiedImage } = await import("@girlsbands/backend/media/imgproxy");
   const app = Fastify();
   registerMedia(app);
   const image = await app.inject({ url: proxiedImage(`${base}/binary-image`, "image-336")! });
@@ -306,8 +306,8 @@ test("binary-labelled real images work, but binary-labelled error pages still re
 });
 
 test("tracking pixels are omitted from old and new bodies without removing article illustrations", async () => {
-  const { sanitizeBody } = await import("@aihot/backend/content/sanitize");
-  const { proxyBodyImages } = await import("@aihot/backend/media/imgproxy");
+  const { sanitizeBody } = await import("@girlsbands/backend/content/sanitize");
+  const { proxyBodyImages } = await import("@girlsbands/backend/media/imgproxy");
   const html = '<p>Article</p><img src="https://ids4.ad.gt/api/v1/ip_match?id=example"><img src="https://secure.adnxs.com/getuid?x=1"><img src="https://example.org/pixel" width="1" height="1"><img src="https://example.org/chart.png" width="800" height="400">';
   for (const body of [sanitizeBody(html), proxyBodyImages(html)]) {
     assert.doesNotMatch(body, /ids4|adnxs|example.org\/pixel/);

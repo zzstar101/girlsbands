@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { after, test } from "node:test";
 import { promisify } from "node:util";
-import { closeDb, sql } from "@aihot/backend/db";
-import { sha256 } from "@aihot/backend/lib/ids";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { sha256 } from "@girlsbands/backend/lib/ids";
 
 const T = `dims-${tag()}`;
 const requests: Array<{ model: string; input: string[]; dimensions?: number }> = [];
@@ -22,7 +22,7 @@ process.env.EMBEDDING_DIMS = "4";
 process.env.EMBEDDING_MODEL = T;
 process.env.EMBEDDING_API_KEY = "test-key";
 process.env.EMBEDDING_BASE_URL = `${provider.url}/v1`;
-const { EMBEDDING_MODEL, ensureEmbeddings } = await import("@aihot/backend/providers/embeddings");
+const { EMBEDDING_MODEL, ensureEmbeddings } = await import("@girlsbands/backend/providers/embeddings");
 after(async () => {
   await provider.close();
   await closeDb();
@@ -37,9 +37,9 @@ const persisted = async (id: string) =>
   (await sql<{ vector: number[] }[]>`SELECT vector FROM embeddings WHERE kind = 'article' AND ref_id = ${id} AND model = ${EMBEDDING_MODEL}`)[0]?.vector;
 async function freshProcess(dimensions: number, code: string) {
   const { stdout } = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", `
-    const { ensureEmbeddings } = await import('@aihot/backend/providers/embeddings');
-    const { cosine32 } = await import('@aihot/backend/events/recall');
-    const { closeDb } = await import('@aihot/backend/db');
+    const { ensureEmbeddings } = await import('@girlsbands/backend/providers/embeddings');
+    const { cosine32 } = await import('@girlsbands/backend/events/recall');
+    const { closeDb } = await import('@girlsbands/backend/db');
     try { ${code} } finally { await closeDb(); }
   `], { env: { ...process.env, EMBEDDING_DIMS: String(dimensions) } });
   return JSON.parse(stdout);

@@ -2,15 +2,15 @@
 // about a reader leaves it. Keep the keys and formats once readers have data under them. Storage
 // failures degrade silently.
 import { useEffect, useSyncExternalStore } from "react";
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate } from "@girlsbands/contracts/time";
 
 export const KEYS = {
-  starred: "aihot-starred-items",
-  read: "aihot-read-items",
-  theme: "aihot-theme",
-  changelogSeen: "aihot-changelog-seen-version",
-  feedbackDraft: "aihot-feedback-draft-v1",
-  recentSearches: "aihot-recent-searches",
+  starred: "girlsbands-starred-items",
+  read: "girlsbands-read-items",
+  theme: "girlsbands-theme",
+  changelogSeen: "girlsbands-changelog-seen-version",
+  feedbackDraft: "girlsbands-feedback-draft-v1",
+  recentSearches: "girlsbands-recent-searches",
 } as const;
 
 const STARRED_LIMIT = 500;
@@ -325,7 +325,7 @@ export function clearRecentSearches() {
 }
 
 // the page the reader was on (feedback records where a problem was seen)
-const LAST_PAGE_KEY = "aihot:last-page";
+const LAST_PAGE_KEY = "girlsbands:last-page";
 const NOT_A_PLACE = /^\/(feedback|more)(\/|$)|^\/admin(\/|$)/;
 
 /** Called on every in-site navigation: remembers the latest real page, never feedback, "更多" or the admin. */

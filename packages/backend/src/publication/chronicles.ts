@@ -1,8 +1,8 @@
 // A subject's chronicle band: its curated history in industry/chronicles/{slug}.json up to the month the
 // file is curated through, then the milestones the site picked up itself after it; without a file, those
 // alone. The files ship with the site; one that does not follow the format fails the read.
-import type { TopicMilestone, TopicMonth } from "@aihot/contracts/site";
-import { beijingDate } from "@aihot/contracts/time";
+import type { TopicMilestone, TopicMonth } from "@girlsbands/contracts/site";
+import { beijingDate } from "@girlsbands/contracts/time";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";

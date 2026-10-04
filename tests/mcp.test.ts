@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import Fastify from "fastify";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { MCP_TOOLS } from "@aihot/contracts/mcp";
+import { MCP_TOOLS } from "@girlsbands/contracts/mcp";
 import { registerMcp } from "../apps/api/src/routes/mcp.ts";
 
 test("closing the API drains a live MCP subscription before closing HTTP", { timeout: 5000 }, async () => {

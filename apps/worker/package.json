@@ -1,5 +1,5 @@
 {
-  "name": "@aihot/worker",
+  "name": "@girlsbands/worker",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,8 +7,8 @@
     "start": "node src/main.ts"
   },
   "dependencies": {
-    "@aihot/backend": "*",
-    "@aihot/contracts": "*",
-    "@aihot/industry": "*"
+    "@girlsbands/backend": "*",
+    "@girlsbands/contracts": "*",
+    "@girlsbands/industry": "*"
   }
 }

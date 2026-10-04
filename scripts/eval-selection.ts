@@ -9,8 +9,8 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { REPO_ROOT } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
+import { REPO_ROOT } from "@girlsbands/backend/config";
+import { closeDb, sql } from "@girlsbands/backend/db";
 import {
   SELECTION_PROMPT_VERSION,
   buildScoreInput,
@@ -20,9 +20,9 @@ import {
   tierThreshold,
   type AnalysisRun,
   type AnalyzeInputArticle,
-} from "@aihot/backend/editorial/analyze";
-import { modelFor } from "@aihot/backend/editorial/models";
-import { importSelectBenchRun } from "@aihot/backend/admin/selectbench";
+} from "@girlsbands/backend/editorial/analyze";
+import { modelFor } from "@girlsbands/backend/editorial/models";
+import { importSelectBenchRun } from "@girlsbands/backend/admin/selectbench";
 
 const { values } = parseArgs({
   options: {

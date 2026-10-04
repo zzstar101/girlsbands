@@ -4,7 +4,7 @@
 //   1. 公开接口永远不告诉调用方「这个邮箱是否已经订阅」——只回一句「去收信」。
 //   2. 确认信必须由收信人点一下才生效。没有这一步，任何人都能把别人的邮箱订上。
 import { randomBytes } from "node:crypto";
-import { ENTITIES } from "@aihot/industry/taxonomy";
+import { ENTITIES } from "@girlsbands/industry/taxonomy";
 import { sql, type Db } from "../db.ts";
 
 export type SubscriberStatus = "pending" | "confirmed" | "unsubscribed" | "bounced";

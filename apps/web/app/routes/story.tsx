@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLoaderData, useLocation } from "react-router";
 import type { Route } from "./+types/story";
-import type { StoryDetail, StoryReportView } from "@aihot/contracts/site";
-import { SITE } from "@aihot/industry/site";
+import type { StoryDetail, StoryReportView } from "@girlsbands/contracts/site";
+import { SITE } from "@girlsbands/industry/site";
 import { edgeTtl, loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
-import { beijingDate, beijingTime } from "@aihot/contracts/time";
+import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
 import { monthDay, monthDayTime, relativeTime } from "../lib/format";
 import { HeatChart } from "../features/story/HeatChart";
 import { DEADLINE_KINDS, clock, md } from "../features/feed/deadlines";
@@ -151,7 +151,7 @@ type Filter = "all" | "official" | "selected";
 type Order = "desc" | "asc";
 
 // The report filter and shared reading order, per history entry: back from a report restores the view.
-const viewCache = sessionCache<{ savedAt: number; filter: Filter; order: Order }>("aihot:story-view:", 30 * 60 * 1000);
+const viewCache = sessionCache<{ savedAt: number; filter: Filter; order: Order }>("girlsbands:story-view:", 30 * 60 * 1000);
 
 export default function StoryPage() {
   const { story } = useLoaderData<typeof loader>();

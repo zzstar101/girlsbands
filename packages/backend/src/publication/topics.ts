@@ -4,13 +4,17 @@
 // a project) takes the reports it is a subject of, but not those that only mention it — among several
 // subject companies, its name must appear in the Chinese or the original title. Lists, counts and the
 // chronicle read the selected set one report per fact, as v1 and RSS do.
-import type { BrandMarkRef } from "@aihot/contracts/site";
-import type { CategoryKey } from "@aihot/contracts/taxonomy";
+//
+// Subjects and directions have pages; content forms are tags only (no URL, no sitemap entry), and a
+// subject's tags are its whole series', so a project's page, calendar and feed carry its bands too.
+import type { BrandMarkRef } from "@girlsbands/contracts/site";
+import type { CategoryKey } from "@girlsbands/contracts/taxonomy";
 import type {
-  TopicGroup, TopicGroupKey, TopicLink, TopicPage, TopicSummary, TopicsResponse,
-} from "@aihot/contracts/site";
+  TopicGroup, TopicGroupKey, TopicLink, TopicPage, TopicScope, TopicSummary, TopicsResponse,
+} from "@girlsbands/contracts/site";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { seriesOf } from "@girlsbands/industry/taxonomy";
 import { REPO_ROOT } from "../config.ts";
 import { sql } from "../db.ts";
 import { ENTITIES } from "../editorial/vocabulary.ts";
@@ -19,6 +23,7 @@ import { companyMilestones, curatedChronicle } from "./chronicles.ts";
 import { CHRONICLE_KINDS, chronicleReadReports, selectTopicChronicle, selectTopicHighlights, tracksAsSubject, type ChronicleReport } from "./topic-chronicle.ts";
 import { factSources } from "./coverage.ts";
 import { ITEM_COLUMNS, ITEM_FROM, toFeedItemSummary, type ItemRow } from "./items.ts";
+import { entityTags } from "./rules.ts";
 import { evidenceCondition, listedCondition, ownFactEvidenceCondition, seatedCondition, selectedCondition, storyReportCondition } from "./scope.ts";
 
 export interface Topic {
@@ -28,7 +33,7 @@ export interface Topic {
   definition: string;
   /** Companies: the subject id (industry/taxonomy.ts ENTITIES). */
   entityId: string | null;
-  /** Tags that put a report in the topic: a company's subject tag, a direction's or a form's tags. */
+  /** Tags that put a report in the topic: a subject's series tags, a direction's or a form's tags. */
   tags: string[];
   /** Companies: a title naming the company by any of its names (a PostgreSQL regular expression). */
   pattern: string | null;
@@ -48,10 +53,18 @@ interface TopicFile {
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const nameParts = (name: string) => name.split("/").map((s) => s.trim()).filter(Boolean);
 
-/** Any name of the company: the topic's name and its parts, the subject's names. Latin names match as whole words. */
+/**
+ * Any name of the subject: the topic's name and its parts, the subject's names, and — because a project
+ * takes its bands' news — the names of everything in its series.
+ */
 function titlePattern(name: string, entityId: string): string {
-  const e = ENTITIES[entityId];
-  const names = new Set([name, ...nameParts(name), ...(e ? [e.name, ...e.aliases, ...(e.otherNames ?? [])] : [])]);
+  const ids = seriesOf(entityId);
+  const names = new Set([name, ...nameParts(name)]);
+  for (const id of ids.length > 0 ? ids : [entityId]) {
+    const e = ENTITIES[id];
+    if (!e) continue;
+    for (const alias of [e.name, ...e.aliases, ...(e.otherNames ?? [])]) names.add(alias);
+  }
   return `(?<![A-Za-z])(${[...names].map(escape).join("|")})(?![A-Za-z])`;
 }
 
@@ -71,7 +84,7 @@ export const TOPICS: Topic[] = file.topics.map((t) => ({
   group: t.group,
   definition: t.definition,
   entityId: t.entityId ?? null,
-  tags: t.entityId ? [`entity:${t.entityId}`] : (t.tags ?? []),
+  tags: t.entityId ? entityTags(t.entityId) : (t.tags ?? []),
   pattern: t.entityId ? titlePattern(t.name, t.entityId) : null,
   aliases: t.entityId ? [t.slug, t.name, ...nameParts(t.name), ...(t.aliases ?? [])] : [],
   terms: t.chronicleTerms?.length ? termPattern(t.chronicleTerms) : null,
@@ -84,10 +97,19 @@ export function findTopic(slug: string): Topic | null {
   return BY_SLUG.get(slug)?.topic ?? null;
 }
 
+/** Content forms are tags only: no URL, no page, nothing for a reader to open. */
+export const hasPage = (t: Topic): boolean => t.group !== "genre";
+
+/** A topic a reader can open. Every page, list and link goes through this, so a tag never 404s. */
+export function findPageTopic(slug: string): Topic | null {
+  const t = findTopic(slug);
+  return t && hasPage(t) ? t : null;
+}
+
 const position = (slug: string) => BY_SLUG.get(slug)?.position ?? Number.MAX_SAFE_INTEGER;
 
 export function topicLinks(slugs: string[]): TopicLink[] {
-  return slugs.map((s) => findTopic(s)).filter((t): t is Topic => !!t).map((t) => ({ slug: t.slug, name: t.name }));
+  return slugs.map((s) => findPageTopic(s)).filter((t): t is Topic => !!t).map((t) => ({ slug: t.slug, name: t.name }));
 }
 
 /**
@@ -244,8 +266,9 @@ function summarize(t: Topic, seats: Seat[], now: Date, brands: Map<string, Brand
 
 export async function listTopicSummaries(): Promise<TopicsResponse> {
   const [index, brands] = await Promise.all([topicIndex(), companyBrands()]);
-  const live = await currentSeats(TOPICS.flatMap((t) => index.bySlug.get(t.slug)!.slice(0, LATEST_CANDIDATES).map((s) => s.id)), new Date());
-  return { groups: TOPIC_GROUPS, topics: TOPICS.map((t) => summarize(t, index.bySlug.get(t.slug)!, index.at, brands, live)) };
+  const shown = TOPICS.filter(hasPage);
+  const live = await currentSeats(shown.flatMap((t) => index.bySlug.get(t.slug)!.slice(0, LATEST_CANDIDATES).map((s) => s.id)), new Date());
+  return { groups: TOPIC_GROUPS, topics: shown.map((t) => summarize(t, index.bySlug.get(t.slug)!, index.at, brands, live)) };
 }
 
 export interface TopicCount {
@@ -259,7 +282,7 @@ export interface TopicCount {
 /** For the sitemap and IndexNow: every topic's pages and when they last changed. */
 export async function topicPageCounts(): Promise<TopicCount[]> {
   const index = await topicIndex();
-  return TOPICS.map((t) => {
+  return TOPICS.filter(hasPage).map((t) => {
     const seats = index.bySlug.get(t.slug)!;
     return {
       slug: t.slug,
@@ -290,25 +313,43 @@ function poolTotal(t: Topic, now?: Date): Promise<number> {
   return count.get();
 }
 
-export async function loadTopicPage(slug: string, page: number, now?: Date): Promise<TopicPage | null> {
-  const topic = findTopic(slug);
+/** One page of the pool's ids, newest first — the same order the picked pages use. */
+async function poolIds(t: Topic, page: number, at: Date): Promise<string[]> {
+  const rows = await sql<{ id: string }[]>`
+    SELECT p.article_id AS id FROM publications p
+    WHERE ${listedCondition(at)} AND ${inTopic(t)}
+    ORDER BY p.timeline_at DESC, p.article_id DESC
+    LIMIT ${TOPIC_PAGE_SIZE} OFFSET ${(page - 1) * TOPIC_PAGE_SIZE}`;
+  return rows.map((r) => r.id);
+}
+
+/**
+ * One page of a topic. `picked` is the selected set one report per fact; `all` is everything listed,
+ * which is what a reader who wants the topic's whole history gets. The chronicle and highlights are
+ * the same either way: they are the topic's history, not this page's list.
+ */
+export async function loadTopicPage(slug: string, page: number, now?: Date, scope: TopicScope = "picked"): Promise<TopicPage | null> {
+  const topic = findPageTopic(slug);
   if (!topic || !Number.isInteger(page) || page < 1) return null;
   const index = await topicIndex(now);
   const seats = index.bySlug.get(slug)!;
-  const pageCount = Math.max(1, Math.ceil(seats.length / TOPIC_PAGE_SIZE));
-  if (page > pageCount) return null;
-  const ids = seats.slice((page - 1) * TOPIC_PAGE_SIZE, page * TOPIC_PAGE_SIZE).map((s) => s.id);
-  const first = page === 1;
   const at = now ?? new Date();
+  const pool = await poolTotal(topic, now);
+  const pageCount = Math.max(1, Math.ceil((scope === "all" ? pool : seats.length) / TOPIC_PAGE_SIZE));
+  if (page > pageCount) return null;
+  const ids = scope === "all"
+    ? await poolIds(topic, page, at)
+    : seats.slice((page - 1) * TOPIC_PAGE_SIZE, page * TOPIC_PAGE_SIZE).map((s) => s.id);
+  const first = page === 1;
   const history = first && tracksAsSubject(topic.group) ? curatedChronicle(topic.slug) : undefined;
   const window = { now: at, through: history?.through };
   const named = first ? chronicleReadReports(seats.map((s) => chronicleReport(s, index.sources)), window) : [];
-  const [rows, pool, brands, live] = await Promise.all([
+  const [rows, brands, live] = await Promise.all([
     ids.length
-      ? sql<ItemRow[]>`SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id = ANY(${ids}::text[]) AND ${seatedCondition(at)} AND ${inTopic(topic)}
+      ? sql<ItemRow[]>`SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id = ANY(${ids}::text[])
+          AND ${scope === "all" ? listedCondition(at) : seatedCondition(at)} AND ${inTopic(topic)}
           ORDER BY p.timeline_at DESC, p.article_id DESC`
       : [],
-    poolTotal(topic, now),
     companyBrands(),
     currentSeats([...seats.slice(0, LATEST_CANDIDATES), ...named].map((s) => s.id), at, [topic]),
   ]);
@@ -328,6 +369,7 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
     page,
     pageCount,
     pageSize: TOPIC_PAGE_SIZE,
+    scope,
   };
 }
 

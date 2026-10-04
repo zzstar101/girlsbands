@@ -1,6 +1,6 @@
 // The site's wordmark (its name from industry/site.ts, set in type) and a small ring mark used as the
 // loader. A site with its own logo can replace Wordmark here.
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 
 export function Wordmark({ size = 22, className = "" }: { size?: number; className?: string }) {
   return (

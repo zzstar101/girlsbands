@@ -5,8 +5,8 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { after, test } from "node:test";
-import { REPO_ROOT } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
+import { REPO_ROOT } from "@girlsbands/backend/config";
+import { closeDb, sql } from "@girlsbands/backend/db";
 
 const dir = path.join(REPO_ROOT, "database/migrations");
 const files = readdirSync(dir).filter((file) => file.endsWith(".sql")).sort();

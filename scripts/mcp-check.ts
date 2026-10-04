@@ -3,9 +3,9 @@
 // node scripts/mcp-check.ts [url]
 import { Client } from "@modelcontextprotocol/client";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { PUBLIC_INTERFACE_VERSION } from "@aihot/contracts/http-policy";
-import { MCP_TOOL_NAMES as T, MCP_TOOLS } from "@aihot/contracts/mcp";
-import { SITE } from "@aihot/industry/site";
+import { PUBLIC_INTERFACE_VERSION } from "@girlsbands/contracts/http-policy";
+import { MCP_TOOL_NAMES as T, MCP_TOOLS } from "@girlsbands/contracts/mcp";
+import { SITE } from "@girlsbands/industry/site";
 
 const url = new URL(process.argv[2] ?? "http://127.0.0.1:3001/api/mcp");
 const client = new Client({ name: `${SITE.mcpPrefix}-mcp-check`, version: "1.0.0" });

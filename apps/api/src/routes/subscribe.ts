@@ -5,13 +5,13 @@
 //   - 改偏好和退订都必须带邮件里那条带令牌的链接；
 //   - 浏览器里退订是两步（页面上再点一次），邮件客户端走 RFC 8058 的一键 POST。
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { SubscribeRequest, SubscribeResponse, SubscriptionState, SubscriptionUpdateRequest } from "@aihot/contracts/site";
-import { emailStyle } from "@aihot/industry/email/registry";
-import { config } from "@aihot/backend/config";
-import { Rejected, rateLimit, sourceFingerprint } from "@aihot/backend/operations/abuse";
-import { byToken, confirm, subscribe, unsubscribe, updatePreferences } from "@aihot/backend/subscriptions/store";
-import { confirmData } from "@aihot/backend/subscriptions/content";
-import { deliverEmail, mailer } from "@aihot/backend/subscriptions/send";
+import type { SubscribeRequest, SubscribeResponse, SubscriptionState, SubscriptionUpdateRequest } from "@girlsbands/contracts/site";
+import { emailStyle } from "@girlsbands/industry/email/registry";
+import { config } from "@girlsbands/backend/config";
+import { Rejected, rateLimit, sourceFingerprint } from "@girlsbands/backend/operations/abuse";
+import { byToken, confirm, subscribe, unsubscribe, updatePreferences } from "@girlsbands/backend/subscriptions/store";
+import { confirmData } from "@girlsbands/backend/subscriptions/content";
+import { deliverEmail, mailer } from "@girlsbands/backend/subscriptions/send";
 import { sendProblem } from "../http/respond.ts";
 
 const NO_STORE = "no-store";

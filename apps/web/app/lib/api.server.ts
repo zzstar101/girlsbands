@@ -19,7 +19,7 @@ class ApiError extends Error {
 
 export async function apiGet<T>(path: string, init?: { signal?: AbortSignal; headers?: Record<string, string>; responseHeaders?: Headers }): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { accept: "application/json", "x-aihot-ssr": "1", ...init?.headers },
+    headers: { accept: "application/json", "x-girlsbands-ssr": "1", ...init?.headers },
     redirect: "manual",
     signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
   });

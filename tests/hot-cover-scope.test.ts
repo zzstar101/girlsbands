@@ -5,9 +5,9 @@ import './setup.ts';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
-import { sql, closeDb } from '@aihot/backend/db';
-import type { HotEntry } from '@aihot/backend/events/hot';
-import { loadHot } from '@aihot/backend/publication/stories';
+import { sql, closeDb } from '@girlsbands/backend/db';
+import type { HotEntry } from '@girlsbands/backend/events/hot';
+import { loadHot } from '@girlsbands/backend/publication/stories';
 
 after(closeDb);
 

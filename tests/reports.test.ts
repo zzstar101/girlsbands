@@ -4,13 +4,13 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle } from "@aihot/backend/publication/publish";
-import { loadReport } from "@aihot/backend/publication/reports";
-import { composeDaily, dueDaily, dueMonthly, dueWeekly } from "@aihot/backend/reports/compose";
-import { SITE } from "@aihot/industry/site";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { stopBoss } from "@girlsbands/backend/jobs/queue";
+import { publishArticle } from "@girlsbands/backend/publication/publish";
+import { loadReport } from "@girlsbands/backend/publication/reports";
+import { composeDaily, dueDaily, dueMonthly, dueWeekly } from "@girlsbands/backend/reports/compose";
+import { SITE } from "@girlsbands/industry/site";
 
 const T = tag();
 const SOURCE = `test-reports-${T}`;

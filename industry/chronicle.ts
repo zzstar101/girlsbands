@@ -1,9 +1,9 @@
 // 主题页“大事记”的行业规则。通用的几步在框架里（packages/backend/src/publication/topic-chronicle.ts）：
 // 从近 12 个月已公开的精选里，按这里的规则定类型，比精选分门槛，把同一件事并成一个节点，按每月名额取舍，
-// 再写成事件名；企划／乐队主题只收这个主体自己的（看事实主体，没有主体时看标题在发布动作之前先点名谁）。
-// 换行业时改这个文件：节点类型（名称、门槛、名额、画在哪一行）、内容形态主题收哪些类型、发布动作、
-// 一篇报道算哪类节点。合并同一场公演、写事件名两项可选，删掉就用框架的做法：只合并标题或事件名相同的，
-// 事件名取标题的第一句。
+// 再写成事件名；企划／乐队主题只收这个主体自己的（看事实主体，没有主体时看标题在发布动作之前先点名谁），
+// 方向主题（Live、票务……）收标题点名这个方向、分数够门槛的。内容形态主题不出页面，也不设大事记。
+// 换行业时改这个文件：节点类型（名称、门槛、名额、画在哪一行）、发布动作、一篇报道算哪类节点。
+// 合并同一场公演、写事件名两项可选，删掉就用框架的做法：只合并标题或事件名相同的，事件名取标题的第一句。
 // 乐队编年史还可以接上人工整理的历史：industry/chronicles/{主题 slug}.json，格式见 docs/customize.md。
 
 import { ENTITIES } from "./taxonomy.ts";
@@ -21,7 +21,7 @@ export interface ChronicleKind {
   launch?: true;
   /** 企划／乐队主题收这类节点的精选分门槛和每月名额（各类型分开取，互不挤占）；不写就不收。 */
   company?: { min: number; perMonth: number };
-  /** 方向和形态主题收这类节点的精选分门槛（这些主题每月按重要程度取前 5 件）；不写就不收。 */
+  /** 方向主题收这类节点的精选分门槛（这些主题每月按重要程度取前 5 件）；不写就不收。 */
   other?: { min: number };
 }
 
@@ -49,8 +49,6 @@ export interface ChronicleEvent {
 export interface ChronicleRules {
   /** 节点类型。企划／乐队主题的搜索摘要按这里的先后列出。 */
   kinds: Record<string, ChronicleKind>;
-  /** 内容形态主题的大事记收哪些类型，每月最多几件（默认 5）；没列出的形态主题不设大事记，直接读精选。 */
-  forms: Record<string, { kinds: string[]; perMonth?: number }>;
   /** 发布动作。企划／乐队主题遇到没有事实主体的报道，看标题在它之前先点名的是哪个主体。 */
   launchVerb: RegExp;
   /** 一篇报道在这一组主题里算哪类节点；不论分数高低都不算节点时返回 null（汇总、榜单、传闻……）。 */
@@ -185,27 +183,6 @@ export const CHRONICLE: ChronicleRules = {
     member: { label: "成员", company: { min: 68, perMonth: 2 }, other: { min: 72 } },
     notice: { label: "通知", company: { min: 65, perMonth: 2 }, other: { min: 70 } },
     media: { label: "媒体", company: { min: 75, perMonth: 1 }, other: { min: 75 } },
-  },
-  forms: {
-    "one-man": { kinds: ["live"], perMonth: 8 },
-    tours: { kinds: ["live"] },
-    festivals: { kinds: ["live"] },
-    overseas: { kinds: ["live"] },
-    lottery: { kinds: ["ticket"] },
-    "general-sale": { kinds: ["ticket"] },
-    "extra-seats": { kinds: ["ticket"] },
-    resale: { kinds: ["ticket"] },
-    "cd-release": { kinds: ["release"] },
-    "limited-edition": { kinds: ["release"] },
-    "video-release": { kinds: ["release"] },
-    goods: { kinds: ["merch"] },
-    "store-bonus": { kinds: ["merch"] },
-    streaming: { kinds: ["stream"] },
-    archive: { kinds: ["stream"] },
-    "member-news": { kinds: ["member"] },
-    "collab-events": { kinds: ["collab"] },
-    "media-interviews": { kinds: ["media"] },
-    "service-notices": { kinds: ["notice"] },
   },
   launchVerb: /公布|发布|发表|宣布|公开|开催|開催|举办|举行|决定|決定|解禁|発売|发售|上线|配信|受付|开始|開始|预约|予約|登場|登场|出演|決定/,
   kindOf,

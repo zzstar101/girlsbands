@@ -4,7 +4,7 @@ import "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import type { InjectOptions } from "fastify";
-import { closeDb } from "@aihot/backend/db";
+import { closeDb } from "@girlsbands/backend/db";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const app = await buildApp();

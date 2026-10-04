@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BAND_IDS, PROJECT_IDS } from "@aihot/industry/taxonomy";
+import { BAND_IDS, PROJECT_IDS } from "@girlsbands/industry/taxonomy";
 import { subjectOfId } from "../feed/bands";
 
 export { BAND_IDS, PROJECT_IDS };

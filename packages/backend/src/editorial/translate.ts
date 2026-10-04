@@ -1,5 +1,5 @@
-// Full-text Chinese translations: made by the worker after an item
-// is selected, for sources whose full text may be shown on the site; a page read never translates.
+// Full-text Chinese translations: made by the worker for every public full-text item, not only the
+// picks (2026-10); a page read never translates.
 // Bodies are translated block by block (paragraphs, headings, list items, captions, table cells) so the
 // sanitised structure stays as it is. Inside a block, images and inline code never reach the model
 // (placeholders) and links keep only their text and an id; a block whose answer loses or repeats any of
@@ -17,11 +17,12 @@ import { sha256 } from "../lib/ids.ts";
 import { modelFor } from "./models.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { promptText, promptVersion } from "./prompts.ts";
+import { glossaryBlock, GLOSSARY_VERSION } from "@girlsbands/industry/glossary";
 
-export const TRANSLATE_PROMPT_VERSION = promptVersion("translate-body", "translate-post");
+export const TRANSLATE_PROMPT_VERSION = `${promptVersion("translate-body", "translate-post")}+${GLOSSARY_VERSION}`;
 const BATCH_CHARS = 3500;
 /** Longer bodies get their first part translated and are marked incomplete. */
-const MAX_CHARS = 60_000;
+export const MAX_CHARS = 60_000;
 /** X posts shorter than this carry their meaning in the Chinese title and summary. */
 const X_MIN_CHARS = 60;
 
@@ -32,9 +33,11 @@ const Output = z.object({ t: z.array(z.string()) });
 
 class TranslationInterruptedError extends Error {}
 
-const SYSTEM_BODY = promptText("translate-body");
+// The controlled glossary is rebuilt per article: only the proper nouns this text actually names go
+// into the prompt, and the prompt version above carries the glossary's own version.
+const SYSTEM_BODY = (text: string) => promptText("translate-body", { glossary: glossaryBlock(text) });
 
-const SYSTEM_POST = promptText("translate-post");
+const SYSTEM_POST = (text: string) => promptText("translate-post", { glossary: glossaryBlock(text) });
 
 export interface TranslateResult {
   articleId: string;
@@ -155,25 +158,29 @@ export function unshield(translated: string, s: Shielded): string | null {
 }
 
 export async function translateArticle(articleId: string): Promise<TranslateResult> {
-  const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
-    SELECT a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.selected, p.body_mode, p.visibility
+  const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; body_mode: string; visibility: string }[]>`
+    SELECT a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.body_mode, p.visibility
     FROM publications p JOIN articles a ON a.id = p.article_id WHERE p.article_id = ${articleId}`;
   if (!row) return { articleId, status: "skipped", reason: "not published" };
   const result = (r: Omit<TranslateResult, "articleId" | "revision">): TranslateResult => ({ articleId, revision: row.revision, ...r });
-  if (!row.selected || row.visibility !== "public" || row.body_mode !== "full") return result({ status: "skipped", reason: "not a selected full-text item" });
+  // Every public item that shows a full text is translated, whether or not it was picked: reading the
+  // Japanese official feeds in Chinese is what this site is for, and the site owner took the call
+  // (2026-10) to translate the whole pool and not only the picks. `selected` used to gate this.
+  if (row.visibility !== "public" || row.body_mode !== "full") return result({ status: "skipped", reason: "not a public full-text item" });
 
   if (row.channel === "x") {
     const text = String(row.x_post?.text ?? row.body_text ?? "").trim();
     const meaningful = collapseWhitespace(text.replace(/https?:\/\/\S+/g, ""));
     if (isChinese(row.language, text)) return result({ status: "skipped", reason: "already Chinese" });
     if (meaningful.length < X_MIN_CHARS) return result({ status: "skipped", reason: "short post" });
-    const [t] = await translateAll(articleId, row.revision, [text], SYSTEM_POST);
+    const [t] = await translateAll(articleId, row.revision, [text], SYSTEM_POST(text));
     if (!t) return result({ status: "skipped", reason: "translation did not line up" });
     await store(articleId, row.revision, row.title, textToHtml(t), t, true);
     return result({ status: "translated", segments: 1 });
   }
 
   if (!row.body_html || isChinese(row.language, row.body_text ?? "")) return result({ status: "skipped", reason: "no foreign-language body" });
+  const system = SYSTEM_BODY(`${row.title}\n${row.body_text ?? ""}`);
   const $ = cheerio.load(row.body_html, null, false);
   const blocks = segmentsOf($);
   if (!blocks.length) return result({ status: "skipped", reason: "no translatable text" });
@@ -188,11 +195,11 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
   }
   const shielded = chosen.map((el) => shield($(el).html() ?? ""));
   const restore = (answers: Array<string | null>) => answers.map((t, i) => (t === null ? null : unshield(t, shielded[i]!)));
-  const translations = restore(await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY));
+  const translations = restore(await translateAll(articleId, row.revision, shielded.map((b) => b.html), system));
   // Blocks whose answer dropped a link or an image are asked once more, on their own receipt.
   const missing = translations.flatMap((t, i) => (t === null ? [i] : []));
   if (missing.length) {
-    const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_BODY, "retry");
+    const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), system, "retry");
     missing.forEach((i, k) => (translations[i] = again[k] ? unshield(again[k]!, shielded[i]!) : null));
   }
   let done = 0;
@@ -228,7 +235,7 @@ function quoteTranslatable(text: string): boolean {
 }
 
 /**
- * The posts that selected X posts of the last `days` quote, translated once per quoted post: the
+ * The posts that public full-text X items of the last `days` quote, translated once per quoted post: the
  * translation of the quoted post's own item is reused when it was collected and translated, else
  * DeepSeek (the translate model) translates it. Returns how many were stored.
  */
@@ -241,7 +248,7 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
     FROM publications p JOIN articles a ON a.id = p.article_id
     CROSS JOIN LATERAL (SELECT substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)') AS tweet_id) q
     LEFT JOIN quote_translations qt ON qt.tweet_id = q.tweet_id
-    WHERE p.channel = 'x' AND p.selected AND p.visibility = 'public' AND p.body_mode = 'full'
+    WHERE p.channel = 'x' AND p.visibility = 'public' AND p.body_mode = 'full'
       AND p.discovered_at > now() - make_interval(days => ${opts.days ?? 3})
       AND q.tweet_id IS NOT NULL AND coalesce(a.x_post->'quoted'->>'text', '') <> ''
     ORDER BY q.tweet_id, p.discovered_at DESC`;
@@ -257,7 +264,7 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
       try {
         const res = await chatJson({
           model: await modelFor("translate"), purpose: "translate_quoted", subject: `quote:${r.tweet_id}`, promptVersion: TRANSLATE_PROMPT_VERSION,
-          system: SYSTEM_POST, user: JSON.stringify({ segments: [r.text] }), schema: Output, temperature: 0.2,
+          system: SYSTEM_POST(r.text), user: JSON.stringify({ segments: [r.text] }), schema: Output, temperature: 0.2,
           maxTokens: Math.min(4000, Math.ceil(r.text.length * 1.5) + 200), timeoutMs: 120_000,
         });
         zh = res.data.t.length === 1 ? res.data.t[0]!.trim() : null;
@@ -278,8 +285,8 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
 }
 
 /**
- * Every few minutes: selected full-text items discovered or revised in the last three days that lack a
- * translation of their current revision, then the posts selected X posts quote. Stops after a time
+ * Every few minutes: public full-text items discovered or revised in the last three days that lack a
+ * translation of their current revision, then the posts those X posts quote. Stops after a time
  * budget. A translation of an older revision is not shown (items.ts), so a revised item is translated
  * again whatever its age.
  */
@@ -288,7 +295,7 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
   const rows = await sql<{ article_id: string }[]>`
     SELECT p.article_id FROM publications p JOIN articles a ON a.id = p.article_id
     LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh'
-    WHERE p.selected AND p.visibility = 'public' AND p.body_mode = 'full' AND coalesce(a.language, '') <> 'zh'
+    WHERE p.visibility = 'public' AND p.body_mode = 'full' AND coalesce(a.language, '') <> 'zh'
       AND (p.discovered_at > now() - interval '3 days'
            OR EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id = a.id AND r.revision = a.revision AND r.revision > 1
                       AND r.created_at > now() - interval '3 days'))

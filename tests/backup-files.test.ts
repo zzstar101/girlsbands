@@ -10,10 +10,10 @@ import path from "node:path";
 import { after, beforeEach, test } from "node:test";
 import { promisify } from "node:util";
 import sharp from "sharp";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { runBackup } from "@aihot/backend/operations/backup";
-import { submitFeedback } from "@aihot/backend/operations/feedback";
+import { config } from "@girlsbands/backend/config";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { runBackup } from "@girlsbands/backend/operations/backup";
+import { submitFeedback } from "@girlsbands/backend/operations/feedback";
 
 const run = promisify(execFile);
 const T = tag();
@@ -46,7 +46,7 @@ globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) =>
 }) as typeof fetch;
 
 beforeEach(async () => {
-  config.dataDir = await mkdtemp(path.join(tmpdir(), "aihot-backup-files-"));
+  config.dataDir = await mkdtemp(path.join(tmpdir(), "girlsbands-backup-files-"));
   roots.push(config.dataDir);
   objects.clear();
 });
@@ -62,9 +62,9 @@ after(async () => {
 });
 
 async function extractSavedFiles() {
-  const destination = await mkdtemp(path.join(tmpdir(), "aihot-backup-restored-"));
+  const destination = await mkdtemp(path.join(tmpdir(), "girlsbands-backup-restored-"));
   roots.push(destination);
-  const archive = objects.get("daily/aihot-files-202611010400.tar.gz");
+  const archive = objects.get("daily/girlsbands-files-202611010400.tar.gz");
   assert.ok(archive, "backup must supply the real file archive");
   const archivePath = path.join(destination, "files.tar.gz");
   await writeFile(archivePath, archive);
@@ -85,7 +85,7 @@ test("a real paired restore opens a feedback screenshot when forwarding is disab
   const summary = await runBackup(NOW);
   assert.equal(summary.uploaded, true);
   const { destination, data } = await extractSavedFiles();
-  const dump = objects.get("daily/aihot-202611010400.dump");
+  const dump = objects.get("daily/girlsbands-202611010400.dump");
   assert.ok(dump, "backup must supply the real database dump");
   const dumpPath = path.join(destination, "database.dump");
   await writeFile(dumpPath, dump);
@@ -102,8 +102,8 @@ test("a real paired restore opens a feedback screenshot when forwarding is disab
     import assert from "node:assert/strict";
     import { existsSync } from "node:fs";
     import { readFile } from "node:fs/promises";
-    import { feedbackScreenshot } from "@aihot/backend/admin/feedback";
-    import { closeDb, sql } from "@aihot/backend/db";
+    import { feedbackScreenshot } from "@girlsbands/backend/admin/feedback";
+    import { closeDb, sql } from "@girlsbands/backend/db";
     try {
       const [row] = await sql\`SELECT content, screenshot_key FROM feedback WHERE id = \${Number(process.env.RESTORED_ID)}\`;
       assert.equal(row.content, process.env.RESTORED_CONTENT);
@@ -115,7 +115,7 @@ test("a real paired restore opens a feedback screenshot when forwarding is disab
       assert.ok(file && existsSync(file), "restored local feedback screenshot must exist");
       assert.deepEqual(await readFile(file), Buffer.from(process.env.RESTORED_BYTES, "base64"));
     } finally { await closeDb(); }
-  `], { cwd: path.resolve(import.meta.dirname, ".."), env: { ...process.env, DATABASE_URL: restoredUrl.href, AIHOT_DATA_DIR: data, RESTORED_ID: String(id), RESTORED_CONTENT: content, RESTORED_KEY: before!.screenshot_key, RESTORED_BYTES: PNG.toString("base64"), RESTORED_EXTERNAL_ID: String(external!.id), RESTORED_EXTERNAL_KEY: externalKey } });
+  `], { cwd: path.resolve(import.meta.dirname, ".."), env: { ...process.env, DATABASE_URL: restoredUrl.href, GIRLSBANDS_DATA_DIR: data, RESTORED_ID: String(id), RESTORED_CONTENT: content, RESTORED_KEY: before!.screenshot_key, RESTORED_BYTES: PNG.toString("base64"), RESTORED_EXTERNAL_ID: String(external!.id), RESTORED_EXTERNAL_KEY: externalKey } });
 });
 
 
@@ -136,7 +136,7 @@ test("both attachment roots restore nested paths and bytes, without caches or pr
   assert.deepEqual((await readdir(data)).sort(), ["feedback-screenshots", "uploads"]);
   assert.deepEqual(await readFile(path.join(data, "uploads/nested/user-file.bin")), upload);
   assert.deepEqual(await readFile(path.join(data, "feedback-screenshots/local.png")), PNG);
-  assert.deepEqual([...objects.keys()].sort(), ["daily", "weekly", "monthly"].flatMap(prefix => [`${prefix}/aihot-202611010400.dump`, `${prefix}/aihot-files-202611010400.tar.gz`]).sort());
+  assert.deepEqual([...objects.keys()].sort(), ["daily", "weekly", "monthly"].flatMap(prefix => [`${prefix}/girlsbands-202611010400.dump`, `${prefix}/girlsbands-files-202611010400.tar.gz`]).sort());
   for (const object of summary.objects) assert.equal(object.sha256, createHash("sha256").update(objects.get(object.key)!).digest("hex"));
 });
 
@@ -213,6 +213,6 @@ test("persistent packing failure still sends the database and reports incomplete
 test("local retention keeps three dump/archive pairs without deleting source attachments", async () => {
   await save("feedback-screenshots/retained.png");
   for (const day of [1, 2, 3, 4]) await runBackup(new Date(`2026-11-0${day}T04:00:00Z`));
-  assert.deepEqual((await readdir(path.join(config.dataDir, "backups"))).sort(), [2, 3, 4].flatMap(day => [`aihot-2026110${day}0400.dump`, `aihot-files-2026110${day}0400.tar.gz`]).sort());
+  assert.deepEqual((await readdir(path.join(config.dataDir, "backups"))).sort(), [2, 3, 4].flatMap(day => [`girlsbands-2026110${day}0400.dump`, `girlsbands-files-2026110${day}0400.tar.gz`]).sort());
   assert.deepEqual(await readFile(path.join(config.dataDir, "feedback-screenshots/retained.png")), PNG);
 });

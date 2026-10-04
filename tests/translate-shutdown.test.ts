@@ -2,10 +2,10 @@ import { gate, stub, tag } from './setup.ts';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { after, before, test } from 'node:test';
-import { sql, closeDb } from '@aihot/backend/db';
-import { stopBoss } from '@aihot/backend/jobs/queue';
-import { upsertMaterial } from '@aihot/backend/content/materials';
-import { publishArticle } from '@aihot/backend/publication/publish';
+import { sql, closeDb } from '@girlsbands/backend/db';
+import { stopBoss } from '@girlsbands/backend/jobs/queue';
+import { upsertMaterial } from '@girlsbands/backend/content/materials';
+import { publishArticle } from '@girlsbands/backend/publication/publish';
 
 const T = tag();
 const SOURCE = `test-translate-stop-${T}`;
@@ -20,15 +20,15 @@ const provider = await stub(async (_hit, req) => {
 
 function runTranslation() {
   const script = `
-    import { translatePending } from '@aihot/backend/editorial/translate';
-    import { shutdownSignal } from '@aihot/backend/jobs/queue';
-    import { closeDb } from '@aihot/backend/db';
+    import { translatePending } from '@girlsbands/backend/editorial/translate';
+    import { shutdownSignal } from '@girlsbands/backend/jobs/queue';
+    import { closeDb } from '@girlsbands/backend/db';
     process.on('SIGTERM', () => { shutdownSignal.abort(); process.send({ stopped: true }); });
     try { process.send({ result: await translatePending({ limit: 1 }) }); }
     finally { await closeDb(); process.disconnect(); }
   `;
   const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
-    cwd: process.cwd(), env: { ...process.env, MODEL_CALLS_ENABLED: 'true', DEEPSEEK_BASE_URL: `${provider.url}/v1`, DEEPSEEK_API_KEY: 'test-key', AIHOT_CREDENTIALS_DIR: '/nonexistent-test-credentials' },
+    cwd: process.cwd(), env: { ...process.env, MODEL_CALLS_ENABLED: 'true', DEEPSEEK_BASE_URL: `${provider.url}/v1`, DEEPSEEK_API_KEY: 'test-key', GIRLSBANDS_CREDENTIALS_DIR: '/nonexistent-test-credentials' },
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
   let result: any;

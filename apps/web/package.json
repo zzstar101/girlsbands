@@ -1,5 +1,5 @@
 {
-  "name": "@aihot/web",
+  "name": "@girlsbands/web",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,8 +9,8 @@
     "typecheck": "react-router typegen && tsc -p ."
   },
   "dependencies": {
-    "@aihot/contracts": "*",
-    "@aihot/industry": "*",
+    "@girlsbands/contracts": "*",
+    "@girlsbands/industry": "*",
     "@react-router/node": "8.4.0",
     "highlight.js": "11.12.0",
     "isbot": "5.2.2",

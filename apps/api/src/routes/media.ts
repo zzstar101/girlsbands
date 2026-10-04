@@ -2,9 +2,9 @@
 // remaining lifetime on every request so the CDN never inherits an aged HTTP response's max-age.
 import type { FastifyInstance } from "fastify";
 import { createHash } from "node:crypto";
-import { enqueue, QUEUES } from "@aihot/backend/jobs/queue";
-import { produceImage } from "@aihot/backend/media/images";
-import { verifyProxyRequest } from "@aihot/backend/media/imgproxy";
+import { enqueue, QUEUES } from "@girlsbands/backend/jobs/queue";
+import { produceImage } from "@girlsbands/backend/media/images";
+import { verifyProxyRequest } from "@girlsbands/backend/media/imgproxy";
 import { etagMatches, looseQuery } from "../http/respond.ts";
 
 function imageCacheControl(exp: string, limit: number): string {

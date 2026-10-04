@@ -1,7 +1,7 @@
 // Stories (events) and the hot ranking through the public read layer. The website sees heat values;
 // v1 and MCP only see ranks and counts.
-import type { HeatPoint, HotResponse, StoryDetail, StoryReportView } from "@aihot/contracts/site";
-import { SITE } from "@aihot/industry/site";
+import type { HeatPoint, HotResponse, StoryDetail, StoryReportView } from "@girlsbands/contracts/site";
+import { SITE } from "@girlsbands/industry/site";
 import { sql } from "../db.ts";
 import { cachedByKey, SHARED_ONLY } from "../lib/cache.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
@@ -286,7 +286,7 @@ export async function v1HotTopics() {
     title: e.title,
     source: { name: e.representativeSource ?? e.sourceNames[0] ?? SITE.name },
     links: {
-      aihot: e.representativeItemId ? itemUrl(e.representativeItemId) : storyUrl(e.storyPublicId),
+      site: e.representativeItemId ? itemUrl(e.representativeItemId) : storyUrl(e.storyPublicId),
       original: e.representativeUrl ?? storyUrl(e.storyPublicId),
       story: storyUrl(e.storyPublicId),
     },
@@ -313,7 +313,7 @@ export async function v1Story(storyId: number) {
     FROM stories WHERE id = ${storyId}`;
   const inTimeline = new Set(primaryReports.map((r) => r.id));
   const digestCurrent = !d?.article_ids?.some((id) => !inTimeline.has(id));
-  const neighbors = (await relatedStories(storyId, now)).map((r) => ({ publicId: r.public_id, title: r.title, relation: r.relation, links: { aihot: storyUrl(r.public_id), api: storyApiUrl(r.public_id) } }));
+  const neighbors = (await relatedStories(storyId, now)).map((r) => ({ publicId: r.public_id, title: r.title, relation: r.relation, links: { site: storyUrl(r.public_id), api: storyApiUrl(r.public_id) } }));
   return {
     schemaVersion: 1 as const,
     story: {
@@ -327,14 +327,14 @@ export async function v1Story(storyId: number) {
       latest: latestReport.title,
       digest: digestCurrent ? d?.digest ?? null : null,
       digestUpdatedAt: digestCurrent ? d?.digest_updated_at?.toISOString() ?? null : null,
-      links: { aihot: storyUrl(s.public_id) },
+      links: { site: storyUrl(s.public_id) },
       reports: reports.slice(0, 50).map((r) => ({
         id: r.id,
         title: r.title,
         summary: r.summary,
         source: { name: r.source_name, firstParty: r.first_party },
         publishedAt: r.at.toISOString(),
-        links: { aihot: itemUrl(r.id), original: r.url },
+        links: { site: itemUrl(r.id), original: r.url },
       })),
       storyline: neighbors.filter((n) => n.relation === "storyline"),
       related: neighbors.filter((n) => n.relation === "related"),

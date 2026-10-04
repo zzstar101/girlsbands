@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-04T08:16:57.289Z",
+  "generatedAt": "2026-10-04T18:32:21.903Z",
   "logos": {
     "girls-band-cry": {
       "file": "girls-band-cry.png",
@@ -62,6 +62,15 @@
       "width": 1200,
       "height": 140,
       "inkLum": 0,
+      "onDark": false
+    },
+    "bocchi-the-rock": {
+      "file": "bocchi-the-rock.png",
+      "source": "https://bocchi.rocks/tv/assets/img/common/footer/ttl_logo.svg",
+      "sha256": "a741b7181cddcd7755707f36fab55cb4a00be0445430d8cc9976a68f36645f48",
+      "width": 1200,
+      "height": 192,
+      "inkLum": 0.0023,
       "onDark": false
     },
     "poppinparty": {

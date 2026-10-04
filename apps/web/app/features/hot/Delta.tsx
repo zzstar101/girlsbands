@@ -1,4 +1,4 @@
-import type { HotEntryView } from "@aihot/contracts/site";
+import type { HotEntryView } from "@girlsbands/contracts/site";
 
 /** Change against six hours before the ranking: up in the hot tone, down quiet, new stories marked new, none while sources are behind. */
 export function Delta({ trend, pct, className = "" }: { trend: HotEntryView["trend"]; pct: number | null; className?: string }) {

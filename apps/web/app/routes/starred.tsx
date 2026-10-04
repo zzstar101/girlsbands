@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
-import type { ItemAvailability } from "@aihot/contracts/site";
-import { SITE } from "@aihot/industry/site";
+import type { ItemAvailability } from "@girlsbands/contracts/site";
+import { SITE } from "@girlsbands/industry/site";
 import { Presence } from "../components/ui/Presence";
 import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";

@@ -2,7 +2,7 @@
 // stated explicitly. Latest progress is bound to a current public report, not generated independently.
 import { z } from "zod";
 import { modelFor } from "../editorial/models.ts";
-import { beijingDate, beijingTime } from "@aihot/contracts/time";
+import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
 import { sql, type Db } from "../db.ts";
 import { chatJson } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";

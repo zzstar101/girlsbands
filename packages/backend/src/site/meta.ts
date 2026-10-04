@@ -1,7 +1,7 @@
 // Small site-wide facts for the web shell (e.g. the changelog red-dot anchor).
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { ChangelogResponse, SiteMeta } from "@aihot/contracts/site";
+import type { ChangelogResponse, SiteMeta } from "@girlsbands/contracts/site";
 import { REPO_ROOT } from "../config.ts";
 
 let changelogCache: ChangelogResponse | null = null;

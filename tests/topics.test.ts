@@ -14,18 +14,20 @@
 //   or keeps more of a kind than the pack allows in a month;
 // - withdrawn or not yet released articles appear in a list, a count or the chronicle;
 // - an article or story page names a topic its reports do not belong to;
-// - a topic without content has no page, or an unknown slug or a page past the end has one.
+// - a topic without content has no page, or an unknown slug or a page past the end has one;
+// - the picked view and the wider view disagree about which pool they are, or the wider one is not the
+//   pool its count names.
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
-import { beijingDate } from "@aihot/contracts/time";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle } from "@aihot/backend/publication/publish";
-import { loadTopicPage, listTopicSummaries, topicsOfStory } from "@aihot/backend/publication/topics";
+import { beijingDate } from "@girlsbands/contracts/time";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { stopBoss } from "@girlsbands/backend/jobs/queue";
+import { publishArticle } from "@girlsbands/backend/publication/publish";
+import { loadTopicPage, listTopicSummaries, topicsOfStory } from "@girlsbands/backend/publication/topics";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();
@@ -133,15 +135,16 @@ test("a band topic takes the articles about it, not the ones that only mention i
   assert.ok(!roselia.includes(metadata), "Roselian is not Roselia");
   assert.ok((await members("ticket")).includes(ticket), "an info field takes its tag");
 
-  // The article page names the topics it belongs to.
+  // The article page names the topics it belongs to — including the project whose page carries it.
   const topicsOf = async (id: string) => {
     const res = await app.inject({ method: "GET", url: `/api/site/items/${id}` });
     return (JSON.parse(res.body) as { topics: Array<{ slug: string }> }).topics.map((t) => t.slug);
   };
-  assert.deepEqual(await topicsOf(about), ["togenashi-togeari", "release"]);
-  assert.deepEqual(await topicsOf(subpoena), ["mygo", "release"]);
+  assert.deepEqual(await topicsOf(about), ["girls-band-cry", "togenashi-togeari", "release"]);
+  assert.deepEqual(await topicsOf(subpoena), ["bang-dream", "mygo", "release"]);
   assert.deepEqual(await topicsOf(pact), ["release"]);
-  assert.deepEqual(await topicsOf(ticket), ["ticket", "lottery"]);
+  // A content form is a tag: it never shows up as a link.
+  assert.deepEqual(await topicsOf(ticket), ["ticket"]);
 });
 
 test("the chronicle keeps each month's most important events, once each, in Beijing months", async () => {
@@ -178,7 +181,8 @@ test("the chronicle keeps each month's most important events, once each, in Beij
   assert.ok(month.events.find((e) => e.id === minor[0])!.href.startsWith("/items/"), "an event without a story links to the article");
   assert.deepEqual(listed, [...month.events].sort((a, b) => b.at.localeCompare(a.at)).map((e) => e.id), "newest first within a month");
   assert.equal(month.events.find((e) => e.id === minor[0])?.kind, "release", "an info field keeps substantial releases");
-  assert.deepEqual(await topicsOfStory(launch.id), [{ slug: "release", name: "新作与发售" }, { slug: "cd-release", name: "新作发售" }], "the story page names the topic of its reports");
+  // 内容形态主题不出页面（只是标签），所以这里只剩方向主题。
+  assert.deepEqual(await topicsOfStory(launch.id), [{ slug: "release", name: "新作与发售" }], "the story page names the topic of its reports");
 });
 
 test("a band's band prioritizes its Live and ticket news over interviews and a low-scored notice", async () => {
@@ -246,22 +250,52 @@ test("withdrawn articles stay out of lists, counts and the chronicle band", asyn
   assert.equal(summary.latest?.title, `結束バンド 新 Live 公布 ${T}`, "the index shows the newest public article");
 });
 
-test("every topic has a page; unknown topics and pages past the end have none", async () => {
-  const empty = await page("girls-band-cry");
+test("every topic that has a page is listed; unknown topics and pages past the end have none", async () => {
+  const empty = await page("pastel-palettes");
   assert.equal(empty.topic.indexable, false, "a topic without content is not indexed");
   assert.deepEqual(empty.items, []);
   assert.equal(await loadTopicPage("not-a-topic", 1, new Date()), null);
-  assert.equal(await loadTopicPage("girls-band-cry", 2, new Date()), null);
+  assert.equal(await loadTopicPage("pastel-palettes", 2, new Date()), null);
   const index = await app.inject({ method: "GET", url: "/api/site/topics" });
   const body = JSON.parse(index.body) as { groups: Array<{ key: string }>; topics: Array<{ slug: string }> };
   assert.deepEqual(body.groups.map((g) => g.key), ["band", "field", "genre"]);
-  // The expected count comes from the pack, not a hand-kept number: adding a band or a direction
-  // must not need a test edit, but the API must still expose every configured topic and no other.
+  // The list comes from the pack, not a hand-kept number: adding a band or a direction must not need
+  // a test edit. Content forms are missing on purpose — they tag articles and have no page of their own.
   const configured = JSON.parse(readFileSync(new URL("../industry/topics.json", import.meta.url), "utf8")) as {
-    topics: Array<{ slug: string }>;
+    topics: Array<{ slug: string; group: string }>;
   };
   assert.deepEqual(
     body.topics.map((t) => t.slug).sort(),
-    configured.topics.map((t) => t.slug).sort(),
+    configured.topics.filter((t) => t.group !== "genre").map((t) => t.slug).sort(),
   );
+});
+
+test("a topic's picked view is the default; scope=all is exactly the pool its count names", async () => {
+  const band = "hello-happy-world";
+  const chosen = await report({ at: hoursAgo(2), title: `ハロー、ハッピーワールド！ 精选消息 ${T}`, subjects: [band], score: 90 });
+  const listed = await report({ at: hoursAgo(3), title: `ハロー、ハッピーワールド！ 未入选消息 ${T}`, subjects: [band], score: 60, selected: false });
+
+  const picked = (await loadTopicPage(band, 1, new Date(), "picked"))!;
+  const all = (await loadTopicPage(band, 1, new Date(), "all"))!;
+  assert.equal(picked.scope, "picked");
+  assert.equal(all.scope, "all");
+  assert.deepEqual(ids(picked.items), [chosen], "the picked view keeps its editorial seats");
+  assert.deepEqual(ids(all.items), [chosen, listed], "the wider view is the pool, newest first");
+  assert.equal(all.topic.poolTotal, 2, "the wider view is exactly the pool the count names");
+  assert.deepEqual(all.milestones, picked.milestones, "the view changes the list, not the topic's history");
+
+  // The endpoint reads one documented value and reads anything else as the default view. (The route
+  // passes no `now`, so the picked view comes from the index cache — compare the two views to each
+  // other rather than to a freshly read index.)
+  const view = async (query: string) => {
+    const res = await app.inject({ method: "GET", url: `/api/site/topics/${band}${query}` });
+    return JSON.parse(res.body) as { scope: string; items: Array<{ id: string }> };
+  };
+  const served = await view("");
+  assert.equal(served.scope, "picked");
+  assert.equal((await view("?scope=nonsense")).scope, "picked", "an unknown value is the default view");
+  assert.deepEqual((await view("?scope=nonsense")).items, served.items);
+  const wider = await view("?scope=all");
+  assert.equal(wider.scope, "all");
+  assert.deepEqual(wider.items.map((i) => i.id), [chosen, listed], "the documented value is the wider pool");
 });

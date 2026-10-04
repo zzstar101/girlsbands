@@ -3,7 +3,7 @@
 // and the build's route manifest (/assets/manifest-<version>.js) is named after it.
 import { isRouteErrorResponse, type ClientOnErrorFunction } from "react-router";
 
-const RECOVERY_RELEASE_KEY = "aihot-render-recovery-release";
+const RECOVERY_RELEASE_KEY = "girlsbands-render-recovery-release";
 
 export function createRenderErrorHandler(documentManifest: string | null) {
   let checking = false;

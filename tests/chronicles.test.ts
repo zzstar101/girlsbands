@@ -17,8 +17,8 @@ import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import type { TopicEvent, TopicMonth } from "@aihot/contracts/site";
-import { CHRONICLES_DIR, companyMilestones, parseChronicle } from "@aihot/backend/publication/chronicles";
+import type { TopicEvent, TopicMonth } from "@girlsbands/contracts/site";
+import { CHRONICLES_DIR, companyMilestones, parseChronicle } from "@girlsbands/backend/publication/chronicles";
 
 const ok = {
   topic: "togenashi-togeari",

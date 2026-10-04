@@ -6,12 +6,12 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle } from "@aihot/backend/publication/publish";
-import { encodeCursor, decodeCursor, queryBinding } from "@aihot/backend/lib/cursor";
-import { loadTimeline } from "@aihot/backend/publication/timeline";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { stopBoss } from "@girlsbands/backend/jobs/queue";
+import { publishArticle } from "@girlsbands/backend/publication/publish";
+import { encodeCursor, decodeCursor, queryBinding } from "@girlsbands/backend/lib/cursor";
+import { loadTimeline } from "@girlsbands/backend/publication/timeline";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();

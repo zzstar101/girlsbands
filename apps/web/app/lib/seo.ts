@@ -2,9 +2,9 @@
 // with the feed filters they carry. The site's name and wording come from the industry pack
 // (industry/site.ts); its address from SITE_URL.
 import type { MetaDescriptor } from "react-router";
-import type { ReportDetail, TimelineFilters } from "@aihot/contracts/site";
-import { isCategoryKey, isChannelKey } from "@aihot/contracts/taxonomy";
-import { SITE, subjectAfter, withSubject } from "@aihot/industry/site";
+import type { ReportDetail, TimelineFilters } from "@girlsbands/contracts/site";
+import { isCategoryKey, isChannelKey } from "@girlsbands/contracts/taxonomy";
+import { SITE, subjectAfter, withSubject } from "@girlsbands/industry/site";
 
 /**
  * The site's address: SITE_URL while rendering on the server (what crawlers and share previews read),

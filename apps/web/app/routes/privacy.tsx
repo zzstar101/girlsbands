@@ -1,5 +1,5 @@
-import { SITE } from "@aihot/industry/site";
-import copy from "@aihot/industry/pages/privacy.md?raw";
+import { SITE } from "@girlsbands/industry/site";
+import copy from "@girlsbands/industry/pages/privacy.md?raw";
 import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { prepareCopy } from "../lib/site-copy";
@@ -24,7 +24,7 @@ export default function PrivacyPage() {
       doc={PRIVACY.doc}
       rendered={PRIVACY.rendered}
       eyebrow={SITE.name}
-      footer={<LegalFooterLinks links={[{ to: "/terms", label: "使用规则" }, { to: "/feedback", label: "反馈页" }]} note={`隐私说明 ${PRIVACY.doc.meta["版本"] ?? ""} · ${PRIVACY.doc.meta["生效日期"] ?? ""}`} />}
+      footer={<LegalFooterLinks links={[{ to: "/terms", label: "使用规则" }, { to: "/rights", label: "权利与删除" }, { to: "/feedback", label: "反馈页" }]} note={`隐私说明 ${PRIVACY.doc.meta["版本"] ?? ""} · ${PRIVACY.doc.meta["生效日期"] ?? ""}`} />}
     />
   );
 }

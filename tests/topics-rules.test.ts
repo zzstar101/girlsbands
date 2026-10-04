@@ -6,13 +6,13 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
-import { beijingDate } from "@aihot/contracts/time";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle } from "@aihot/backend/publication/publish";
-import { loadTopicPage } from "@aihot/backend/publication/topics";
-import { overrideFields } from "@aihot/backend/admin/content";
+import { beijingDate } from "@girlsbands/contracts/time";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { stopBoss } from "@girlsbands/backend/jobs/queue";
+import { publishArticle } from "@girlsbands/backend/publication/publish";
+import { loadTopicPage } from "@girlsbands/backend/publication/topics";
+import { overrideFields } from "@girlsbands/backend/admin/content";
 
 const T = tag();
 const BAND = "ave-mujica";
@@ -58,7 +58,7 @@ async function report(o: {company?: string; title: string; category?: string; ta
 const page = async (slug: string) => {const p=await loadTopicPage(slug,1,new Date()); assert.ok(p); return p;};
 
 test("topics whose content is not a milestone keep selected reading without manufacturing milestones or SEO highlights", async () => {
-  for (const [slug, tag] of [['media-interviews','媒体访谈'],['goods','周边商品'],['archive','Archive 回放']] as const) {
+  for (const [slug, tag] of [['media','媒体访谈'],['merch','周边商品'],['stream','Archive 回放']] as const) {
     const id=await report({title:`高分内容 ${slug} ${T}`,category:'other',tags:[tag],score:99});
     const p=await page(slug);
     assert.deepEqual(p.chronicle,[],slug);

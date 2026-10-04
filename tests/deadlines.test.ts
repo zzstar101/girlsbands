@@ -5,8 +5,8 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upcomingDeadlines } from "@aihot/backend/publication/deadlines";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { upcomingDeadlines } from "@girlsbands/backend/publication/deadlines";
 
 const T = `dl-${tag()}`;
 // JST 2026-10-01 12:00, so the 30-day window is 2026-10-01 … 2026-10-31.

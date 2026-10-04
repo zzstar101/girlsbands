@@ -1,6 +1,6 @@
 // Item detail and Markdown export, both behind the same visibility and licence rules.
-import type { OutlineEntry, SiteItemDetail, StoryRef } from "@aihot/contracts/site";
-import { SITE } from "@aihot/industry/site";
+import type { OutlineEntry, SiteItemDetail, StoryRef } from "@girlsbands/contracts/site";
+import { SITE } from "@girlsbands/industry/site";
 import { bodyToMarkdown } from "../content/markdown.ts";
 import { sql } from "../db.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";

@@ -8,15 +8,15 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { cleanBands, confirm, normalizeEmail, recipients, subscribe, subscriberCounts, unsubscribe, updatePreferences } from "@aihot/backend/subscriptions/store";
-import { deliverEmail, mailer, markStaleEmailSends } from "@aihot/backend/subscriptions/send";
-import { bandCountLine, bandsSentence, confirmData, deadlineData, digestData, matches } from "@aihot/backend/subscriptions/content";
-import { BAND_IDS, ENTITIES, PROJECT_IDS, isBand, isProject } from "@aihot/industry/taxonomy";
-import { decodeHero } from "@aihot/industry/email/hero";
-import { sendDeadlineReminders, sendDigest } from "@aihot/backend/subscriptions/notify";
-import { emailStyle } from "@aihot/industry/email/registry";
+import { config } from "@girlsbands/backend/config";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { cleanBands, confirm, normalizeEmail, recipients, subscribe, subscriberCounts, unsubscribe, updatePreferences } from "@girlsbands/backend/subscriptions/store";
+import { deliverEmail, mailer, markStaleEmailSends } from "@girlsbands/backend/subscriptions/send";
+import { bandCountLine, bandsSentence, confirmData, deadlineData, digestData, matches } from "@girlsbands/backend/subscriptions/content";
+import { BAND_IDS, ENTITIES, PROJECT_IDS, isBand, isProject } from "@girlsbands/industry/taxonomy";
+import { decodeHero } from "@girlsbands/industry/email/hero";
+import { sendDeadlineReminders, sendDigest } from "@girlsbands/backend/subscriptions/notify";
+import { emailStyle } from "@girlsbands/industry/email/registry";
 
 const T = `sub-${tag()}`;
 const NOW = new Date();
@@ -25,7 +25,7 @@ const NOW = new Date();
 // test-only seam (the repo has none, and globalThis.fetch cannot intercept SMTP).
 const saved = { enabled: config.emailEnabled, dryRun: config.emailDryRun, style: config.emailStyle };
 before(() => {
-  process.env.EMAIL_FROM = "AniBand Radar <radar@example.org>";
+  process.env.EMAIL_FROM = "少女乐队's <radar@example.org>";
   process.env.EMAIL_REPLY_TO = "reply@example.org";
   config.emailEnabled = true;
   config.emailDryRun = true;
@@ -245,7 +245,7 @@ test("the reminder goes out for a deadline inside 48 hours, and names the reader
   assert.equal(heroSpec(data.hero.src)?.logo, "mygo", "头图该用这条急件自己那支乐队的官方 logo");
 
   const mail = emailStyle("cover").render(data);
-  assert.equal(mail.subject.includes("AniBand Radar"), true);
+  assert.equal(mail.subject.includes("少女乐队's"), true);
   assert.equal(mail.html.includes("MyGO!!!!!"), true);
   assert.equal(mail.html.includes(data.hero.src), true);
   assert.equal(mail.html.includes(`alt="${data.hero.alt}"`), true);
@@ -258,7 +258,7 @@ test("the reminder goes out for a deadline inside 48 hours, and names the reader
   const [sent] = await sql<{ status: string; subject: string }[]>`
     SELECT status, subject FROM email_sends WHERE subscriber_id = ${out!.subscriber.id} AND kind = 'deadline'`;
   assert.equal(sent!.status, "sent");
-  assert.equal(sent!.subject.includes("AniBand Radar"), true);
+  assert.equal(sent!.subject.includes("少女乐队's"), true);
 
   // The same day's run is a no-op: nobody is written to twice.
   const again = await sendDeadlineReminders(NOW);
@@ -342,7 +342,7 @@ test("头图主角：确认信取订阅的第一支乐队，脏 id 与空名单�
 });
 
 test("主体分类：乐队与企划的边界写在配置里，不是渲染时猜的", () => {
-  assert.deepEqual([...PROJECT_IDS].sort(), ["bang-dream", "girls-band-cry", "our-notes"], "企划是整个系列／作品／游戏，只有这三个");
+  assert.deepEqual([...PROJECT_IDS].sort(), ["bang-dream", "bocchi-the-rock", "girls-band-cry", "our-notes"], "企划是整个系列／作品／游戏，只有这四个");
   assert.equal(BAND_IDS.length, 16, "ENTITIES 里另外 16 条是乐队");
   assert.equal(BAND_IDS.length + PROJECT_IDS.length, Object.keys(ENTITIES).length, "每条都必须有 kind，不能有漏网的");
   assert.ok(isBand("mygo") && isProject("our-notes"), "isBand／isProject 认乐队和企划");

@@ -1,6 +1,6 @@
 import { Link, useLoaderData } from "react-router";
-import type { DeadlineView, DeadlinesResponse } from "@aihot/contracts/site";
-import { subjectAfter, withSubject } from "@aihot/industry/site";
+import type { DeadlineView, DeadlinesResponse } from "@girlsbands/contracts/site";
+import { subjectAfter, withSubject } from "@girlsbands/industry/site";
 import { edgeTtl, loadOr404 } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { weekdayShort } from "../lib/format";
@@ -8,7 +8,7 @@ import { subjectOfId } from "../features/feed/bands";
 import { DEADLINE_KINDS, clock, dayName, md } from "../features/feed/deadlines";
 import { ArtistLine } from "../components/ui/ArtistBadge";
 import { EmptyState } from "../components/ui/Page";
-import { IconInfo } from "../components/icons";
+import { IconCalendar, IconInfo } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import type { Screen } from "../components/shell/screens";
 
@@ -81,7 +81,16 @@ export default function DeadlinesPage() {
   const soon = days.flatMap((d) => d.items.filter((i) => i.soon));
   return (
     <div className="pb-10">
-      <PhoneBar title="截止雷达" large sub={<>{subjectAfter("未来 30 天", "圈")}共 {total} 个会过期的日子</>} />
+      <PhoneBar
+        title="截止雷达"
+        large
+        sub={<>{subjectAfter("未来 30 天", "圈")}共 {total} 个会过期的日子</>}
+        actions={
+          <a href="/calendar.ics" aria-label="订阅日历" title="订阅日历（.ics）" className="grid size-11 shrink-0 place-items-center rounded-full text-ink-2 transition-colors active:bg-bg-sunk">
+            <IconCalendar size={18} />
+          </a>
+        }
+      />
       <header className="hidden flex-wrap items-end justify-between gap-x-6 gap-y-2 pb-5 pt-1 lg:flex">
         <div>
           <div className="flex items-center gap-2 text-[12px] font-semibold tracking-[0.08em] text-hot">
@@ -97,11 +106,20 @@ export default function DeadlinesPage() {
             <span className="num">{total}</span> 个有明确日期的节点：抽选与先行受理、一般发售、演出当天、配信期限
           </p>
         </div>
-        {soon.length > 0 && (
-          <p className="text-[12px] text-hot">
-            48 小时内 <span className="num">{soon.length}</span> 个
-          </p>
-        )}
+        <div className="flex items-center gap-4">
+          {soon.length > 0 && (
+            <p className="text-[12px] text-hot">
+              48 小时内 <span className="num">{soon.length}</span> 个
+            </p>
+          )}
+          <a
+            href="/calendar.ics"
+            title="订阅后日历应用会自动更新（.ics）"
+            className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-[12.5px] text-ink-3 transition-colors hover:border-band hover:text-band"
+          >
+            <IconCalendar size={14} /> 订阅日历
+          </a>
+        </div>
       </header>
 
       {days.length === 0 ? (
@@ -142,6 +160,11 @@ export default function DeadlinesPage() {
             日期按日本时间（JST）计算，因为受理截止通常写的是日本当地的 23:59。一行只代表一个节点，同一条公告里的受理期与一般发售会拆成两行。
           </p>
           <p>这里不只有已选入头条的公告：只要公告本身写清了日期，就会进入雷达——截止日不值得上头条，但值得你提前知道。</p>
+          <p>
+            想提前记进自己的日历，可以
+            <a href="/calendar.ics" className="mx-0.5 text-band hover:underline">订阅日历</a>
+            ：全站未来一年的日期都在里面。每个企划和每支乐队的页面右上角也有各自的日历。
+          </p>
         </div>
       </details>
     </div>

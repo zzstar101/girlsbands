@@ -1,7 +1,7 @@
 // About-page contact codes: replaceable from the admin without code changes (file names carry a content
 // hash), or shipped in the industry pack (industry/brand/contact/). The page shows a code only when set.
 // The maker block can show the avatar of an X account the site follows as a source (ABOUT.maker).
-import { ABOUT } from "@aihot/industry/site";
+import { ABOUT } from "@girlsbands/industry/site";
 import { sql } from "../db.ts";
 import { proxiedImage } from "../media/imgproxy.ts";
 

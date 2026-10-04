@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, redirect, useLoaderData, useLocation, useNavigation, useSearchParams } from "react-router";
 import type { Route } from "./+types/all";
-import type { PoolResponse } from "@aihot/contracts/site";
-import { SITE, subjectAfter } from "@aihot/industry/site";
-import { beijingTime } from "@aihot/contracts/time";
+import type { PoolResponse } from "@girlsbands/contracts/site";
+import { SITE, subjectAfter } from "@girlsbands/industry/site";
+import { beijingTime } from "@girlsbands/contracts/time";
 import { edgeTtl, loadOr404 } from "../lib/api.server";
 import { filterParams, itemListLd, listPath, pageMeta, readFilters } from "../lib/seo";
 import { ActiveFilters, CategoryTabs, FeedBar, SearchField } from "../features/feed/Filters";

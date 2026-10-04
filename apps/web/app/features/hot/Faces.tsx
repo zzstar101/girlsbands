@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { HotParticipant } from "@aihot/contracts/site";
+import type { HotParticipant } from "@girlsbands/contracts/site";
 import { SourceAvatar } from "../../components/ui/SourceAvatar";
 
 /**

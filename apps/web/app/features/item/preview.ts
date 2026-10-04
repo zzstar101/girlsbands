@@ -1,6 +1,6 @@
 // Phones: what a list card already showed of an item, kept for the moment of the tap, so its article
 // opens at once with that while the full text loads (routes/item.tsx clientLoader). Memory only.
-import type { FeedItemSummary } from "@aihot/contracts/site";
+import type { FeedItemSummary } from "@girlsbands/contracts/site";
 
 const previews = new Map<string, FeedItemSummary>();
 const MAX_PREVIEWS = 40;

@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { OAUTH_PROBE_PATHS, resolveRedirect } from "@aihot/contracts/http-policy";
-import { sql } from "@aihot/backend/db";
+import { OAUTH_PROBE_PATHS, resolveRedirect } from "@girlsbands/contracts/http-policy";
+import { sql } from "@girlsbands/backend/db";
 import { registerSite } from "./routes/site.ts";
 import { registerOg } from "./routes/og.ts";
 import { registerAdminAuth } from "./routes/admin-auth.ts";
@@ -11,6 +11,7 @@ import { registerV1, registerV1Fallbacks } from "./routes/v1.ts";
 import { registerAgent } from "./routes/agent.ts";
 import { registerMedia } from "./routes/media.ts";
 import { registerFeeds } from "./routes/feeds.ts";
+import { registerCalendar } from "./routes/calendar.ts";
 import { registerStatic } from "./routes/static.ts";
 import { registerMcp } from "./routes/mcp.ts";
 import { sendProblem } from "./http/respond.ts";
@@ -55,7 +56,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.get("/api/health", async (_req, reply) => {
     const started = Date.now();
     await sql`SELECT 1`;
-    return reply.header("Cache-Control", "no-store").send({ ok: true, db: "ok", ms: Date.now() - started, release: process.env.AIHOT_RELEASE ?? "dev" });
+    return reply.header("Cache-Control", "no-store").send({ ok: true, db: "ok", ms: Date.now() - started, release: process.env.GIRLSBANDS_RELEASE ?? "dev" });
   });
 
   registerSite(app);
@@ -67,6 +68,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerAgent(app);
   registerMedia(app);
   registerFeeds(app);
+  registerCalendar(app);
   registerStatic(app);
   registerMcp(app);
   registerV1Fallbacks(app);

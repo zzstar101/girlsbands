@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { SITE } from "@aihot/industry/site";
-import type { SubscribeResponse } from "@aihot/contracts/site";
+import { SITE } from "@girlsbands/industry/site";
+import type { SubscribeResponse } from "@girlsbands/contracts/site";
 import { IconBell, IconCheck, IconClock, IconTicket } from "../components/icons";
 import { RingMark } from "../components/Logo";
 import { AsideCard, ReadingLayout } from "../components/ui/Page";

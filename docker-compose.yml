@@ -1,16 +1,16 @@
 # docker compose up -d --build     → http://localhost:3000   (the admin is at /admin)
 # docker compose --profile https up -d --build   → HTTPS for SITE_DOMAIN through Caddy
-name: aihot
+name: girlsbands
 
 x-app: &app
   build: .
-  image: aihot-app
+  image: girlsbands-app
   env_file: .env
   restart: unless-stopped
   environment: &app-env
     NODE_ENV: production
-    DATABASE_URL: postgres://aihot:${POSTGRES_PASSWORD:-aihot}@db:5432/aihot
-    AIHOT_DATA_DIR: /data
+    DATABASE_URL: postgres://girlsbands:${POSTGRES_PASSWORD:-girlsbands}@db:5432/girlsbands
+    GIRLSBANDS_DATA_DIR: /data
     API_BASE_URL: http://api:3001
     LOCAL_ROUTER_URL: http://web:3000
   volumes:
@@ -24,18 +24,18 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: aihot
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aihot}
-      POSTGRES_DB: aihot
+      POSTGRES_USER: girlsbands
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-girlsbands}
+      POSTGRES_DB: girlsbands
     volumes:
       - db:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aihot -d aihot"]
+      test: ["CMD-SHELL", "pg_isready -U girlsbands -d girlsbands"]
       interval: 5s
       timeout: 5s
       retries: 30
 
-  # Applies the database migrations and seeds the demo sources and the leaderboard directory, then exits.
+  # Applies the database migrations and seeds the sources, then exits.
   setup:
     <<: *app
     restart: "no"

@@ -3,11 +3,12 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
-import { checkAlerts, collectFindings, sendDigest } from "@aihot/backend/operations/alerts";
-import { runsOverview } from "@aihot/backend/admin/runs";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { MAX_CHARS } from "@girlsbands/backend/editorial/translate";
+import { getBoss, stopBoss } from "@girlsbands/backend/jobs/queue";
+import { checkAlerts, collectFindings, sendDigest } from "@girlsbands/backend/operations/alerts";
+import { runsOverview } from "@girlsbands/backend/admin/runs";
 
 process.env.COLLECT_ENABLED = "false";
 process.env.MODEL_CALLS_ENABLED = "false";
@@ -146,6 +147,94 @@ test("selected identity delays show reader impact, recovery state and the affect
     await sql`DELETE FROM sources WHERE id=${source}`;
     await sql`DELETE FROM receipt_attempts WHERE receipt_id IN (SELECT id FROM receipts WHERE logical_key='group-alert-receipt')`;
     await sql`DELETE FROM receipts WHERE logical_key='group-alert-receipt'`;
+  }
+});
+
+// Translation is what this site is for, so the chain is watched by outcome: a public full text that
+// never arrived in Chinese, a body that was translated only in part (which is terminal), and answers
+// that turned slow. Bodies longer than the cap are incomplete on purpose and must not be reported.
+test("translation problems reach the owner without crying wolf over long bodies", async () => {
+  const now = Date.now();
+  const source = "translate-alert-source";
+  const old = new Date(now - 3 * 3600_000);
+  const make = async (id: string, bodyHtml: string) => {
+    await sql`INSERT INTO articles(id,source_id,identity_key,url,title,published_at,discovered_at,timeline_at,language,grouping_status)
+      VALUES(${id},${source},${id},${`https://example.com/${id}`},${id},${old},${old},${old},'ja','complete')`;
+    await sql`INSERT INTO publications(article_id,source_id,title,summary,eligible,selected,visibility,body_mode,
+      discovered_at,timeline_at,sort_at,url,category,channel)
+      VALUES(${id},${source},${id},'摘要',true,false,'public','full',${old},${old},${old},${`https://example.com/${id}`},'live','news')`;
+    await sql`UPDATE articles SET body_html = ${bodyHtml} WHERE id = ${id}`;
+  };
+  process.env.COLLECT_ENABLED = "true";
+  process.env.MODEL_CALLS_ENABLED = "true";
+  try {
+    await sql`INSERT INTO sources(id,name,kind,tier,participation_mode) VALUES(${source},'Translate alerts','rss','T1','editorial')`;
+    await make("translate-alert-a", "<p>a</p>");
+    await make("translate-alert-b", "<p>b</p>");
+    const stuck = async () => (await collectFindings(now)).find((f) => f.key === "translate.stuck");
+    assert.equal(await stuck(), undefined, "two stragglers are not worth a message");
+
+    await make("translate-alert-c", "<p>c</p>");
+    let finding = await stuck();
+    assert.equal(finding?.level, "now");
+    assert.match(finding!.impact!, /3 条.*日文/);
+    assert.match(finding!.heals!, /每 5 分钟/);
+    assert.match(finding!.detail!, /2 小时/);
+
+    // Giving up after three attempts is the branch the owner must hand to someone: nothing retries it.
+    await sql`INSERT INTO translation_attempts(article_id,revision,attempts,outcome,reason)
+      VALUES('translate-alert-c',1,3,'failed','provider refused')`;
+    finding = await stuck();
+    assert.match(finding!.heals!, /1 条已经试满 3 次/);
+    assert.match(finding!.action!, /不会自己恢复/);
+
+    // Deliberate skips (already Chinese, no foreign body, a short post) are not reader-visible defects.
+    await make("translate-alert-skipped", "<p>d</p>");
+    await sql`INSERT INTO translation_attempts(article_id,revision,attempts,outcome,reason)
+      VALUES('translate-alert-skipped',1,1,'skipped','already Chinese')`;
+    await sql`INSERT INTO translations(article_id,lang,revision,title,body_html,body_text,complete,origin)
+      VALUES('translate-alert-skipped','zh',1,'d','<p>d</p>','d',true,'model')`;
+    assert.match((await stuck())!.impact!, /3 条/, "a skipped item is not a missing translation");
+
+    // A short body that came back incomplete is a genuine half-translated page, and it never retries.
+    const [short] = await sql<{ article_id: string }[]>`SELECT article_id FROM publications WHERE source_id = ${source} AND article_id = 'translate-alert-a'`;
+    await sql`INSERT INTO translations(article_id,lang,revision,title,body_html,body_text,complete,origin)
+      VALUES(${short!.article_id},'zh',1,'a','<p>a</p>','a',false,'model')`;
+    let partial = (await collectFindings(now)).find((f) => f.key === "translate.partial");
+    assert.equal(partial?.level, "today");
+    assert.match(partial!.impact!, /1 条/);
+    assert.match(partial!.heals!, /不会/);
+    assert.equal(await stuck(), undefined, "a translated item is no longer missing a translation");
+
+    // Long bodies are cut off at the cap on purpose; that is not a translation failure.
+    await make("translate-alert-long", "<p>long</p>");
+    await sql`UPDATE articles SET body_html = repeat('x', ${MAX_CHARS}) WHERE id = 'translate-alert-long'`;
+    await sql`INSERT INTO translations(article_id,lang,revision,title,body_html,body_text,complete,origin)
+      VALUES('translate-alert-long','zh',1,'long','<p>long</p>','long',false,'model')`;
+    partial = (await collectFindings(now)).find((f) => f.key === "translate.partial");
+    assert.match(partial!.impact!, /1 条/, "an over-cap body is incomplete by design");
+
+    // Slow answers need a real sample before they are worth a digest line.
+    const [receipt] = await sql<{ id: number }[]>`INSERT INTO receipts(logical_key,service,purpose,subject,status)
+      VALUES('translate-alert-slow','deepseek','translate_body','article:translate-alert-a@1','completed') RETURNING id`;
+    for (let i = 0; i < 5; i++) {
+      await sql`INSERT INTO receipt_attempts(receipt_id,service,attempt,status,latency_ms,started_at)
+        VALUES(${receipt!.id},'deepseek',${i + 1},'received',${10 * 60_000},${new Date(now - i * 60_000)})`;
+    }
+    const slow = (await collectFindings(now)).find((f) => f.key === "translate.slow");
+    assert.equal(slow?.level, "digest");
+    assert.match(slow!.detail!, /5 次翻译请求/);
+    await sql`DELETE FROM receipt_attempts WHERE receipt_id = ${receipt!.id}`;
+    assert.equal((await collectFindings(now)).find((f) => f.key === "translate.slow"), undefined, "too few samples to judge");
+  } finally {
+    process.env.COLLECT_ENABLED = "false";
+    process.env.MODEL_CALLS_ENABLED = "false";
+    await sql`DELETE FROM translations WHERE article_id LIKE 'translate-alert-%'`;
+    await sql`DELETE FROM translation_attempts WHERE article_id LIKE 'translate-alert-%'`;
+    await sql`DELETE FROM publications WHERE source_id = ${source}`;
+    await sql`DELETE FROM articles WHERE source_id = ${source}`;
+    await sql`DELETE FROM sources WHERE id = ${source}`;
+    await sql`DELETE FROM receipts WHERE logical_key = 'translate-alert-slow'`;
   }
 });
 

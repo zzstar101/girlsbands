@@ -7,12 +7,12 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle } from "@aihot/backend/publication/publish";
-import { listTopicSummaries, loadTopicPage } from "@aihot/backend/publication/topics";
-import { overrideFields } from "@aihot/backend/admin/content";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { upsertMaterial } from "@girlsbands/backend/content/materials";
+import { stopBoss } from "@girlsbands/backend/jobs/queue";
+import { publishArticle } from "@girlsbands/backend/publication/publish";
+import { listTopicSummaries, loadTopicPage } from "@girlsbands/backend/publication/topics";
+import { overrideFields } from "@girlsbands/backend/admin/content";
 
 const T = tag();
 const SOURCE = `test-topics-withdrawal-${T}`;

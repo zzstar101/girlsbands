@@ -1,5 +1,5 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
-import type { HeatPoint } from "@aihot/contracts/site";
+import type { HeatPoint } from "@girlsbands/contracts/site";
 import { monthDayTime } from "../../lib/format";
 import { useEntrance } from "../../lib/hydration";
 import { PillTabs } from "../../components/ui/Tabs";

@@ -1,13 +1,13 @@
 {
-  "name": "@aihot/backend",
+  "name": "@girlsbands/backend",
   "private": true,
   "type": "module",
   "exports": {
     "./*": "./src/*.ts"
   },
   "dependencies": {
-    "@aihot/contracts": "*",
-    "@aihot/industry": "*",
+    "@girlsbands/contracts": "*",
+    "@girlsbands/industry": "*",
     "@mozilla/readability": "0.6.0",
     "@paralleldrive/cuid2": "3.3.0",
     "@types/nodemailer": "^7.0.12",

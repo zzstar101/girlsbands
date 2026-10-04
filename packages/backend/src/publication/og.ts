@@ -1,6 +1,6 @@
 // Share images only need public title/summary metadata. Keep the same page visibility rule without
 // loading bodies, translations, related stories or signed media that never appear on these cards.
-import type { CategoryKey } from '@aihot/contracts/taxonomy';
+import type { CategoryKey } from '@girlsbands/contracts/taxonomy';
 import { sql } from '../db.ts';
 import { hasItemPage, publicSourceName } from './rules.ts';
 

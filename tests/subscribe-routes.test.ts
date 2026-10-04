@@ -3,15 +3,15 @@
 import "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
+import { config } from "@girlsbands/backend/config";
+import { closeDb, sql } from "@girlsbands/backend/db";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const app = await buildApp();
 const saved = { enabled: config.emailEnabled, dryRun: config.emailDryRun };
 
 before(() => {
-  process.env.EMAIL_FROM = "AniBand Radar <radar@example.org>";
+  process.env.EMAIL_FROM = "少女乐队's <radar@example.org>";
   config.emailEnabled = true;
   config.emailDryRun = true;
 });

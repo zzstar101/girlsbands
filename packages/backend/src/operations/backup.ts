@@ -79,11 +79,11 @@ export async function runBackup(now = new Date()) {
   const dir = path.join(config.dataDir, "backups");
   await mkdir(dir, { recursive: true });
   const stamp = now.toISOString().slice(0, 16).replace(/[-:T]/g, "");
-  const dump = path.join(dir, `aihot-${stamp}.dump`);
+  const dump = path.join(dir, `girlsbands-${stamp}.dump`);
   await run("pg_dump", ["--format=custom", "--compress=6", "--no-owner", "--file", dump, config.databaseUrl], { maxBuffer: 16 * 1024 * 1024 });
   // Verify before shipping: the archive must list cleanly.
   await run("pg_restore", ["--list", dump], { maxBuffer: 64 * 1024 * 1024 });
-  const files = path.join(dir, `aihot-files-${stamp}.tar.gz`);
+  const files = path.join(dir, `girlsbands-files-${stamp}.tar.gz`);
   // An empty archive only when there is nothing to keep. A failure to read or pack existing files is
   // tried once more and otherwise reported: the database dump still ships, but the run fails.
   const kept: string[] = [];
@@ -124,7 +124,7 @@ export async function runBackup(now = new Date()) {
     }
   }
   // Local copies: keep the newest few of each kind.
-  for (const kind of ["aihot-2", "aihot-files-"]) {
+  for (const kind of ["girlsbands-2", "girlsbands-files-"]) {
     const list = (await readdir(dir)).filter((f) => f.startsWith(kind)).sort().reverse();
     for (const f of list.slice(KEEP_LOCAL)) await rm(path.join(dir, f), { force: true });
   }

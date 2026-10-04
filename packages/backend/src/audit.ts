@@ -1,7 +1,7 @@
 // Manual changes: every change a person or an operations script makes is recorded — who,
 // when, what, before and after, and why. A change made against a view that has moved on since is
 // refused with a Conflict, which the admin API answers as 409.
-import type { AdminAudit, AdminAuditEntry, BeforeJson } from "@aihot/contracts/admin";
+import type { AdminAudit, AdminAuditEntry, BeforeJson } from "@girlsbands/contracts/admin";
 import { sql, type Db } from "./db.ts";
 
 export class Conflict extends Error {

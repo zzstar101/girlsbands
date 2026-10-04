@@ -1,8 +1,8 @@
-import { SITE } from "@aihot/industry/site";
+import { SITE } from "@girlsbands/industry/site";
 import { useState } from "react";
 import { Form, useSearchParams } from "react-router";
 import type { Route } from "./+types/feedback";
-import type { AdminFeedback, AdminFeedbackRow } from "@aihot/contracts/admin";
+import type { AdminFeedback, AdminFeedbackRow } from "@girlsbands/contracts/admin";
 import { adminGet } from "../../lib/admin.server";
 import { useAdminAction } from "../../features/admin/action";
 import { bj } from "../../features/admin/format";

@@ -2,8 +2,8 @@ import {
   isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLoaderData, useLocation, useNavigation, useRouteError, useRouteLoaderData,
   type ShouldRevalidateFunction,
 } from "react-router";
-import type { SiteMeta } from "@aihot/contracts/site";
-import { SITE } from "@aihot/industry/site";
+import type { SiteMeta } from "@girlsbands/contracts/site";
+import { SITE } from "@girlsbands/industry/site";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Route } from "./+types/root";
 import "./app.css";

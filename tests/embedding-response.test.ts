@@ -4,9 +4,9 @@
 import { stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { EMBEDDING_DIMS, ensureEmbeddings } from "@aihot/backend/providers/embeddings";
-import { ModelOutputError } from "@aihot/backend/providers/llm";
+import { closeDb, sql } from "@girlsbands/backend/db";
+import { EMBEDDING_DIMS, ensureEmbeddings } from "@girlsbands/backend/providers/embeddings";
+import { ModelOutputError } from "@girlsbands/backend/providers/llm";
 
 let answer: unknown;
 const provider = await stub(() => answer);

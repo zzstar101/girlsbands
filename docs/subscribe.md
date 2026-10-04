@@ -33,7 +33,7 @@
 
 - **公开接口不泄露任何人的订阅状态。** `POST /api/site/subscribe` 对新地址和已确认的老地址回答完全一样的一句“去邮箱点确认”。否则任何人都能拿它探测某个邮箱是否在本站订阅过。
 - **未经验证的请求不能改别人的设置。** 一个已确认的地址再被 POST 一次，设置原样不动、也不再发信；想改乐队只能点邮件里那条带令牌的链接。
-- **乐队和企划是两种主体，不能混着叫。** `industry/taxonomy.ts` 的 `ENTITIES` 每条都带必填的 `kind`：16 条 `band`（具体的团）+ 3 条 `project`（BanG Dream! 整个系列、GIRLS BAND CRY 这部作品、Our Notes 这款新作手游——**Our Notes 是企划不是乐队**）。订阅页按 `BAND_IDS` / `PROJECT_IDS` 分成两组列出，措辞也分开（`bandCountLine` 写「2 支乐队 + 1 个企划」）；邮件头图取主体时**先乐队、后企划**，所以同时订了 BanG Dream! 和 MyGO!!!!! 的人拿到的是 MyGO!!!!! 的字标，而不是整个企划的。分类写在配置里、`kind` 必填（漏写会被类型检查拦住），不靠调用点各自猜。
+- **乐队和企划是两种主体，不能混着叫。** `industry/taxonomy.ts` 的 `ENTITIES` 每条都带必填的 `kind`：16 条 `band`（具体的团）+ 4 条 `project`（BanG Dream! 整个系列、GIRLS BAND CRY 这部作品、Our Notes 这款新作手游——**Our Notes 是企划不是乐队**、ぼっち・ざ・ろっく 这部作品）。订阅页按 `BAND_IDS` / `PROJECT_IDS` 分成两组列出，措辞也分开（`bandCountLine` 写「2 支乐队 + 1 个企划」）；邮件头图取主体时**先乐队、后企划**，所以同时订了 BanG Dream! 和 MyGO!!!!! 的人拿到的是 MyGO!!!!! 的字标，而不是整个企划的。分类写在配置里、`kind` 必填（漏写会被类型检查拦住），不靠调用点各自猜。
 - **确认是必须的，而且只能用一次。** 确认成功后 `confirm_token` 立刻轮换并清空有效期，同一封邮件里的链接点第二次无效。有效期 48 小时；过期的链接落到“链接已过期”那一页，而不是被当成无效。
 - **退订在浏览器里是两步，在邮件客户端里是一键。** 页面上先看到说明再点“确认退订”，避免链接扫描器帮人退订；邮件客户端走 RFC 8058 的 `POST /api/site/subscribe/one-click`，无论令牌有效与否都回 200，不让邮件客户端弹错误框。`GET` 到那个地址不生效。
 - **未确认 / 已退订 / 退信的人重新订阅，等于重新发一封确认信**，令牌轮换，旧链接立即作废。
@@ -62,14 +62,14 @@
 
 ### 头图是这一版的核心装置
 
-- **图由 API 现画**：`apps/api/src/og/hero.ts` 用 satori + sharp 画 1200×450（邮件里按 600×225 显示，2 倍图在高分屏才清），路由是 `/og/email/<token>.png`。版式照抄用户自己那版样张（`.data/event-mail-v1/build.ts`）：**官方 logo 压在应援色底上，右边一枚巨号鬼影日号**。坐标是硬的（画布 1200×450）：品牌行 `ANIBAND RADAR` 22px / 字距 3 / 基线 66；右上 `EVENT SUBSCRIPTION` 20px / 字距 2；鬼影日号 220px / 字距 -12 / 基线 292 / 不透明度 0.13；乐队名 24px / 基线 365；`LIVE / TICKET / RELEASE` 17px / 字距 3 / 基线 405 / 不透明度 0.7；右下 `10 / 04 · JST` 24px / 基线 398；细线 y332 / 不透明度 0.18；logo 框 650×215、水平 left=64、垂直中心 y203。**没有底部的信息条**（上一版那条已删），也没有「紧急」色带。
+- **图由 API 现画**：`apps/api/src/og/hero.ts` 用 satori + sharp 画 1200×450（邮件里按 600×225 显示，2 倍图在高分屏才清），路由是 `/og/email/<token>.png`。版式照抄用户自己那版样张（`.data/event-mail-v1/build.ts`）：**官方 logo 压在应援色底上，右边一枚巨号鬼影日号**。坐标是硬的（画布 1200×450）：品牌行取 `SITE.name` 大写（现在画出来是 `少女乐队'S`）22px / 字距 3 / 基线 66；右上 `EVENT SUBSCRIPTION` 20px / 字距 2；鬼影日号 220px / 字距 -12 / 基线 292 / 不透明度 0.13；乐队名 24px / 基线 365；`LIVE / TICKET / RELEASE` 17px / 字距 3 / 基线 405 / 不透明度 0.7；右下 `10 / 04 · JST` 24px / 基线 398；细线 y332 / 不透明度 0.18；logo 框 650×215、水平 left=64、垂直中心 y203。**没有底部的信息条**（上一版那条已删），也没有「紧急」色带。
 - **装饰按乐队换**（同样照抄用户原稿）：默认 16 条斜线（`opacity .07`）；Ave Mujica / Roselia 是上下括号 + 两个同心圆；トゲナシトゲアリ / RAISE A SUILEN / Afterglow 是两块斜切色块（`opacity .5`）；Pastel\*Palettes 是三个粉 / 薄荷色块。默认那套用 `graphic` 色，其余用乐队应援色；`graphic = 底子够暗 ? 应援色 : 字色`。
 - **satori 不能改 SVG 子节点的属性**，所以底子那一层是先拼一段 SVG 字符串（满版 `<rect>` + 装饰）→ `sharp` 栅格化 → 再 `composite` 上缩放后的 logo → 整张转成 PNG data URI 交给 satori。文字那一层才走 satori 自己画。
 - **基线换算**：satori 定位的是行盒上沿，不是基线。Noto Sans JP 的 hhea 是 1160/288，行盒 1em 时基线落在 93.6%（`BASELINE_RATIO = 0.936`），所以每个文字节点都写 `lineHeight: 1`、位置用 `topOf(基线, 字号)` 反算。实测与用户 SVG 的误差 ≤2px。
 - **地址是无状态的**：token 就是那份 spec 的 base64url（`industry/email/hero.ts` 的 `encodeHero` / `decodeHero`），所以**一封已经发出去的旧信永远指向它当年那张图**，服务端不用存任何东西。spec 只有 6 个字段（`accent` / `ink` / `surface` / `star` / `date` / `logo`，token 键 `a/i/s/t/d/g`）；token 是用户可控的 URL 片段，因此解析器限长 1200、只认 6 位十六进制颜色、`date` 只放行 `YYYY-MM-DD`（其余一律空）、所有文字剥控制字符并截 60 字，坏 token 一律 404——绝不画一张半成品。
 - **确认信没有日期**：`date` 是空串时**鬼影日号与右下日期两行都不画**（不是画个 00/00），头图 `alt` 也就只剩乐队名。这是「没有的数据一个都不编」在画布上的体现。
-- **主角是这支乐队的官方 logo，存在仓库里**：19 支乐队的字标由 `scripts/fetch-band-logos.ts` 抓**一次**入库（`assets/band-logos/<id>.png` + `manifest.json`，来源与版权说明见 `assets/band-logos/README.md`），渲染时**只读磁盘、不出网**。spec 里带的是乐队 id（`HeroSpec.logo`，只放行 `[a-z0-9-]`、≤40 字），渲染端拿它查 manifest——**查不到、文件缺了、清单被写脏了，一律退回满版应援色海报，绝不 500**。
-- **底是什么颜色是量出来的，不是选出来的**：应援色**不能**直接当底（19 支里只有 4 支的墨迹能直接压在应援色上）。`plateFor()` 先查 `PLATE_OVERRIDE`（4 条：MyGO `#102b3b`、トゲナシトゲアリ `#111113`、Ave Mujica `#f0e3e8`、Pastel\*Palettes `#fff8fc`——用户自己那版里硬覆盖过的四支），没有覆盖就在**四个候选**里挑「读不清的墨迹最少」的那块：
+- **主角是这支乐队的官方 logo，存在仓库里**：20 个主体的字标由 `scripts/fetch-band-logos.ts` 抓**一次**入库（`assets/band-logos/<id>.png` + `manifest.json`，来源与版权说明见 `assets/band-logos/README.md`），渲染时**只读磁盘、不出网**。spec 里带的是乐队 id（`HeroSpec.logo`，只放行 `[a-z0-9-]`、≤40 字），渲染端拿它查 manifest——**查不到、文件缺了、清单被写脏了，一律退回满版应援色海报，绝不 500**。
+- **底是什么颜色是量出来的，不是选出来的**：应援色**不能**直接当底（20 个里只有 4 个的墨迹能直接压在应援色上）。`plateFor()` 先查 `PLATE_OVERRIDE`（4 条：MyGO `#102b3b`、トゲナシトゲアリ `#111113`、Ave Mujica `#f0e3e8`、Pastel\*Palettes `#fff8fc`——用户自己那版里硬覆盖过的四支），没有覆盖就在**四个候选**里挑「读不清的墨迹最少」的那块：
   - 候选 = `mix(accent, 白, 0.88)`（推到亮端的同色淡底）、`mix(accent, 黑, 0.82)`（同色深底）、`#ffffff`、`#111113`；
   - 「读不清」= 加载 logo 时读一次像素、按 `alpha > 200` 的墨迹做 **64 桶**亮度直方图（用户原稿用的是 `alpha >= 180`；Our Notes 那张图有一大圈 alpha 180–200 的半透明光晕，算成墨迹会让近白 logo 反而选中白板，所以生产用 `> 200`），桶均值与底的对比度 < 3:1 的像素占比（大块图形按 WCAG 的 3:1 而不是正文的 4.5:1）；
   - **桶数不能太粗**：直方图按桶内均值判对比度，16 桶时一个横跨阈值的桶会把桶里其实看得清的高光墨迹也算成看不清——实测 Pastel\*Palettes 因此被多推暗两档；改成 64 桶后与逐像素精确值基本一致；

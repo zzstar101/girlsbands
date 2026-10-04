@@ -7,8 +7,8 @@ import { config, credential } from "../config.ts";
 import { sql } from "../db.ts";
 import { sha256 } from "../lib/ids.ts";
 
-export const SESSION_COOKIE = "aihot_admin";
-export const STATE_COOKIE = "aihot_oauth_state";
+export const SESSION_COOKIE = "girlsbands_admin";
+export const STATE_COOKIE = "girlsbands_oauth_state";
 export const SESSION_DAYS = 30;
 /** Register this callback in the Feishu open platform when Feishu sign-in is used. */
 export const CALLBACK_URL = `${config.siteUrl}/api/auth/callback`;
