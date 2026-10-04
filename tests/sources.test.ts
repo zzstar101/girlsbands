@@ -238,6 +238,13 @@ test("a listing's own fields become the item text, on the listing's own calendar
   assert.equal(renderFields("活动时间：{date:enterTime}", { enterTime: 1792773000000 }), "活动时间：2026-10-24");
   // A zone-less wall clock is the listing's own local time, not the host's.
   assert.equal(renderFields("开票：{date:sale_start_time}", { sale_start_time: "2026-09-19 18:00:00" }), "开票：2026-09-19");
+  // Ticket APIs quote prices in fen; the reader pays yuan. 0 is a real price (a free event).
+  assert.equal(renderFields("票价：{money:price_low} 起", { price_low: 6800 }), "票价：¥68 起");
+  assert.equal(renderFields("票价：{money:price_low} 起", { price_low: 6850 }), "票价：¥68.5 起");
+  assert.equal(renderFields("票价：{money:price_low} 起", { price_low: "0" }), "票价：¥0 起");
+  // A price the listing does not state as a number drops its segment instead of printing a wrong one.
+  assert.equal(renderFields("票价：{money:price_low} 起｜城市：{cityName}", { price_low: "待定", cityName: "上海" }), "城市：上海");
+  assert.equal(renderFields("票价：{money:price_low} 起", { price_low: "" }), null);
 });
 
 test("a JSON listing without a summary writes one from its own fields", async () => {

@@ -665,7 +665,7 @@
           "initialBackfillLimit": 30
         }
       },
-      "tier": "T2",
+      "tier": "T2_EVENT",
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,
@@ -696,7 +696,7 @@
         "titlePaths": [
           "project_name"
         ],
-        "summaryTemplate": "活动时间：{date:start_time}｜城市：{city}｜区县：{district_name}｜场馆：{venue_name}｜票务状态：{sale_flag}｜开票：{date:sale_start_time}｜票价：{price_low} 分起｜想去：{wish} 人",
+        "summaryTemplate": "活动时间：{date:start_time}｜城市：{city}｜区县：{district_name}｜场馆：{venue_name}｜票务状态：{sale_flag}｜开票：{date:sale_start_time}｜票价：{money:price_low} 起｜想去：{wish} 人",
         "summaryIsBody": true,
         "urlTemplate": "https://mall.bilibili.com/neul-next/ticket-renovation/detail.html?id={id}",
         "externalIdPath": "id",
@@ -709,7 +709,7 @@
           ]
         }
       },
-      "tier": "T2",
+      "tier": "T2_EVENT",
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,
@@ -739,7 +739,7 @@
           "initialBackfillLimit": 10
         }
       },
-      "tier": "T2",
+      "tier": "T2_EVENT",
       "owner_entity_id": null,
       "participation_mode": "editorial",
       "interval_minutes": 360,

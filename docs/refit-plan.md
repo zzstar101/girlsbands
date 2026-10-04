@@ -221,7 +221,7 @@
 - 写作（`content-understanding.md`）/ 翻译（`translate-body.md`）/ 归组复核 → 更强的模型。
 - `budgets` 熔断保留作安全网（现在不再限制总量，但要防止一次故障烧穿）。
 
-### W6 · 国内同人 ONLY 与 livehouse 演出
+### W6 · 国内同人 ONLY 与 livehouse 演出 · ✅ 已完成 2026-10-05（含第二版阈值校准）
 
 **最终名单（用户定案）：CPP 无差别同人站 + B站会员购 + 秀动 showstart。** 三个源都用仓库里已有的采集器 kind（`json_list` / `json_list` / `web_list`）。
 
@@ -272,8 +272,8 @@
    - 实测样本：`所谓正解？【哭泣少女乐队Only Live】| 2026/10/11 15:30 | [广州] MAOLivehouse（永庆坊店 CLUB厅）| ¥68起`
    - **详情页拿不到年份**：`/event/311467` 的 SSR 文本只写「10月11日 15:30」，年份只在列表卡片的 `div.time` 里 → 所以正文必须从列表卡片取，不能改成抓详情。
 4. **接进企划日历**：这三个源产出的都是**带明确日期的活动**，是 W1-3 企划日历和 `.ics` 导出最主要的素材。CPP 的 `enterTime`/`endTime`、B站的 `start_time`/`end_time`、秀动的演出时间统一落成 `kind=event` 的日期条目（`industry/prompts/structure.md` 已加对应规则）。**只抽日期、不抽时刻**：`publication/deadlines.ts:38` 的 `jstInstant(at)` 把带时刻的 `at` 当 JST，而这三个源的时刻是北京时间，只取日期才能原样往返。
-5. **信源分级与阈值**：三个源都定为 **T2**（`industry/selection.ts` 的 `T2 = 72`）、`participation_mode: "editorial"`、`site_fulltext: true`（纯中文，正文直接展示，不走翻译）、`syndicate_fulltext: false`、`interval_minutes: 360`（`jobs/source-intervals.ts` 会按产出量自己调；editorial 源最多被调到 60 分钟）。
-   **⚠️ 现有阈值是用 42 篇日文样本校准的（precision 1.00 / recall 0.86），中文源的阈值没校准过** —— 上线后要单独看一遍漏选率。
+5. **信源分级与阈值**：三个源都定为 **`T2_EVENT`（国内活动排期平台，门槛 54）**、`participation_mode: "editorial"`、`site_fulltext: true`（纯中文，正文直接展示，不走翻译）、`syndicate_fulltext: false`、`interval_minutes: 360`（`jobs/source-intervals.ts` 会按产出量自己调；editorial 源最多被调到 60 分钟）。
+   **新档位 `T2_EVENT` 是这一轮校准出来的**：最初三个源按 `T2 = 72` 走，结果 15 条国内条目 0/14 入选，而且分数（36–58）和日语 T2 负样本（49、68）完全重叠 —— 调门槛救不回来。先改评分标准（见下），再把国内排期类单独一档。新增档位要同时改四处：`industry/selection.ts` 的 `thresholds`、`packages/backend/src/admin/sources.ts:101,168` 的 `z.enum`、DB 的 `sources_tier_check`（迁移 `0057_source_tier_event.sql`）、`apps/web/app/features/admin/labels.ts:7 TIER_LABEL`。
 
 **验收（2026-10-05）**
 
@@ -298,9 +298,29 @@
 | 条目页正文 | `GET /items/<id>` 200，正文就是拼出来的「价格：¥68起｜时间：2026/10/11 15:30｜[广州]MAOLivehouse广州（永庆坊店CLUB厅）」；`/items/<id>/original` 指回 `showstart.com/event/311467` |
 | 日期进企划日历 | `analyses.output.fact.deadlines` 抽出 `kind=event` / `sale_start`（如 2026-10-17、2026-11-15）；`GET /calendar/bang-dream.ics` 53 个 VEVENT 含 ONLY7 / 谐律星奏 / 音乐番Only，`/calendar/girls-band-cry.ics` 含哭泣少女乐队Only Live |
 | `.ics` 格式 | `GET /calendar.ics` 200、102 个 VEVENT、`file` 认作 vCalendar、CRLF、**0 行超过 75 octets**（折行正确） |
-| 精选（首页座位） | ⚠️ 15/15 `selected = f`：两次评分和 31–62 分 < `T2 = 72` × 2。它们进「全部动态」与日历，**不进首页精选** —— 阈值是 42 篇日文样本校准的（W6-5 / §五-5），要不要为国内活动单独校准待定 |
+| 精选（首页座位） | 第一轮 ⚠️ 15/15 `selected = f`：两次评分和 31–62 分 < `T2 = 72` × 2。它们进「全部动态」与日历，**不进首页精选** —— 阈值是 42 篇日文样本校准的（W6-5 / §五-5）。**已在「第二版校准」里解决：改评分标准 + 新档位 `T2_EVENT = 54` 后 14/15 入选、0 误选**（见下） |
 | dev 库清理 | 删掉 **11 条**历史 `x_*` 源（`kind = x_search`、`enabled = f`、Nitter 取代后残留、`sources.json` 里没有、seed 的 `ON CONFLICT DO NOTHING` 不会清）连同它们 12 条 `fetch_runs`；`sources` 剩 30 条 = `sources.json` 的 29 条 + 1 条 disabled 遗留 `rss-bang-dream`（0 篇文章，未清） |
 | 收尾 | 安全阀打开后 29 个源全量重抓的 **35 条积压**（全部卡在 429 阶梯重试上）已消化完：`new 0` / `analyzed 219` / `blocked 35` / `skipped 185`。`.env` 两个安全阀已恢复 `false` 并 `touch apps/worker/src/main.ts` 重启（`main.ts:19` 只在 `COLLECT_ENABLED === "true"` 时 `registerSourceJobs`），`fetch_runs` 与 `cron.sources.schedule` 都停止增长 ✅ |
+
+**第二版校准：国内排期类单独一档（2026-10-05）**
+
+第一轮端到端跑完发现的问题：国内 15 条全部落选首页精选，而且不是「差一点」——它们的分数（36–58）和日语 T2 负样本（49、68）完全重叠，靠调门槛救不回来。处理分两步。
+
+第一步改评分标准（`industry/prompts/selection-score.md` 三处）：读者画像加上「也会为了国内的同人 Only 展与 livehouse 演出买票、订行程」；「必须正常评价的价值」新增一类「中国大陆同人 Only 活动与 livehouse 演出」（材料常常只有一条排期记录，**不算正文残缺、不是多事件打包、不是聚合号转载**，按 `live_announcement` / `ticket_info` 正常评分）；「必须压住的噪声」里「聚合号转载」那条加括注（票务页与活动站的排期记录不算转载）。**先改标准、不动门槛** —— 门槛只能整体移动，解决不了「哪一类判错了」。
+
+第二步加 `T2_EVENT = 54`（国内活动排期平台单独一档）。**没有把 `T2` 整体降到 54**：那会连所有日语媒体与个人源一起降，而且档位高低会乱（`T1_5 = 65` 会高于 `T2`）。
+
+| 检查项 | 结果 |
+|---|---|
+| 样本集 | `.data/gold.jsonl` 57 条 = 42 条日语 + 15 条国内（14 该选 / 1 不该选：上海联动快闪店） |
+| 改前（旧标准 + `T2 = 72`） | acc 0.632 / P 0.895 / R 0.472；国内 **0/14 入选**，均分 46 |
+| 改标准后（门槛未动） | 国内均分 46 → 63，14 条该选的落在 50–74、快闪 53；日语 T1 仍 P 1.00 / R 0.86（**与第一版校准逐位一致**，说明没污染原有语料） |
+| 定档后复跑（`.data/eval/selection-all-57-1791146595746.json`，SelectBench `sb-20261004-3f6342`） | **acc 0.912 / P 0.97 / R 0.889 / F1 0.928**；国内 **14/15 全对**（唯一漏的是 `cn-009` 北京 BanG Dream only 同人嘉年华，50 分）；仍存的 FP 是日语 off-domain 的 73 分（超巡！超条先輩 ED，改前就在） |
+| 上线配置（dev 库 15 条重跑） | **14/15 `selected = t`**、门槛 54，唯一未选是上海快闪（42+38=80 < 108，标 reject 正确） |
+| 首页精选可见性 | `GET /feed.xml`（精选）200 / 51545B / 50 条 item，**其中 14 条国内**（9 CPP + 4 B站 + 1 秀动） |
+| 顺带修的读者可见缺陷 | B站 `price_low` 是**分**（`6800` = ¥68），模板原来直接印「票价：6800 分起」。给 `renderFields` 加了 `{money:path}`（分 → 元），迁移 `0058_bilibili_price_unit.sql` 改已有源的模板，dev 库 5 条已重写正文并重跑 |
+| 回归 | `npm run typecheck` 绿；`node --test tests/sources.test.ts tests/analyze.test.ts` 25 通过 / 0 失败；`/calendar.ics` 105 个 VEVENT、CRLF、0 行超 75 octets |
+| 校准的局限 | 国内 15 条是站主自标、只有 15 条；`T2` 的日语正样本只有 1 条、`T1_5` 一条都没有。改评分标准、加新信源、换模型之后都要重跑（做法见 `docs/selection.md`） |
 
 ---
 
@@ -337,8 +357,8 @@
 2. 8 个 `hot_signal` 源要不要改成 `editorial` 以拿到正文（见 W2-1）。
 3. `syndicate_fulltext`（对外接口/RSS 带全文）要不要一起打开。当前建议：**站内全开，对外接口和 RSS 先关**（那是给机器和聚合器用的，风险面更大），需要时再打开。
 4. 日报/周报/月报的"今天"改成 JST 之后，历史期号（`packages/contracts/src/site.ts:508` 的期号日历）会不会错位，需要回归测试。
-5. **中文源的入选阈值没校准过**（见 W6-5）：现有 `T1=54 / T1_5=65 / T2=72` 全部来自 42 篇日文样本。国内三源上线后要用真实中文样本重跑一次 `industry/selection.ts` 的校准。
-6. **CPP 的 `tag` 过滤词表要定死**：现在只验证了 `BanGDream` / `bangdream` / `少女乐队` / `孤独摇滚` / `GirlsBandCry` / `音乐番` 几个词。全国 ONLYLIVE 共 196 场，漏掉哪个写法就会漏活动 —— 上线前扫一遍全部 196 条的 `tag` 值域，把词表补全。
+5. ~~**中文源的入选阈值没校准过**~~ **已校准（2026-10-05，见 W6「第二版校准」）**：加了 `T2_EVENT = 54` 这一档，57 条样本上 acc 0.912 / P 0.97 / R 0.889。局限仍在：国内只有 15 条自标样本、`T2` 日语正样本 1 条、`T1_5` 0 条，采满一个月后要重标重跑。
+6. ~~**CPP 的 `tag` 过滤词表要定死**~~ **已定案**：扫过 `type=3&time=8` 全部 187 条的 447 个 tag 片段，与我们相关的只有 `BanGDream`（含大小写与 `!`/`！` 三种写法）、`邦多利`、`少女乐队`、`孤独摇滚`、`GirlsBandCry`、`GBC`、`音乐企划`、`音乐番Only`、`音企`；落地用了 8 条 URL（前 8 个写法），实测覆盖在范围内的全部 9 场。其余 400+ 个 tag 是明日方舟/原神/特摄等无关 IP。**新增写法时要重新扫一遍**（`tag=` 大小写不敏感，但不折叠 `!` 与 `！`）。
 
 ---
 
@@ -360,6 +380,7 @@
 
 > ⚠️ **本机跑测试必须带 `PATH="/opt/homebrew/opt/libpq/bin:$PATH"`**，否则 `pg_dump` / `pg_restore` 找不到，`tests/backup.test.ts` 与 `tests/backup-files.test.ts` 会以 `spawn pg_dump ENOENT` 失败（与代码无关）。
 > 测试库名必须以 `_test` 或 `_ci` 结尾：`DATABASE_URL=postgres://aniband:aniband@127.0.0.1:55432/girlsbands_test npm test`。
+> **跑单个文件也要带 preload**（`--test-global-setup=tests/databases.ts --import ./tests/databases.ts`），否则那条命令会把数据写进模板库、污染之后的全量运行 —— 详见 W6「踩到的坑」最后一条。
 
 **W0 踩到的坑（改站名会连带）**
 - 邮件模板的站名检查曾因 HTML 转义失败：站名 `少女乐队's` 的 ASCII 撇号在 HTML 里是 `&#39;`，`tests/email-rules.ts:477` 原来直接拿原文 `html.includes(SAMPLE_SITE.name)` 比对。已在 `tests/email-rules.ts` 加 `visibleText()` 还原实体后再比（安全检查仍用原始 html）。
@@ -449,15 +470,30 @@
 |---|---|
 | `npm run typecheck` | 全绿（含 `npm run typecheck -w @girlsbands/web`） |
 | `node --test tests/listing-fanout.test.ts tests/sources.test.ts` | **16 通过 / 0 失败**（扇出 / 全空失败 / 404 失败 / `renderFields` 段落丢弃与 `{date:}` 归一 / `summaryIsBody`） |
-| 全量 `npm test` | **618 通过 / 0 失败**（613 + 扇出 3 条 + 渲染字段 3 条，138s） |
+| 全量 `npm test` | **618 通过 / 0 失败**（86s） |
 | 端到端 | 见上面「端到端验收（2026-10-05）」表：15 条全部 `pass` → 全部动态 + 企划日历 + `.ics` |
-| dev 库 | 三条新源 `T2 / editorial / interval 360 / enabled t`；删掉 12 条历史 `x_*` 后剩 30 条 |
+| dev 库 | 三条新源 `editorial / interval 360 / enabled t`；删掉 11 条历史 `x_*` 后剩 30 条 |
+
+**W6 收尾（2026-10-05，第二版校准 + 票价修正之后）**
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（含 `npm run typecheck -w @girlsbands/web`） |
+| `node --test-global-setup=tests/databases.ts --import ./tests/databases.ts --test --test-timeout=120000 tests/sources.test.ts tests/analyze.test.ts` | **25 通过 / 0 失败**（`{money:}` 5 条新断言 + `tierThreshold("T2_EVENT")` / `EXCLUDE_MP`） |
+| 全量 `npm test`（模板库洗干净之后） | **618 通过 / 0 失败**（86s） |
+| 评测复跑 | `.data/eval/selection-all-57-1791146595746.json`、SelectBench `sb-20261004-3f6342`：acc 0.912 / P 0.97 / R 0.889 / F1 0.928；国内 14/15 |
+| 精选出口 | `GET /feed.xml` 200 / 51545B / 50 条 item，其中 **14 条国内**（9 CPP + 4 B站 + 1 秀动），摘要里已是「票价 ¥68 起」 |
+| 条目页 | `GET /items/k1uqn1nxtfioqrfwwygfr2lg9`（B站天津拉邦烤）200 / 36315B，命中「拉邦烤」「¥68」「乒乓」「2026-10-24」 |
+| 企划日历 | `/calendar.ics` 105 个 VEVENT、CRLF、0 行超 75 octets；`/calendar/girls-band-cry.ics` 46 个含「哭泣少女乐队Only Live」，`/calendar/bang-dream.ics` 56 个不含（归属正确） |
+| dev 库 | 三条新源 `tier = T2_EVENT`、`sources_tier_check` 含 `T2_EVENT`；15 条国内条目 **14 条 `selected = t`**（门槛 54）、全部 `analyzed / eligible / public / full` |
+| 安全阀 | `.env` 的 `COLLECT_ENABLED` / `MODEL_CALLS_ENABLED` 已恢复 `false`（与 `.data/env.eval.backup` 逐行一致） |
 
 **W6 踩到的坑**
 - **模型配额是这次唯一的真障碍**：`registerContentJobs` 的 `localConcurrency: 6`（`packages/backend/src/jobs/content.ts:188`）撞上服务商「60s 内 120 次」的限额 —— 开阀门后 29 个源一次全量重抓（97 条新条目）把配额打满，我们那 15 条首轮 **15/15 都是 `llm HTTP 429: 请求过于频繁（60s 内超过 120 次）`**，靠 `RETRY_MINUTES = [5,10,20,40,60,120,240,360]`（`jobs/content.ts:18`）的阶梯重试到第 2 轮才过（`processing_attempts = 2`）。稳态（每天几条）碰不到，但「一次全量重抓」一定碰到 —— 这是 W5 成本与模型要看的第一个数字。
 - **改 `.env` 不会让 `node --watch` 重启**：`apps/worker` 的进程是 `node --watch --env-file-if-exists=../../.env src/main.ts`，换安全阀必须 `touch apps/worker/src/main.ts`，否则你以为阀门开了、其实还是旧的（第一轮采集会一直不出现）。
 - **`structure.md` 写了「只写日期不写时刻」，模型仍会写时刻**：秀动那条抽出的是 `{"at":"2026-10-11T15:30","kind":"event"}`。`publication/deadlines.ts:38` 的 `jstInstant` 按 JST 解释，15:30 这种下午场没事，但**北京时间 23:00 之后开演的场次会被推成次日**。要彻底消掉得让结构步骤按来源地区选时区，现在没做。
 - **关阀门要等积压跑完**：worker 拿不到模型时条目会按 `RETRY_MINUTES` 阶梯重试，整条阶梯走完（约 14 小时）才落 `failed`；中途关掉会把剩下的积压条目一路耗到终态，之后只能从后台「重试」救回来。
+- **单文件跑测试必须带 preload，否则会污染模板库**：`node --test tests/x.test.ts`（不带 `--import ./tests/databases.ts`）会直接写进 `DATABASE_URL` 指向的模板库 `girlsbands_test` —— 而模板库是所有测试文件克隆的来源（`tests/databases.ts:62-65`）。留下 2 条 `test-analyze-*` 源和 13 篇文章之后，之后的**全量**运行里 `tests/backend-read-load.test.ts`（断言 `sources` 恰好 2 条）、`tests/grouping-reliability.test.ts`、`tests/processing-recovery.test.ts` 会无端变红（实测 4 条失败、单跑也红），排查半天才发现与代码无关。正确写法：`node --test-global-setup=tests/databases.ts --import ./tests/databases.ts --test --test-timeout=120000 tests/x.test.ts`。模板库脏了就洗一遍：`DROP DATABASE girlsbands_test WITH (FORCE)` → `CREATE DATABASE girlsbands_test OWNER aniband` → `DATABASE_URL=postgres://…/girlsbands_test node scripts/migrate.ts`；**干净模板里 `sources`/`articles`/`receipts` 都必须是 0，只有迁移自己插的 9 条 `budgets`**。
 
 **订正**
 - 本文档 W2-1 原写「`scripts/seed.ts` 是 upsert，改完跑一次 seed 即可」→ 错，是 `ON CONFLICT (id) DO NOTHING`，必须加迁移。

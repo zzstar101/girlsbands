@@ -96,6 +96,8 @@ test("every prompt in the pack renders, with the site's own name", () => {
 
 test("a selected item: prefilter, two scores, the content understanding and the structure", async () => {
   assert.equal(tierThreshold("T1"), 54);
+  assert.equal(tierThreshold("T2_EVENT"), 54, "domestic event listings carry their own threshold");
+  assert.equal(tierThreshold("EXCLUDE_MP"), null, "a tier without a threshold is never scored for 精选");
   const id = await article("CLEAR");
   const res = await analyzeArticle(id);
   assert.deepEqual([res!.output!.selected, res!.output!.score], [true, 75], "78 + 72 = 150 >= 108");

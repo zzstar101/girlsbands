@@ -113,7 +113,7 @@
 - 接口本身返回数组时，省略 `itemsPath`。`titlePaths`、`summaryPaths`、`authorPaths` 是候选路径数组，按顺序取第一个非空值，例如 `["title", "name"]`。
 - 已有完整网址时用 `{raw:url}`；只有 slug 时可用 `https://example.com/posts/{slug}`。`{字段路径}` 会编码字段值，`{raw:字段路径}` 原样插入。JSON 列表不会自动把相对网址补成绝对网址，模板应产出完整的 HTTP(S) 地址。
 - 日期建议返回带时区的 ISO 字符串；数字时间戳分别设 `publishedAtUnit: "epoch_s"`（秒）或 `"epoch_ms"`（毫秒），`20261001` 这类日期设 `"yyyymmdd"`。不写 `publishedAtUnit` 时，13 位数字当毫秒、10 位当秒、8 位当 `yyyymmdd`。
-- `summaryTemplate`：把接口字段拼成一段正文，段落之间用 `|` 或 `｜` 分隔，例如 `"活动时间：{date:enterTime}｜城市：{cityName}｜想去：{wannaGoCount} 人"`。`{字段路径}` 取文字（去掉 HTML 标签），`{date:字段路径}` 归一成 `YYYY-MM-DD`：带时区的 ISO 按原时区、纯 `YYYY-MM-DD` 原样、epoch 数字与 `YYYY-MM-DD HH:MM:SS` 这类**不带时区的墙钟**按 `publishedAtUtcOffset`（默认 `+08:00`）换算。**某个占位符取不到值就整段连同分隔符丢掉**（缺区县的场次不会留下「区县：」空壳），全段都取不到才退回 `summaryPaths`。字段路径本身不用写在模板里。
+- `summaryTemplate`：把接口字段拼成一段正文，段落之间用 `|` 或 `｜` 分隔，例如 `"活动时间：{date:enterTime}｜城市：{cityName}｜想去：{wannaGoCount} 人"`。`{字段路径}` 取文字（去掉 HTML 标签），`{date:字段路径}` 归一成 `YYYY-MM-DD`：带时区的 ISO 按原时区、纯 `YYYY-MM-DD` 原样、epoch 数字与 `YYYY-MM-DD HH:MM:SS` 这类**不带时区的墙钟**按 `publishedAtUtcOffset`（默认 `+08:00`）换算，`{money:字段路径}` 把**以分为单位的票价**换算成读者能看懂的元（`6800` → `¥68`，`6850` → `¥68.5`，B 站会员购的 `price_low` 就是这种）。**某个占位符取不到值就整段连同分隔符丢掉**（缺区县的场次不会留下「区县：」空壳；票价不是数字时「票价：」也跟着走，不会印出一个瞎编的价格），全段都取不到才退回 `summaryPaths`。字段路径本身不用写在模板里。
 - `urls`：同 `web_list`，一个源扇出多条列表地址（每个查询参数一条），单条空结果只记 `count: 0`。
 - 缺少标题或无法生成链接的条目会跳过。非空数组全部映射失败时，会报 `no items mapped (check title/url paths)`；路径不是数组时，会报 `items path did not resolve to an array`。**接口用 HTTP 200 掩盖失败时（body 里 `data: null`），这一条也会触发** —— 别把 `pagesize` 这类上限调大，上限超了就是 65 字节的空壳响应。
 

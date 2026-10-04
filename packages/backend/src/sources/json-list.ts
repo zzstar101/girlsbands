@@ -96,22 +96,43 @@ function listingDay(v: unknown, unit: string | undefined, offset: string): strin
 }
 
 /**
+ * Ticket and shop APIs quote prices in fen (分), the way the reader never sees them: 6800 is ¥68.
+ * Returns null for anything that is not a number, so a "价格待定" field drops its segment instead of
+ * printing a made-up price.
+ */
+export function moneyText(value: unknown): string | null {
+  const raw = String(value).trim();
+  if (raw === "") return null;
+  const fen = typeof value === "number" ? value : Number(raw);
+  if (!Number.isFinite(fen)) return null;
+  const yuan = fen / 100;
+  const text = Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2).replace(/0+$/u, "").replace(/\.$/u, "");
+  return `¥${text}`;
+}
+
+/**
  * The listing's own text for one item, e.g. "活动时间：2026-11-15｜城市：北京｜会场：…":
- * `{path}` is a value, `{date:path}` the calendar day that date field names. A segment whose
- * placeholder resolves to nothing is dropped with its separator, so an item without a venue does
- * not leave "会场：" hanging. Returns null when nothing at all resolves (the source falls back).
+ * `{path}` is a value, `{date:path}` the calendar day that date field names, `{money:path}` a price
+ * in fen as the yuan a reader pays. A segment whose placeholder resolves to nothing is dropped with
+ * its separator, so an item without a venue does not leave "会场：" hanging. Returns null when nothing
+ * at all resolves (the source falls back).
  */
 export function renderFields(template: string, item: unknown, utcOffset = "+08:00"): string | null {
   const parts: string[] = [];
   for (const segment of template.split(/(?=[|｜])/u)) {
     let missing = false;
-    const text = segment.replace(/\{(raw:|date:)?([^}]+)\}/g, (_m, kind: string | undefined, path: string) => {
+    const text = segment.replace(/\{(raw:|date:|money:)?([^}]+)\}/g, (_m, kind: string | undefined, path: string) => {
       const v = getPath(item, path);
       if (v === undefined || v === null || v === "") { missing = true; return ""; }
       if (kind === "date:") {
         const day = listingDay(v, undefined, utcOffset);
         if (!day) { missing = true; return ""; }
         return day;
+      }
+      if (kind === "money:") {
+        const money = moneyText(v);
+        if (!money) { missing = true; return ""; }
+        return money;
       }
       return collapseWhitespace(stripTags(String(v)));
     });
