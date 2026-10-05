@@ -219,12 +219,16 @@ test("总览按企划分组，侧栏入口按主体给，sitemap 只收够 5 篇
   assert.deepEqual(gbc.bands.map((b) => b.id), ["togenashi-togeari", "canna-lily", "f-272", "kuzumimizuku", "diamond-dust"]);
   assert.equal(gbc.bands[0]!.members.length, 5);
   assert.ok(gbc.bands[0]!.members.some((m) => m.id === "nina-iseri" && m.actor?.name === "理名"));
-  // 担当是「官方写明了才有」的可选字段：16 支乐队的官网逐条查过（来源写在 .data/glossary-members.tsv 的备注列），
-  // 只剩ダイヤモンドダスト的奈奈 / 凛 / 爱 —— 官方角色页只列年龄、没有乐器图标，非官方来源不采用。
+  // 担当是「官方写明了才有」的可选字段：16 支乐队的官网逐条查过（来源写在 .data/glossary-members.tsv 的备注列）。
+  // ダイヤモンドダスト的奈奈 / 凛 / 爱 官方角色页只列年龄、没有乐器图标，站主 2026-10-06 拍板改用非官方来源
+  // （ja.wikipedia、萌娘百科、anison.info 三处一致），88 个角色因此全部有担当。
   assert.equal(gbc.bands[2]!.members.find((m) => m.id === "momono-asai")?.role, "Ba.");
   const all = list.groups.flatMap((g) => g.bands.flatMap((b) => b.members));
-  assert.equal(all.filter((m) => m.role).length, 85);
-  assert.deepEqual(all.filter((m) => !m.role).map((m) => m.id).sort(), ["ai", "nana", "rin"]);
+  assert.equal(all.filter((m) => m.role).length, 88);
+  assert.deepEqual(all.filter((m) => !m.role).map((m) => m.id), [], "每个角色都有担当了");
+  assert.equal(memberById("nana")!.role, "Ba.", "非官方来源：ナナ=ベース");
+  assert.equal(memberById("rin")!.role, "Gt.", "非官方来源：リン=ギター");
+  assert.equal(memberById("ai")!.role, "Dr.", "非官方来源：アイ=ドラム");
   assert.equal(memberById("uika-misumi")!.role, "Gt./Vo.", "Ave Mujica 只有初华带 Vo.（官方写 Gt.&Vo.），祥子是 Key.");
 
   // 侧栏：乐队给自己那 5 个，企划给系列里所有乐队（含手游那两支），方向页与未知主体什么都没有。
