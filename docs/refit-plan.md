@@ -430,7 +430,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 
 ---
 
-### W8 · LiveEvent 一等实体（P0）
+### W8 · LiveEvent 一等实体（P0）· ✅ 已完成 2026-10-05
 
 **为什么**：现在一场 Live 没有身份 —— `facts` 只挂 `story_id`（`database/migrations/0002_events_reports.sql:51-65`），而 story 身份会合并、会 308 跳转（`packages/backend/src/publication/stories.ts:18/:28` 的 `resolveStory`），`stories.frame` 在 dev 库全是 null、`story_aliases` 是空表。所以「这场 Live 现在走到哪一步」无处可算，几十条情报只能各自成篇。
 
@@ -479,7 +479,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 | 已知缺口 | `publications.category='live'/'ticket'` 的条目大多还没进 facts，所以「一场 Live 一条时间线」目前只在少数条目上成立；三场里 mygo `2026-11-14` 是 0 轮次（它的事实 14 从没重分析过、没有 `output.live`）；`代官山SPACE ODD` 等会场补进词表会改 `GLOSSARY_VERSION` → 全站重译，**要单独一次决定** |
 | 模型质量问题（照实记） | 事实 4 的引文里明明有 `受付期間:2026年10月3日(土)20:00〜10/10(土)23:59`，模型却把 `applyEnd` 写成 `null`（没把 `10/10` 归一成年份）。这是提示词/模型的问题，不是 `normalizeRounds` 的校验漏洞 —— 校验只做「引文里真的出现了吗」，不替模型补年份 |
 
-**待站主拍板**：Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结的 Live 页要不要长期保留。（阶段 B 灰度重跑已跑完，见上表。）
+**待站主拍板（2026-10-05 已拍板，两条都不需要改代码）**：① **粒度保持「一站一实体」** —— 昼/夜两场按开演时刻分成两个页面；对盘时每支乐队的公告各建一页（谁的通知挂谁的页）；巡演每一站各一页，票务与日期不混在一起。要改成「巡演一实体」或「对盘一实体」只需动唯一键与 `mergeKeys`。② **已完结的 Live 页长期保留、照常收录** —— 阶段照常派生 `finished`，页面 200、进 sitemap、企划页里排在未开演之后；W16 的「事后档案」就建在这些页上。（阶段 B 灰度重跑 2026-10-05 已跑完，见上表。）
 **工作量**：2.5 天（阶段 A 约 1 天，阶段 B 与页面 1.5 天），阶段 A 零模型成本。
 
 ---
@@ -513,7 +513,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 | 测试 | `tests/ticket-rounds.test.ts` | 8 个测试全绿（键与幂等、状态六阶段、雷达去重、演出页、公开接口、槽位映射、信源时区） |
 
 **实现与验证（2026-10-05 完成）**：`npm run typecheck` 全绿；`npm run db:migrate` → `applied 0061_ticket_rounds.sql`；`tests/ticket-rounds.test.ts` 8/8；全量测试见 §六。dev 库里用合成轮次实测过三处出口（造完即删，库里现在 0 行轮次）。**已知缺口**：dev 库 438 条 publications 里只有 30 条有 `fact_id`/`story_id`，所以「同一天由另一篇文章写出的票务日期」既不是 `tr.first_article_id` 也连不到同一场演出，接管不到 —— 那是数据现状（老条目没有事实身份），不是规则漏洞。
-**待站主拍板**：已拍板三条 —— 轮次是票务日期的权威（`deadlines` 只是投影）、不记个人当落、平台名照原文（不做中文显示名映射，`industry/glossary.ts` 一个字不改，否则 `GLOSSARY_VERSION` 变会让全站重译）。**剩下一条**：W8 阶段 B 的灰度重跑什么时候跑（dev 库 28 条候选 × 约 6 次调用 ≈ 170 次；`MODEL_CALLS_ENABLED=false`；重跑期间条目因 `grouping_status = pending` 短暂下架）。
+**待站主拍板**：已拍板三条 —— 轮次是票务日期的权威（`deadlines` 只是投影）、不记个人当落、平台名照原文（不做中文显示名映射，`industry/glossary.ts` 一个字不改，否则 `GLOSSARY_VERSION` 变会让全站重译）。**剩下一条已办**：W8 阶段 B 的灰度重跑 **2026-10-05 已跑完**（`--tag live-ticket-v1`，`queued: 28`，约 170 次调用；跑完没有新建演出、也没有轮次，新轮次由回填脚本补进 `ticket_rounds` 2 条 —— 原因见 §六 W8 的「重跑为什么不建演出」）。
 **工作量**：3 天（实际约 1.5 天，含提示词扩写与页面；重跑本身花模型钱且条目会短暂下架）。
 
 ---
@@ -1111,7 +1111,9 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 | 迁移 | 已应用到 dev 库 |
 | 阶段 A 回填 | `candidates: 6, linked: 3, no identity: 3`（被拒的 3 条是 `stream` / `collab`）；**误并 0、误分 0**；库里的三场：`kuzumimizuku 2026-10-18`、`girls-band-cry ぴあアリーナMM 2026-11-03`、`mygo 2026-11-14` |
 | 出口实测 | 三个 `/api/site/lives/<id>` 全 200（阶段 `ticketing`，报道 2/2/3）；`/live/<id>` 200、未知 id 404；主体页 Live 区块与 story 胶囊都链到演出页；`/sitemap.xml` 含 3 条 `/live/<id>` |
-| 模型花费 | 阶段 A 零；阶段 B 只写了代码与脚本，**重跑还没跑**（`scripts/reanalyze-live-tickets.ts --dry` → `candidates: 28`，换 tag 后每条约 6 次调用 ≈170 次，等站主开窗口） |
+| 模型花费 | 阶段 A 零；阶段 B 灰度重跑 **2026-10-05 已跑完**（`scripts/reanalyze-live-tickets.ts --tag live-ticket-v1`，`queued: 28`，约 170 次调用）：24 条抽到 `output.live`（13 条带轮次、共 14 个轮次窗口），**没有新建演出、也没有轮次** —— 重跑过的条目不会再归组（21 条是历史条目、不建事实；其余走提前返回），新轮次由回填脚本补进 `ticket_rounds`（2 条）。详见上面的「实现与验证」 |
+
+**W8 收尾（2026-10-05 拍板，无需改代码）**：粒度保持**一站一实体**（昼/夜按开演时刻分开、对盘各乐队各一页、巡演一站一页；要改只需动唯一键与 `mergeKeys`）；**已完结的 Live 页长期保留、照常收录**（阶段照常派生 `finished`，页面 200、进 sitemap、企划页排在未开演之后）—— W16 的「事后档案」就建在这些页上。
 
 **W8 踩到的坑**
 - **「有日期的活动」不等于演出**：`stream`（生放送）、`collab`（展览、快闪店）都会被 structure 抽成 `kind='event'`。第一批 6 条候选里 3 条就是这么误建的，必须按 `publications.category` 设门。
@@ -1294,6 +1296,7 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - **抽取结果里没有 cast（出演者）**：`output.live` 与 `output.fact` 都没有出演者字段 ⇒ 站主要的「出演者变化」只能走自由文本那条路，别指望结构化比较。
 - **角标要 `relative z-10`**：卡片标题链接带 `after:absolute after:inset-0` 覆盖整张卡片，角标不加 `relative z-10` 会被压住点不到。
 - **`composeStoryDigest` 会把 `stories.title` 改成综述模型给的标题**：端到端夹具里两个事件因此都变成「标题」——按标题找库里的行会找错，要按 `public_id` 找（测试里也一样，别拿标题当断言锚点）。
+- **迁移只跑在另建的 `_test` 库不算跑过**：W14 的 `0064_story_digest_facts.sql` 只应用到了端到端临时库 `aniband_w14_test`，**dev 库一直停在 `0063`**（`schema_migrations` 60 行）—— 于是本地 dev 站凡是要查库的页面全 503：`packages/backend/src/publication/deadlines.ts:50-58` 的 `deadlineWindow` 读 `sd.change_kinds`，没有这一列就整条查询失败，`/deadlines` 与 `/live/<id>` 一起倒。2026-10-05 做 W8 收尾时才踩到并补上：`node --env-file-if-exists=.env scripts/migrate.ts` → `applied 0064_story_digest_facts.sql`、`1 migration(s) applied`，补完两个页面立刻 200。**两个注意**：`scripts/migrate.ts` 必须带 `--env-file-if-exists=.env`（裸跑 `node scripts/migrate.ts` 会因没有 `DATABASE_URL` 直接崩）；以后每个带迁移的波次收尾，dev 库也要跑一次迁移，别只在临时库里验。
 
 **W15（2026-10-05 完成）：远征参考页**
 
@@ -1330,7 +1333,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 | **W17** | 官方判据用 `owner_entity_id IS NOT NULL`（12 个 T1_5 官方 X 也算官方，含 5 个成员个人 X）还是 `tier = 'T1'`（`first_party` 只认 T1，见 `packages/backend/src/publication/publish.ts:294`） | 前者更准，后者更保守 |
 | ~~**W12**~~ ✅ | ~~关注 → 邮件的 token 方案：**不做**读者端自生成 token（它同时是 `List-Unsubscribe` 凭据，自生成会把 `subscribers.token` 变成可猜面），改成 `/subscriptions/:token` 短链别名；「只看关注」本地过滤还是服务器筛；按类别过滤邮件（`0063_subscriber_kinds.sql` + `subscribers.kinds`）做不做~~ | **已拍板 2026-10-05**：短链别名照做；**服务器筛**（`?subjects=a,b`，本地过滤在服务端分页下每页只剩零星几条）；**不做按类别过滤** ⇒ W12 无迁移、0063 让给 W13。其余产品决定（关注只在列表页与订阅页起作用、企划 = 整个系列、开关默认关、关注列表放 `/starred` 顶部、没关注时也给引导）见 §六 W12 |
 | ~~**W7**~~ ✅ | ~~`.ics` 用当地时刻（日本 18:30 / 中国 15:30）还是统一北京时间；北京时间 21:00 之后的场次在「今天截止」里算哪天~~ | **已拍板 2026-10-05**：用当地时刻 + `TZID`、按当地日历（已完成） |
-| **W8** | Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留 | **代码按「一站一实体」落地了**（键 = 主体 + 会场 + 开演日 + 开演时刻，同一场取信息最全的那篇报告），要改粒度只需动唯一键与 `mergeKeys`；已完结页现在照常保留。**阶段 B 灰度重跑 2026-10-05 已跑完**（`candidates: 28`，`tag live-ticket-v1`，约 170 次调用）：24 条抽到 `output.live`，但**没有新建演出、也没有轮次** —— 重跑过的条目不会再归组（21 条是历史条目、不建事实；其余走提前返回），新轮次改由回填脚本补进 `ticket_rounds`（2 条）。详见 §六 W8 的「实现与验证」 |
+| ~~**W8**~~ ✅ | ~~Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留~~ | **已拍板 2026-10-05**：① **保持「一站一实体」** —— 昼/夜按开演时刻分成两页、对盘各乐队各一页（谁的通知挂谁的页）、巡演一站一页；要改成「巡演一实体 / 对盘一实体」只需动唯一键与 `mergeKeys`。② **已完结的 Live 页长期保留、照常收录**（页面 200、进 sitemap、企划页排在未开演之后），W16 的「事后档案」就建在这些页上。两条都不需要改代码。阶段 B 灰度重跑 2026-10-05 已跑完（`candidates: 28`、`tag live-ticket-v1`、约 170 次调用）：24 条抽到 `output.live`，但**没有新建演出、也没有轮次** —— 重跑过的条目不会再归组（21 条是历史条目、不建事实；其余走提前返回），新轮次改由回填脚本补进 `ticket_rounds`（2 条）。详见 §六 W8 |
 | ~~**W9**~~ ✅ | ~~`deadlines` 与 `ticket_rounds` 哪个权威；`status` 要不要含**个人**当落；`platform` 要不要中文化~~ | **已拍板 2026-10-05**：轮次权威、`deadlines` 只是投影；不含个人当落（站不持有账号）；平台名**照原文**、不做中文显示名映射（`industry/glossary.ts` 一个字不改 —— 改任何 `forms` 都会让 `GLOSSARY_VERSION` 变、全站重译）。已落地：见上面「实现与验证（2026-10-05 完成）」 |
 | ~~**W10**~~ ✅ | ~~首页 horizon 取 14 还是 30 天；「即将开售」是否包含周边开订（`merch_start`）与 CD/BD 发售日（`release_start`）~~ | **已拍板 2026-10-05**：首页 **14 天**（30 天全量留在 `/deadlines`）；「即将开售」= `sale_start` + `release_start` + `merch_start`。已落地：见 §六「W10 · 行动中心」的「实现与验证（2026-10-05 完成）」 |
 | ~~**W11**~~ ✅ | ~~店铺特典真源（公告通常只写「対象店舗」）：开人工 `industry/releases/{slug}.json` 还是接受「模型只抽公告里写了的」；粒度是 1 个 `releases` + 3 个 editions 还是 3 行；存量 `other` 要不要花钱重抽~~ | **已拍板 2026-10-05**：只抽公告写了的（不开人工配置，公告只写「対象店舗」就显示这几个字）；粒度取 **1 个 `releases` + N 个 editions**；存量**重抽**。已落地：见 §六「W11 · 发售·版本·特典数据库」的「实现与验证（2026-10-05 完成）」（68 条候选 → 55 张碟 / 21 个版本 / 15 个店铺特典 / 3 个序列号；`processing_attempt_tag` 沿用上次评估的标签 ⇒ 只花 `release` 这一步的钱） |
