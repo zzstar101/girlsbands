@@ -40,6 +40,15 @@
 换实例时 `feedUrl` 与 `from` 两处都要改，`handle` 也要按新实例的要求写（kareem.one 只认小写）；
 两边的 `http://` / `https://` 不一致没关系，比较时会忽略 scheme（`rewriteUrl`）。
 
+本站 2026-10-06 起所有 X 源都走 `nitter.meowing.monster`，共 92 条：企划与乐队官方号 13 条、
+声优个人号 79 条。它们都是 `tier: "T1_5"` + `owner_entity_id`，所以权利层级自动落在「官方一手」。
+加号的原则（站主 2026-10-06 定）：staff/info 号只收本人号（`@yopipi_artist`、`@aiai_staff`、
+`@okadameiSTAFF` 不收）；共用企划号的 9 支乐队不重复配源；只有 bio 自证的 5 个中置信号也收。
+首次入库用 `_girlsbands.initialBackfillLimit: 5`，之后 `adaptIntervals` 按各号实际发帖量把间隔
+拉到 15–120 分钟，所以 80 多条源不会一直按 120 分钟整点一起打。
+镜子是志愿者实例：2026-08 X 已对 Nitter / XCancel 发律师函、上游仓库归档，随时可能整体消失；
+备用方案是 `x_search`（配 `SOCIALDATA_API_KEY`，按返回条数计费，实测约 $0.6–1.7/月）。
+
 ### web_list
 
 支持普通 CSS 选择器，`div` 列表也能采集。关键是 `itemSelector` 要选中**每条新闻**，而不是包住所有新闻的容器。例如：

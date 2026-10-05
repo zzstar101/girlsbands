@@ -1,5 +1,5 @@
 {
-  "$comment": "示范信源：首次启动时导入（scripts/seed.ts），已存在的不会被覆盖。之后在后台“信源”里新建、修改和暂停。字段说明见 docs/customize.md，各 kind 的配置项见 docs/sources.md。tier：T1 官方一手（官网、唱片公司）／T1_5 官方社交账号（企划、乐队、成员本人）／T2 专业媒体与商业平台。注意：数据库的 tier 只有这四个字面值，没有 “T3”；本仓库说的“T3 热点信号”用 participation_mode=“hot_signal” 表达（只做热度证据，不单独展示）。每条 URL 都在 2026 年实测过：只收录返回正常 RSS/Atom 的订阅源，以及用 curl 取回原始 HTML、再用 cheerio 真实解析确认过结构的列表页（选择器来自真实标记，未凭猜测填写）。这一轮实测被排除的：音楽ナタリー（AWS WAF，连 /robots.txt 都返回 405 Human Verification）、Animate Times（RSS 返回 0 字节、列表页 404）、ORICON（按 IP 限流，密集请求后 429）、Billboard Japan 与 THE FIRST TIMES／アニメアニメ／声グラ／VoiS（Feed 都能取到，但一次窗口里少女乐队命中率为 0/30、0/30、0/50、0/10、0/30，而框架没有“只保留命中关键词”的白名单过滤，收录只会灌入无关条目）、BARKS（10 条里命中 1 条，暂未收录）、イープラス等票务平台（列表由 JS 渲染，服务端 HTML 里没有条目链接）。x_search 需要 SOCIALDATA_API_KEY，未配置时整个 T1_5 官方社交层都收不到内容。2026-10 站主拍板：这个站把日文原文整篇搬进站内、翻成中文，不再看上游许可，所以 18 个 editorial 源的 site_fulltext 全部打开（正文抓得到就整篇展示，抓不到就退回摘要）；hot_signal 源没有公开页面，保持关闭。syndicate_fulltext 仍全关——它管的是 RSS 与公开 API 的 content 字段（把整篇再分发出去），那是另一个决定，要开再单独开。hot_signal 源（はてなブックマーク／Reddit／Zepp・LOFT・CLUB CITTA' 场馆日程／イープラス）只做热度证据：它们不进分析队列（不花模型钱），公开页面的取数条件要求 participation_mode='editorial'，所以也不会单独出现在时间线上，只能作为事件热度或被 T1 官方源认领后的旁证。三项已知限制写在这里以免后人踩坑：①场馆日程的日期拆在多个标签里，publishedAt 一定是空，时间线只能回落到 discovered_at；②イープラス 走的是搜索页内嵌 JSON（/sf/search 在它的 robots.txt 里被明确 Disallow，是否采集由站主拍板），且受付时间是 14 位 YYYYMMDDHHMMSS，框架不认，同样没有 publishedAt，并需在后台错峰开关；③Reddit 匿名 IP 约每分钟只能请求一次，两条 Reddit 源必须错峰，否则后一条会拿到 429 并被退避到 6 小时。后台每个信源都能先预览再启用。 X 采集的落地方式（2026-10 决定）：不用需要 SOCIALDATA_API_KEY 的 x_search，改用 Nitter 镜像的按账号 RSS（kind=rss），再用 itemUrlPrefixRewrite 把镜像域名改写成 x.com，所以拿到的是可点击、可被 T1 认领的推文原链；summaryIsBody=true 是因为推文正文就在 RSS 的 description 里，不需要再抓页面。两条已实测可用的镜像是 nitter.kareem.one 与 nitter.meowing.monster（各 200、各 20 条），11 个账号在两个实例间分摊限流（2026-10-06 起 kareem.one 4 条、meowing.monster 7 条）。镜子是志愿者实例，随时可能下线：挂掉时改 feedUrl 的域名和同一条的 itemUrlPrefixRewrite.from 即可（两处必须一致）。换实例时 handle 的大小写也要一起对：同一个 BDP_AveMujica 在 kareem.one 上返回 404、小写 bdp_avemujica 才 200，而 meowing.monster 原样大小写即可。三条实测得到的运维常识：①镜像在密集请求下会偶发 HTTP 404，同一账号隔几分钟重试就恢复 200，手动补抓要留 25–30 秒间隔；②镜像条目里约 45% 是转推，标题带 “RT by @xxx:” 前缀、链接与 dc:creator 都指向原作者，所以官方账号会带进被它转推的其他账号（既包括官方兄弟账号，也包括粉丝号与周边店）——这与旧 x_search（同样的 -filter:replies 查询其实也含转推）行为一致，靠预筛和评分压掉，暂不额外过滤；③短于 280 字的推文会命中 rss.ts 里“摘要超过 280 字才算正文”的规则，落到 body_status=pending 并触发两次注定失败的正文抓取（x.com 抓不到），但摘要里已经是完整推文，判定不受影响，代价只是每条多等约 20 分钟。④这条路的法律前提已经没了：2026-08-24 X Corp. 给 Nitter 与 XCancel 的作者各发律师函、限约 24 小时，两个服务当天下线、zedeus/nitter 仓库归档只读，其他实例也收到同类信件；更关键的是自 2024 年初 X 取消访客账号后，跑 Nitter 必须绑一个真实 X 账号（律师函指控的正是访问 X 账号与会话令牌这一点）。2026-10-06 站主拍板：继续用 Nitter，等彻底不行再切。兜底方案是 SocialData 的 x_search（读取器 packages/backend/src/sources/x.ts 已就绪并有测试，按返回条数 $0.0002，我们这个量级约 $0.6–1.7/月，预充值、余额不过期），启用方式见 docs/sources.md 的 x_search 一节。",
+  "$comment": "示范信源：首次启动时导入（scripts/seed.ts），已存在的不会被覆盖。之后在后台“信源”里新建、修改和暂停。字段说明见 docs/customize.md，各 kind 的配置项见 docs/sources.md。tier：T1 官方一手（官网、唱片公司）／T1_5 官方社交账号（企划、乐队、成员本人）／T2 专业媒体与商业平台。注意：数据库的 tier 只有这四个字面值，没有 “T3”；本仓库说的“T3 热点信号”用 participation_mode=“hot_signal” 表达（只做热度证据，不单独展示）。每条 URL 都在 2026 年实测过：只收录返回正常 RSS/Atom 的订阅源，以及用 curl 取回原始 HTML、再用 cheerio 真实解析确认过结构的列表页（选择器来自真实标记，未凭猜测填写）。这一轮实测被排除的：音楽ナタリー（AWS WAF，连 /robots.txt 都返回 405 Human Verification）、Animate Times（RSS 返回 0 字节、列表页 404）、ORICON（按 IP 限流，密集请求后 429）、Billboard Japan 与 THE FIRST TIMES／アニメアニメ／声グラ／VoiS（Feed 都能取到，但一次窗口里少女乐队命中率为 0/30、0/30、0/50、0/10、0/30，而框架没有“只保留命中关键词”的白名单过滤，收录只会灌入无关条目）、BARKS（10 条里命中 1 条，暂未收录）、イープラス等票务平台（列表由 JS 渲染，服务端 HTML 里没有条目链接）。x_search 需要 SOCIALDATA_API_KEY，未配置时整个 T1_5 官方社交层都收不到内容。2026-10 站主拍板：这个站把日文原文整篇搬进站内、翻成中文，不再看上游许可，所以 18 个 editorial 源的 site_fulltext 全部打开（正文抓得到就整篇展示，抓不到就退回摘要）；hot_signal 源没有公开页面，保持关闭。syndicate_fulltext 仍全关——它管的是 RSS 与公开 API 的 content 字段（把整篇再分发出去），那是另一个决定，要开再单独开。hot_signal 源（はてなブックマーク／Reddit／Zepp・LOFT・CLUB CITTA' 场馆日程／イープラス）只做热度证据：它们不进分析队列（不花模型钱），公开页面的取数条件要求 participation_mode='editorial'，所以也不会单独出现在时间线上，只能作为事件热度或被 T1 官方源认领后的旁证。三项已知限制写在这里以免后人踩坑：①场馆日程的日期拆在多个标签里，publishedAt 一定是空，时间线只能回落到 discovered_at；②イープラス 走的是搜索页内嵌 JSON（/sf/search 在它的 robots.txt 里被明确 Disallow，是否采集由站主拍板），且受付时间是 14 位 YYYYMMDDHHMMSS，框架不认，同样没有 publishedAt，并需在后台错峰开关；③Reddit 匿名 IP 约每分钟只能请求一次，两条 Reddit 源必须错峰，否则后一条会拿到 429 并被退避到 6 小时。后台每个信源都能先预览再启用。 X 采集的落地方式（2026-10 决定）：不用需要 SOCIALDATA_API_KEY 的 x_search，改用 Nitter 镜像的按账号 RSS（kind=rss），再用 itemUrlPrefixRewrite 把镜像域名改写成 x.com，所以拿到的是可点击、可被 T1 认领的推文原链；summaryIsBody=true 是因为推文正文就在 RSS 的 description 里，不需要再抓页面。两条已实测可用的镜像是 nitter.kareem.one 与 nitter.meowing.monster（各 200、各 20 条），2026-10-06 起全部 Nitter 源都走 nitter.meowing.monster（kareem.one 上 BDP_AveMujica 要小写才 200、故障也更频繁）。镜子是志愿者实例，随时可能下线：挂掉时改 feedUrl 的域名和同一条的 itemUrlPrefixRewrite.from 即可（两处必须一致）。换实例时 handle 的大小写也要一起对：同一个 BDP_AveMujica 在 kareem.one 上返回 404、小写 bdp_avemujica 才 200，而 meowing.monster 原样大小写即可。三条实测得到的运维常识：①镜像在密集请求下会偶发 HTTP 404，同一账号隔几分钟重试就恢复 200，手动补抓要留 25–30 秒间隔；②镜像条目里约 45% 是转推，标题带 “RT by @xxx:” 前缀、链接与 dc:creator 都指向原作者，所以官方账号会带进被它转推的其他账号（既包括官方兄弟账号，也包括粉丝号与周边店）——这与旧 x_search（同样的 -filter:replies 查询其实也含转推）行为一致，靠预筛和评分压掉，暂不额外过滤；③短于 280 字的推文会命中 rss.ts 里“摘要超过 280 字才算正文”的规则，落到 body_status=pending 并触发两次注定失败的正文抓取（x.com 抓不到），但摘要里已经是完整推文，判定不受影响，代价只是每条多等约 20 分钟。④这条路的法律前提已经没了：2026-08-24 X Corp. 给 Nitter 与 XCancel 的作者各发律师函、限约 24 小时，两个服务当天下线、zedeus/nitter 仓库归档只读，其他实例也收到同类信件；更关键的是自 2024 年初 X 取消访客账号后，跑 Nitter 必须绑一个真实 X 账号（律师函指控的正是访问 X 账号与会话令牌这一点）。2026-10-06 站主拍板：继续用 Nitter，等彻底不行再切。兜底方案是 SocialData 的 x_search（读取器 packages/backend/src/sources/x.ts 已就绪并有测试，按返回条数 $0.0002，我们这个量级约 $0.6–1.7/月，预充值、余额不过期），启用方式见 docs/sources.md 的 x_search 一节。站主 2026-10-06 决定把各乐队/企划官方号与声优个人号都收进来：官方号 7 条 + 成员 74 条（含 5 个只有 bio 自证的号），staff/info 号只收本人号（@yopipi_artist、@aiai_staff、@okadameiSTAFF 不收），共用企划号的 9 支乐队不重复配源，@Roselia_staff 不收。",
   "sources": [
     {
       "id": "web-gbc-news",
@@ -101,9 +101,9 @@
       "name": "GIRLS BAND CRY 官方 X",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/girlsbandcry/rss",
+        "feedUrl": "https://nitter.meowing.monster/girlsbandcry/rss",
         "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
+          "from": "https://nitter.meowing.monster/",
           "to": "https://x.com/"
         },
         "summaryIsBody": true,
@@ -153,9 +153,9 @@
       "name": "BanG Dream! 企划 官方 X",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/bang_dream_info/rss",
+        "feedUrl": "https://nitter.meowing.monster/bang_dream_info/rss",
         "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
+          "from": "https://nitter.meowing.monster/",
           "to": "https://x.com/"
         },
         "summaryIsBody": true,
@@ -257,9 +257,9 @@
       "name": "理名（トゲナシトゲアリ Vo）X",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/rina_togetoge/rss",
+        "feedUrl": "https://nitter.meowing.monster/rina_togetoge/rss",
         "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
+          "from": "https://nitter.meowing.monster/",
           "to": "https://x.com/"
         },
         "summaryIsBody": true,
@@ -311,9 +311,9 @@
       "name": "美怜（トゲナシトゲアリ Dr）X",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/mirei_togetoge/rss",
+        "feedUrl": "https://nitter.meowing.monster/mirei_togetoge/rss",
         "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
+          "from": "https://nitter.meowing.monster/",
           "to": "https://x.com/"
         },
         "summaryIsBody": true,
@@ -365,9 +365,9 @@
       "name": "朱李（トゲナシトゲアリ Ba）X",
       "kind": "rss",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/shuri_togetoge/rss",
+        "feedUrl": "https://nitter.meowing.monster/shuri_togetoge/rss",
         "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
+          "from": "https://nitter.meowing.monster/",
           "to": "https://x.com/"
         },
         "summaryIsBody": true,
@@ -749,6 +749,2186 @@
       "tags": [
         "演出",
         "票务"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-bang-dream-on",
+      "name": "Our Notes 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/bang_dream_on/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "our-notes",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-bdp-yumemita",
+      "name": "夢限大みゅーたいぷ 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/BDP_yumemita/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mugendai-mewtype",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-millsage-ofc",
+      "name": "millsage 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/millsage_ofc/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "millsage",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-dumbrock-ofc",
+      "name": "一家Dumb Rock! 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/DumbRock_ofc/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "ikkadumbrock",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-cannalily-gbc",
+      "name": "Canna Lily 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/CannaLily_GBC/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "canna-lily",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-f-272-gbc",
+      "name": "F-272 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/F_272_GBC/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "f-272",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-kzmmzk-gbc",
+      "name": "クズミミズク 官方 X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/kzmmzk_GBC/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "organization",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "kuzumimizuku",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-yopipi555",
+      "name": "青山吉能（結束バンド 後藤ひとり）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Yopipi555/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "kessoku-band",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-s-suzushiro",
+      "name": "鈴代紗弓（結束バンド 伊地知虹夏）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/s_suzushiro/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "kessoku-band",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-mizuno-saku",
+      "name": "水野朔（結束バンド 山田リョウ）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/mizuno_saku/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "kessoku-band",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-reina-kondo",
+      "name": "近藤玲奈（ダイヤモンドダスト 日菜）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/reina_kondo/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "diamond-dust",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-matsuoka-misato",
+      "name": "松岡美里（ダイヤモンドダスト 奈奈）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/matsuoka_misato/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "diamond-dust",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-urushiyamayuuki",
+      "name": "漆山ゆうき（ダイヤモンドダスト 凛）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/urushiyamayuuki/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "diamond-dust",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-miyamo-0509",
+      "name": "宮白桃子（ダイヤモンドダスト 爱）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/miyamo_0509/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "diamond-dust",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-aina-kzmmzk",
+      "name": "藍楠（クズミミズク 乙津歌留多）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/aina_kzmmzk/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "kuzumimizuku",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-mana-kzmmzk",
+      "name": "茉那（クズミミズク 飯豊澄羽）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/mana_kzmmzk/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "kuzumimizuku",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-an-kzmmzk",
+      "name": "和音（クズミミズク 若堀若葉）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/an_kzmmzk/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "kuzumimizuku",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-noa-kzmmzk",
+      "name": "乃逢（クズミミズク 卯木風薫）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/noa_kzmmzk/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "kuzumimizuku",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-kaya-kzmmzk",
+      "name": "佳哉（クズミミズク 八峰志乃）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/kaya_kzmmzk/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "kuzumimizuku",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-kisakicannalily",
+      "name": "紫乃月姫咲（Canna Lily 榊原紫苑）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/KisakiCannaLily/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "canna-lily",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-arunecannalily",
+      "name": "椎名在音（Canna Lily 千ヶ崎竜胆）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/AruneCannaLily/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "canna-lily",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-rinecannalily",
+      "name": "早坂莉寧（Canna Lily 星亜矢芽）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/RineCannaLily/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "canna-lily",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-yuwacannalily",
+      "name": "箭野結羽（Canna Lily 橘田楓）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/YuwaCannaLily/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "canna-lily",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-sakuracannalily",
+      "name": "佐野櫻（Canna Lily 雪志摩ナズナ）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/SakuraCannaLily/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "canna-lily",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-yoshi-f272",
+      "name": "YOSHI（F-272 中村有）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/yoshi_F272/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "f-272",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-towa-f272",
+      "name": "TOWA（F-272 宇田川琴）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/towa_F272/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "f-272",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-miyu-f272",
+      "name": "MIYU（F-272 黒宮八月）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/miyu_F272/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "f-272",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-hinano-f272",
+      "name": "HINANO（F-272 浅井萌々乃）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/hinano_F272/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "f-272",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-luca-f272",
+      "name": "LUCA（F-272 加藤嗄生）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/luca_F272/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "f-272",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-aimi-sound",
+      "name": "愛美（Poppin'Party 户山香澄）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/aimi_sound/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "poppinparty",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-sae-otsuka",
+      "name": "大塚紗英（Poppin'Party 花园多惠）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Sae_Otsuka/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "poppinparty",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-rimi-nsmt",
+      "name": "西本りみ（Poppin'Party 牛込里美）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Rimi_nsmt/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "poppinparty",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-ayakaohashi",
+      "name": "大橋彩香（Poppin'Party 山吹沙绫）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/AyakaOhashi/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "poppinparty",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-ayasa-ito",
+      "name": "伊藤彩沙（Poppin'Party 市谷有咲）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/ayasa_ito/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "poppinparty",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-emiryun",
+      "name": "加藤英美里（Afterglow 上原绯玛丽）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Emiryun/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "afterglow",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-maeshima-ami",
+      "name": "前島亜美（Pastel*Palettes 丸山彩）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/_maeshima_ami/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "pastel-palettes",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-uesaka-official",
+      "name": "上坂すみれ（Pastel*Palettes 白鹭千圣）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/uesaka_official/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "pastel-palettes",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-193",
+      "name": "中上育実（Pastel*Palettes 大和麻弥）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/_193_/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "pastel-palettes",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-shawako-914",
+      "name": "秦佐和子（Pastel*Palettes 若宫伊芙）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/shawako_914/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "pastel-palettes",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-aibaaiai",
+      "name": "相羽あいな（Roselia 凑友希那）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/aibaaiai/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "roselia",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-kudoharuka910",
+      "name": "工藤晴香（Roselia 冰川纱夜）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/kudoharuka910/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "roselia",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-yuki-nakashim",
+      "name": "中島由貴（Roselia 今井莉莎）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Yuki_Nakashim/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "roselia",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-sakuragawa-megu",
+      "name": "櫻川めぐ（Roselia 宇田川亚子）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/sakuragawa_megu/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "roselia",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-kanon-shizaki",
+      "name": "志崎樺音（Roselia 白金燐子）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Kanon_Shizaki/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "roselia",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-infoitomiku",
+      "name": "伊藤美来（ハロー、ハッピーワールド！ 弦卷心）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/InfoItomiku/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "hello-happy-world",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-azusatadokoro",
+      "name": "田所あずさ（ハロー、ハッピーワールド！ 濑田薰）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/AzusaTadokoro/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "hello-happy-world",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-toyotamoe",
+      "name": "豊田萌絵（ハロー、ハッピーワールド！ 松原花音）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/toyotamoe/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "hello-happy-world",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-tomoyokurosawa",
+      "name": "黒沢ともよ（ハロー、ハッピーワールド！ 奥泽美咲）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/TomoyoKurosawa/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "hello-happy-world",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-amane-bushi",
+      "name": "進藤あまね（Morfonica 仓田真白）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/amane_bushi/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "morfonica",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-hina-suguta",
+      "name": "直田姫奈（Morfonica 桐谷透子）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/hina_suguta/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "morfonica",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-240y-k",
+      "name": "西尾夕香（Morfonica 广町七深）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/240y_k/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "morfonica",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-mika-d-dr",
+      "name": "mika（Morfonica 二叶筑紫）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/mika_d_dr/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "morfonica",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-ayasa-violin",
+      "name": "Ayasa（Morfonica 八潮瑠唯）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/AyAsA_violin/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "morfonica",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-hina-youmiya",
+      "name": "羊宮妃那（MyGO!!!!! 高松灯）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Hina_Youmiya/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mygo",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-ttisrn-0710",
+      "name": "立石凛（MyGO!!!!! 千早爱音）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/ttisrn_0710/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mygo",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-aoki-hina",
+      "name": "青木陽菜（MyGO!!!!! 要乐奈）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/aoki__hina/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mygo",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-kohinatamika",
+      "name": "小日向美香（MyGO!!!!! 长崎爽世）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/kohinatamika/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mygo",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-cocohayashi515",
+      "name": "林鼓子（MyGO!!!!! 椎名立希）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/cocohayashi515/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mygo",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-kanon-takao",
+      "name": "高尾奏音（Ave Mujica 丰川祥子）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Kanon_Takao/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "ave-mujica",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-watase-yuzuki",
+      "name": "渡瀬結月（Ave Mujica 若叶睦）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Watase_Yuzuki/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "ave-mujica",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-sasakirico",
+      "name": "佐々木李子（Ave Mujica 三角初华）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/sasakirico/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "ave-mujica",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-okada-mei0519",
+      "name": "岡田夢以（Ave Mujica 八幡海铃）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/okada_mei0519/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "ave-mujica",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-akaney-banu",
+      "name": "米澤茜（Ave Mujica 祐天寺若麦）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/AkaneY_banu/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "ave-mujica",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-arale-yumemita",
+      "name": "仲町あられ（夢限大みゅーたいぷ）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/arale_yumemita/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mugendai-mewtype",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-nonoka-yumemita",
+      "name": "宮永ののか（夢限大みゅーたいぷ）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/nonoka_yumemita/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mugendai-mewtype",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-ritsu-yumemita",
+      "name": "峰月律（夢限大みゅーたいぷ）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/ritsu_yumemita/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mugendai-mewtype",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-miyako-yumemita",
+      "name": "藤都子（夢限大みゅーたいぷ）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/miyako_yumemita/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mugendai-mewtype",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-yuno-yumemita",
+      "name": "千石ユノ（夢限大みゅーたいぷ）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/yuno_yumemita/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "mugendai-mewtype",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-lay0113",
+      "name": "Raychell（RAISE A SUILEN LAYER）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Lay0113/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "raise-a-suilen",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-riko-kohara",
+      "name": "小原莉子（RAISE A SUILEN LOCK）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Riko_kohara/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "raise-a-suilen",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-nananananachume",
+      "name": "夏芽（RAISE A SUILEN MASKING）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/nananananachume/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "raise-a-suilen",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-kurachireo",
+      "name": "倉知玲鳳（RAISE A SUILEN PAREO）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/kurachireo/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "raise-a-suilen",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-risa-tsumugi",
+      "name": "紡木吏佐（RAISE A SUILEN CHU²）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/risa_tsumugi/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "raise-a-suilen",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-ria-yakushiji",
+      "name": "薬師寺李有（millsage 汐見蛍）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/Ria_Yakushiji/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "millsage",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-chiharu-okr",
+      "name": "千春（millsage 伊沢なつめ）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/chiharu_okr/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "millsage",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-igoma-y",
+      "name": "伊駒ゆりえ（millsage 浜崎まほろ）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/igoma_y/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "millsage",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-hinano-sak122",
+      "name": "咲川ひなの（millsage 和泉朋花）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/hinano_sak122/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "millsage",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-may-o-o-t",
+      "name": "橘めい（一家Dumb Rock! 須賀蕾叶）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/May_o_o_T/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "ikkadumbrock",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-suzumisakura305",
+      "name": "涼泉桜花（一家Dumb Rock! 馬橋心玖）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/SuzumiSakura305/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "ikkadumbrock",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-hanamiya-nina",
+      "name": "花宮初奈（一家Dumb Rock! 矢倉蓬咲）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/hanamiya_nina/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "ikkadumbrock",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-nitter-hikaru-tono",
+      "name": "遠野ひかる（一家Dumb Rock! 四宮寧月）X",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://nitter.meowing.monster/hikaru_tono/rss",
+        "itemUrlPrefixRewrite": {
+          "from": "https://nitter.meowing.monster/",
+          "to": "https://x.com/"
+        },
+        "summaryIsBody": true,
+        "publisherRole": "person",
+        "_girlsbands": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T1_5",
+      "owner_entity_id": "ikkadumbrock",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方",
+        "成员"
       ],
       "site_fulltext": true,
       "syndicate_fulltext": false
