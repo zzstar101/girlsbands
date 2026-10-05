@@ -57,8 +57,9 @@ async function detail(id: string) {
 }
 
 before(async () => {
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, syndicate_fulltext, next_fetch_at)
-            VALUES (${SOURCE}, 'Test translate', 'rss', 'T1', 'editorial', true, false, '2100-01-01')`;
+  // rights_tier = licensed: a translation needs the source licence (a media source stays a summary).
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, syndicate_fulltext, rights_tier, next_fetch_at)
+            VALUES (${SOURCE}, 'Test translate', 'rss', 'T1', 'editorial', true, false, 'licensed', '2100-01-01')`;
 });
 after(async () => {
   await app.close();

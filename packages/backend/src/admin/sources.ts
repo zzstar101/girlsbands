@@ -172,12 +172,10 @@ export async function updateSource(id: string, input: { patch: unknown; version:
 
 /**
  * Source fields the public projection reads (publication/rules.ts and the v1 payload).
- * rights_tier is deliberately not here yet: while the site shows every licensed source in full, editing a
- * label changes nothing readers see, and enqueueing a republish per edit would be pure churn. When the
- * switch lands (bodyModeOf reading rights_tier) it must be added here in the same change, or old stored
- * body_mode values stay as they were.
+ * rights_tier is here because bodyModeOf reads it: relabelling a source can move items between full text
+ * and summary, and publications.body_mode is stored — without the republish the old value stays.
  */
-const PUBLICATION_FIELDS: string[] = ["participation_mode", "site_fulltext", "syndicate_fulltext", "tier", "name", "first_party", "owner_entity_id"];
+const PUBLICATION_FIELDS: string[] = ["participation_mode", "site_fulltext", "syndicate_fulltext", "tier", "name", "first_party", "owner_entity_id", "rights_tier"];
 
 const CreateSchema = z
   .object({

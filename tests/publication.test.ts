@@ -31,8 +31,10 @@ const REPORT_KEY = `2099-12-${String(10 + Math.floor(Math.random() * 19))}`;
 const app = await buildApp();
 
 before(async () => {
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, syndicate_fulltext, next_fetch_at)
-            VALUES (${SOURCE}, 'Test publication', 'rss', 'T1', 'editorial', true, true, '2100-01-01')`;
+  // rights_tier = licensed: this fixture stands for a source we hold a licence from, so the site_fulltext /
+  // syndicate_fulltext flags below are the thing under test (a media source is a summary no matter the flags).
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, syndicate_fulltext, rights_tier, next_fetch_at)
+            VALUES (${SOURCE}, 'Test publication', 'rss', 'T1', 'editorial', true, true, 'licensed', '2100-01-01')`;
 });
 after(async () => {
   await app.close();

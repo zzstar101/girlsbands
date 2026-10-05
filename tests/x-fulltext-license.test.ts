@@ -62,8 +62,10 @@ async function fixture(options: {
       { kind: "video", url: `https://example.org/${media}.mp4`, poster: `https://example.org/${media}-poster.png`, alt: `${media}-视频描述` },
     ],
   };
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, syndicate_fulltext, icon_url, next_fetch_at)
-    VALUES (${source}, '许可测试来源', ${kind}, 'T1', ${options.mode ?? "editorial"}, ${options.full ?? false}, ${options.syndicate ?? true}, 'https://example.org/source.png', '2100-01-01')`;
+  // rights_tier = licensed: this fixture stands for a source we hold a licence from, so the site_fulltext /
+  // syndicate_fulltext matrix below is the thing under test (a media source is a summary no matter the flags).
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, site_fulltext, syndicate_fulltext, rights_tier, icon_url, next_fetch_at)
+    VALUES (${source}, '许可测试来源', ${kind}, 'T1', ${options.mode ?? "editorial"}, ${options.full ?? false}, ${options.syndicate ?? true}, 'licensed', 'https://example.org/source.png', '2100-01-01')`;
   const { articleId: id } = await upsertMaterial({ sourceId: source, url, title: `Original title ${key}`, language: "en",
     bodyText: options.bodyStatus === "none" ? null : main, bodyHtml: options.bodyStatus === "none" ? null : `<p>${main}</p>`,
     bodyStatus: options.bodyStatus ?? "ok", xPost, via: "fetch", publishedAt: new Date() });

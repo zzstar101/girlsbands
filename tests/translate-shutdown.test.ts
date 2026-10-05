@@ -44,8 +44,9 @@ function runTranslation() {
 }
 
 before(async () => {
-  await sql`INSERT INTO sources (id,name,kind,tier,participation_mode,site_fulltext,next_fetch_at)
-    VALUES (${SOURCE},'Translation shutdown','rss','T1','editorial',true,'2100-01-01')`;
+  // rights_tier = licensed: a translation needs the source licence (a media source stays a summary).
+  await sql`INSERT INTO sources (id,name,kind,tier,participation_mode,site_fulltext,rights_tier,next_fetch_at)
+    VALUES (${SOURCE},'Translation shutdown','rss','T1','editorial',true,'licensed','2100-01-01')`;
 });
 after(async () => { await provider.close(); await stopBoss(); await closeDb(); });
 

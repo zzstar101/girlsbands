@@ -1,6 +1,6 @@
-// W17: every source carries a rights tier, so the admin can answer a rights holder and one day tighten by
-// layer. This change records and displays the label only — the site still shows every licensed source in
-// full, and the guard test below fails if that changes without the switch being made on purpose.
+// W17: every source carries a rights tier, so the admin can answer a rights holder and the site can
+// tighten by layer. The switch is made (2026-10-06): a third party's report shows as a summary, official
+// and event-data material keeps the licence flag's answer.
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
@@ -43,11 +43,15 @@ test("the tier follows the owner, not the tier label alone", () => {
   for (const [tier, owner, want] of cases) assert.equal(rightsTierOf({ tier, ownerEntityId: owner }), want, `${tier} / ${owner}`);
 });
 
-test("the switch is not made yet: a media source with a full-text licence still shows its body", () => {
-  const lisani: SourceFacts = { id: "rss-lisani", name: "LisAni!", kind: "rss", tier: "T2", participation_mode: "editorial", first_party: false, site_fulltext: true, syndicate_fulltext: false };
+test("a third party's report is a summary; official and event data keep the licence flag's answer", () => {
+  const lisani: SourceFacts = { id: "rss-lisani", name: "LisAni!", kind: "rss", tier: "T2", participation_mode: "editorial", first_party: false, site_fulltext: true, syndicate_fulltext: false, rights_tier: "media" };
   assert.equal(rightsTierOf({ tier: lisani.tier, ownerEntityId: null }), "media");
-  assert.equal(bodyModeOf(lisani, "ok", true), "full", "W17 records the label; it does not act on it");
-  assert.equal(bodyModeOf({ ...lisani, site_fulltext: false }, "ok", true), "summary", "the licence flag is still the only input");
+  assert.equal(bodyModeOf(lisani, "ok", true), "summary", "a body we can fetch is not a licence to show it");
+  assert.equal(bodyModeOf({ ...lisani, rights_tier: "official" }, "ok", true), "full", "an official channel keeps full text");
+  assert.equal(bodyModeOf({ ...lisani, rights_tier: "licensed" }, "ok", true), "full", "so does an agreed licence");
+  assert.equal(bodyModeOf({ ...lisani, rights_tier: "event_data" }, "ok", true), "full", "and event data stays whole");
+  assert.equal(bodyModeOf({ ...lisani, rights_tier: "official", site_fulltext: false }, "ok", true), "summary", "the licence flag still gates");
+  assert.equal(bodyModeOf({ ...lisani, rights_tier: "official" }, "failed", true), "summary", "no confirmed body, no full text");
 });
 
 test("an unlabelled source is media, and a value outside the four tiers is refused", async () => {

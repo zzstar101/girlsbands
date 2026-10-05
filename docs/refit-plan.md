@@ -360,7 +360,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 | **P2** | W15 · 远征参考页 | `/guide`：只做指路 —— 外链公开的《现代远征攻略》与 SeatView 座位视角，再给站内三个入口（截止雷达 / Live 与活动 / 日历订阅）。**不写正文**（原「场馆实体页」改成待办） |
 | **P2** | W16 · Setlist 与事后档案 | Live 结束后 Event 页从 upcoming 切 archive：Setlist / 现场 repo / 官方照片 / Archive 截止 / BD |
 | **P2** | W18 · 用户纠错与情报投稿 | 条目页「报告问题」+ `/submit` 投稿源，全部先落 `feedback` 表，人工确认后才入库 |
-| **风险** | W17 · 全文政策分层 | 官方全文 / 第三方摘要+链接 / 许可全文 —— **推翻站主旧决定，动手前必须重新点头** |
+| **风险** | W17 · 全文政策分层 | 官方全文 / 第三方摘要+链接 / 许可全文 —— **推翻站主旧决定**，先落字段（2026-10-05）、再切换（2026-10-06 站主点头「切」）：`media` 层只给摘要 |
 
 **这一步明确不做**：信源覆盖率与覆盖率评分（站主 2026-10-05 明确排除。健康度已经有 `sources.health` 与 `packages/backend/src/operations/`，覆盖率那层先不做）。
 
@@ -373,7 +373,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 
 ## 下一阶段工作包（W7–W18）
 
-> 每包按「为什么 / 现状（代码事实，已核） / 设计 / 验收标准 / 待站主拍板 / 工作量」写。**待拍板项汇总在 §七**，动手前先看那一节 —— 其中 W17 是**推翻站主旧决定**，必须先点头。
+> 每包按「为什么 / 现状（代码事实，已核） / 设计 / 验收标准 / 待站主拍板 / 工作量」写。**待拍板项汇总在 §七**，动手前先看那一节。
 
 ### W7 · 时间模型带时区（P0，地基）· ✅ 已完成 2026-10-05
 
@@ -820,39 +820,39 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 
 ---
 
-### W17 · 全文政策分层（P2，风险项：切换仍待点头）
+### W17 · 全文政策分层（P2，风险项：2026-10-06 已切换）
 
 **为什么**：现行政策是「不管许可，全文站内、给所有人看」，W3 只做了工程补救（联系邮箱、`/rights`、单条与整源下架、原文链接）。补救**不消除**未经许可复制与翻译完整版权内容的暴露面。站一旦做大，「中文看全」本身会变成最大的风险面。这一包推翻站主 2026-10 的旧决定，所以先只把**判断标出来**，切不切、切到哪一层等单独点头。
 
-**做了什么（2026-10-06 完成，只落字段、不切）**
+**做了什么（2026-10-06 完成）**
 1. 新迁移 `0066_rights_tiers.sql`：`sources.rights_tier text NOT NULL DEFAULT 'media' CHECK (rights_tier IN ('official','media','licensed','event_data'))` + `sources.rights_note text`，并按判据把现有来源标一遍（`T2_EVENT` → `event_data`；`T1`/`T1_5` 且有 `owner_entity_id` → `official`；其余 `media`）。dev 库结果：**18 official / 3 event_data / 9 media**。
-2. `bodyModeOf`（`packages/backend/src/publication/rules.ts:48-50`）**一字不改** —— 公开读数仍然只看 `site_fulltext`。判据只有一处实现：`rightsTierOf({ tier, ownerEntityId })`，迁移回填、`scripts/seed.ts`、后台重算都走它。
-3. 后台：`apps/web/app/routes/admin/source.tsx` 加「权利层级」Select 与「权利备注」，`admin/sources.tsx` 列表加层级 badge；`EDITABLE` / `CreateSchema` 收这两个字段。改等级或运营主体时按判据重算，**显式传的层级优先**，`licensed` 永不被自动改写（那是和来源方谈定的，丢了是唯一有法律重量的错）。`rights_tier` 故意**不**进 `PUBLICATION_FIELDS`：切换前改标签不该触发 republish。
-4. `/rights`（`industry/pages/rights.md`，版本 1.1 / 生效日期 2026-10-06）新增「2. 来源分层与展示方式」表，**如实**写明第三方媒体那一层正在逐源核对、核对完成前个别媒体来源仍展示全文，并请来源方不必等核对、直接来信。
-5. 新测试 `tests/rights-tiers.test.ts`（4 通过）：判据各分支、默认值、CHECK 关住词表、改等级 / 主体重算、显式标注优先、`licensed` 不被动，以及**回归护栏** —— `media` + `site_fulltext` 的 `bodyModeOf` 仍返回 `full`（切换没做就有人动了这个函数，这条会红）。
+2. 判据只有一处实现：`rightsTierOf({ tier, ownerEntityId })`（`packages/backend/src/publication/rules.ts`），迁移回填、`scripts/seed.ts`、后台重算都走它。
+3. `bodyModeOf` 改为读 `rights_tier`：`media` 一律 `summary`（能抓到正文不等于有许可），`official` / `licensed` / `event_data` 仍按 `site_fulltext && body_status = 'ok' && 有正文`。落库入口只有 `publication/publish.ts` 一处，下游读取点自动跟随。
+4. 后台：`apps/web/app/routes/admin/source.tsx` 加「权利层级」Select 与「权利备注」，`admin/sources.tsx` 列表加层级 badge；`EDITABLE` / `CreateSchema` 收这两个字段。改等级或运营主体时按判据重算，**显式传的层级优先**，`licensed` 永不被自动改写（那是和来源方谈定的，丢了是唯一有法律重量的错）。`rights_tier` 已进 `PUBLICATION_FIELDS`，改标签会入队 republish。
+5. `/rights`（`industry/pages/rights.md`，版本 1.2 / 生效日期 2026-10-06）第 2 节写明四层各自怎么展示，第三方媒体**一律只给标题、摘要与原文链接**；第 1 节同步改成「官方一手与明确许可放全文，第三方媒体只给摘要」。
+6. 新测试 `tests/rights-tiers.test.ts`（4 通过）：判据各分支、默认值、CHECK 关住词表、改等级 / 主体重算、显式标注优先、`licensed` 不被动，以及护栏 —— `media` + `site_fulltext` 返回 `summary`，`official` / `licensed` / `event_data` 保持 `full`，`site_fulltext=false` 或没有确认正文时仍是 `summary`。
 
 **验收标准（实际）**
 
 | 检查 | 结果 |
 |---|---|
-| 保守默认 | 迁移后 `publications` 快照**逐字节不变**：T1 46 full / 22 summary、T1_5 96 / 59、T2 8 / 192、T2_EVENT 15 / 0 ⇒ full **165 / 438**（与迁移前一致） |
+| 切换效果 | `publications` 快照：full **165 → 157**、summary 273 → 281；只有 `rss-lisani` 动了（15 条里 8 条 full → summary，`changed: 8, reduced: 1`），T1 46 full / T1_5 96 full / T2_EVENT 15 full 全部不变，T2 只剩 summary |
 | 测试 | `tests/rights-tiers.test.ts` **4 通过 / 0 失败** |
 | 全量 | `npm run typecheck` 六段、`npm test` 全绿、web 测试与 `npm run build -w @girlsbands/web` 通过 |
-| 页面 | `/rights` 出现四层表格与「正在逐源核对」的说明；后台列表与详情页显示层级 |
+| 页面 | `/rights` 出现四层表格与「一律只展示标题、中文摘要和原文链接」；后台列表与详情页显示层级 |
 
-**切换时怎么做（等点头）**
-1. `bodyModeOf` 改成读 `rights_tier`（`official` / `licensed` / `event_data` → 允许 full；`media` → 强制 summary）。落库入口只有 `publication/publish.ts` 一处，下游 13 处读取点自动跟随。
-2. `rights_tier` 加进 `admin/sources.ts` 的 `PUBLICATION_FIELDS`，再走 republish 出站链回填（`0056` 的教训：只 `UPDATE` 不 enqueue，老 `body_mode` 不会自己变）。
-3. 翻译自动跳过（`editorial/translate.ts:169` 的门控已存在）；`publications.syndicate` 全 false，RSS 不需要清理。
-4. 引用方案默认 A（摘要里直接引用原文句子，零提示词改动）；方案 B 改提示词产出「必要引用」字段，代价是 prompt version 变更，重跑要换 `attemptTag`。
+**切换时做了什么（2026-10-06，站主点头「切」）**
+1. `bodyModeOf` 读 `rights_tier`（`media` → `summary`）。
+2. `rights_tier` 加进 `admin/sources.ts` 的 `PUBLICATION_FIELDS`，再走 republish 回填 —— `publications.body_mode` 是存下来的列，只 `UPDATE` 不重算，老值不会自己变（`0056` 的教训）。dev 库用一次性脚本对全部 9 个 `media` 源跑了 `republishSource`。
+3. 翻译自动跳过（`editorial/translate.ts:169` 的 `body_mode !== 'full'` 门控早已存在），RSS 无需清理（`publications.syndicate` 全 false）。
+4. 引用方案仍是 A（摘要里直接引用原文句子，零提示词改动）；方案 B 要改提示词产出「必要引用」字段，代价是 prompt version 变更、重跑要换 `attemptTag`。
 
-**两个缺口（交给站主）**
-- **切换还没做**：`media` 层今天仍展示全文。真实受影响的是 `rss-lisani` 8 条；`T2_EVENT` 15 条按站主决定单列 `event_data`，保持全文。
+**一个缺口（交给站主）**
 - **`rights_note` 今天全为空**：备注靠人工填（许可原话、来源方的要求）；字段与界面已就位。
 
-**站主已定（2026-10-05）**：① **先只落字段、不切**（公开页面一字不改，切换留到以后单独点头）；② `T2_EVENT` **单列一层「活动数据」**（保持全文，不让 W6 验过的 15 条掉下来）⇒ 四层 `official / media / licensed / event_data`；③ **官方判据 = 有 `owner_entity_id` 就算官方**（T1 7 源 + T1_5 11 源 = 18 源 142 条保持全文）。
+**站主已定**：2026-10-05 ① 先只落字段、不切（公开页面一字不改）；② `T2_EVENT` **单列一层「活动数据」**（保持全文，不让 W6 验过的 15 条掉下来）⇒ 四层 `official / media / licensed / event_data`；③ **官方判据 = 有 `owner_entity_id` 就算官方**（T1 7 源 + T1_5 11 源 = 18 源 142 条保持全文）。2026-10-06 ④ **切**：`media` 层强制摘要，真实受影响只有 `rss-lisani` 8 条。
 > 这一包涉及法律判断，本文档只写工程事实与影响面，**不是法律意见**。
-**工作量**：0.5 天（只落字段与显示；切换另算）。
+**工作量**：1 天（落字段与显示 0.5 + 切换与回填 0.5）。
 
 ---
 
@@ -1356,12 +1356,12 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 
 **W17（2026-10-06 完成）：权利层级**
 
-只加标注、不改公开读数：迁移 `0066_rights_tiers.sql` 给 `sources` 加 `rights_tier`（`official` / `media` / `licensed` / `event_data`，默认 `media`）与 `rights_note`，按站主判据回填（dev 库 **18 official / 3 event_data / 9 media**）；`bodyModeOf`（`packages/backend/src/publication/rules.ts:48-50`）**一字不改** —— 公开读数仍然只看 `site_fulltext`。判据只有一处实现 `rightsTierOf({ tier, ownerEntityId })`（`rules.ts`），迁移回填、`scripts/seed.ts`、后台重算都走它。后台加「权利层级」Select 与「权利备注」（`apps/web/app/routes/admin/source.tsx`、`apps/web/app/routes/admin/sources.tsx` 的「权利」列、`apps/web/app/features/admin/labels.ts` 的 `RIGHTS_LABEL`），改等级或运营主体时按判据重算、显式传的层级优先、`licensed` 永不被自动改写。`/rights` 加「2. 来源分层与展示方式」（版本 1.1 / 生效日期 2026-10-06），如实写明第三方媒体那一层正在逐源核对、核对完成前个别媒体来源仍展示全文。
+只加标注、不改公开读数：迁移 `0066_rights_tiers.sql` 给 `sources` 加 `rights_tier`（`official` / `media` / `licensed` / `event_data`，默认 `media`）与 `rights_note`，按站主判据回填（dev 库 **18 official / 3 event_data / 9 media**）；`bodyModeOf`（`packages/backend/src/publication/rules.ts:48-50`）**一字不改** —— 公开读数仍然只看 `site_fulltext`（2026-10-06 站主点头「切」之后改了一行，见下）。判据只有一处实现 `rightsTierOf({ tier, ownerEntityId })`（`rules.ts`），迁移回填、`scripts/seed.ts`、后台重算都走它。后台加「权利层级」Select 与「权利备注」（`apps/web/app/routes/admin/source.tsx`、`apps/web/app/routes/admin/sources.tsx` 的「权利」列、`apps/web/app/features/admin/labels.ts` 的 `RIGHTS_LABEL`），改等级或运营主体时按判据重算、显式传的层级优先、`licensed` 永不被自动改写。`/rights` 加「2. 来源分层与展示方式」（版本 1.1 / 生效日期 2026-10-06），如实写明第三方媒体那一层正在逐源核对、核对完成前个别媒体来源仍展示全文。
 
 | 检查 | 结果 |
 |---|---|
 | `npm run typecheck` | **全绿（六段 exit 0）** |
-| `tests/rights-tiers.test.ts` | **4 通过 / 0 失败**（判据各分支、默认值、CHECK 关住词表、重算三例，外加 `media` + `site_fulltext` 仍返回 `full` 的回归护栏） |
+| `tests/rights-tiers.test.ts` | **4 通过 / 0 失败**（判据各分支、默认值、CHECK 关住词表、重算三例，外加当时那条 `media` + `site_fulltext` 仍返回 `full` 的回归护栏 —— 切换时翻面，见下） |
 | 全量 `npm test` | **709 通过 / 0 失败**（W16 的 705 + 本包 4） |
 | web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **42 通过 / 0 失败** |
 | 公开读数 | 迁移前后 `publications` 快照**逐字节不变**：T1 46 full / 22 summary、T1_5 96 / 59、T2 8 / 192、T2_EVENT 15 / 0 ⇒ full **165 / 438** |
@@ -1372,7 +1372,27 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - **政策页的表格必须是三列**：`parseCopyFile`（`apps/web/app/lib/markdown.ts:100-109`）把所有**两列**的 `| 项 | 值 |` 行收进 `doc.meta`，新表格写成两列会被当成页面元信息。
 - **新列要在生产代码里出现**：`tests/architecture.test.ts:104-120` 要求每一列（除 `created_at`）都在同时提到该表的文件里按名字出现 —— `rights_tier` 加进 `rules.ts` 与 `admin/sources.ts` 就够，不必硬塞一个读者。
 - **重算要写在 `Object.keys(patch)` 之前**：`updateSource` 的 UPDATE 列来自 `keys`，重算块放到后面等于白算；`first_party` 的旧逻辑就在那个位置（`packages/backend/src/admin/sources.ts:132` 附近），照它抄。
-- **`rights_tier` 故意不在 `PUBLICATION_FIELDS`**：切换时必须加进去，否则老条目的 `body_mode` 不会自己变（0056 的教训）。
+- **`rights_tier` 故意不在 `PUBLICATION_FIELDS`**：切换时必须加进去，否则老条目的 `body_mode` 不会自己变（0056 的教训）。切换时已加，见下。
+
+**W17 切换（2026-10-06 完成，站主「切」）**
+
+站主点头之后，把层级从标注变成规则：`bodyModeOf` 开头加一行 `if (source.rights_tier === "media") return "summary";` —— 第三方媒体的报道一律只给摘要，官方一手 / 明确许可 / 活动数据仍按 `site_fulltext` 的答案（`SourceFacts` 加 `rights_tier`，`packages/backend/src/publication/publish.ts:231` 的取源 SELECT 带上它，这是判据唯一的生产消费点）。`PUBLICATION_FIELDS`（`packages/backend/src/admin/sources.ts`）加 `rights_tier`，改标签会入队 republish；`industry/pages/rights.md` 升到 **1.2**，§1 与 §2 改成「一律只展示标题、中文摘要和指向原文的链接」，删掉「正在逐源核对」那句过渡说明。回填脚本 `.data/rights-republish.ts`（不进仓库）按 media 源逐个 `republishSource`。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | **全绿（六段 exit 0）** |
+| `tests/rights-tiers.test.ts` | **4 通过 / 0 失败**（护栏翻面：`media` + `site_fulltext` ⇒ `summary`；`official` / `licensed` / `event_data` 仍按开关，`site_fulltext:false` 与 `bodyStatus:"failed"` 仍是摘要） |
+| 许可矩阵夹具 | `tests/x-fulltext-license.test.ts`、`tests/publication.test.ts`、`tests/translate.test.ts`、`tests/translate-shutdown.test.ts` 的源显式标 `rights_tier = 'licensed'`（这四份测的是 `site_fulltext` / `syndicate_fulltext` 两个开关，就该站在有许可的来源上） |
+| 全量 `npm test` | **709 通过 / 0 失败** |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **42 通过 / 0 失败** |
+| 回填效果 | `publications`：full **165 → 157**、summary **273 → 281**；只有 `rss-lisani` 动（15 条里 8 条转摘要、1 条本来就是摘要），其余 8 个 media 源 changed 0；按层 T1 46 / 22、T1_5 96 / 59、**T2 0 / 200**、T2_EVENT 15 / 0 |
+| 端到端实拍 | **23 项全 PASS**：`/rights` 版本 1.2 且「正在逐源核对」计数 0；未登录 401 / 登录 200，30 个源层级 18 official / 9 media / 3 event_data；`/admin/sources` 带出层级；快照 full 157（official 142 / event_data 15 / media 0）；`rss-lisani` 条目的原文页不再有日文正文、默认页不再带「正文 · AI 翻译」、仍留原文链接；官方条目的原文页仍是全文（正对照） |
+| 迁移 | 无（`0066_rights_tiers.sql` 上一段已跑） |
+
+**W17 切换踩到的坑**
+- **改一行 `bodyModeOf` 会让「许可矩阵」全线转红**：24 个失败集中在四个文件，全是同一个原因 —— 测试里的源是 T1、`site_fulltext = true`，但没写 `rights_tier` ⇒ 默认 `media` ⇒ 一律摘要。修法是给这些夹具显式 `rights_tier = 'licensed'`（它们模拟的本来就是有许可的来源），不是把判据改回去。
+- **快照不会自己变**：`publications.body_mode` 是列，必须跑 republish 回填；实测 media 那 9 个源里只有 `rss-lisani` 有 full 条目，另外 8 个本来就全是摘要（changed 0）。判断来源：`publications.body_mode` 只由 `bodyModeOf` 写，读它的地方是 `publication/detail.ts`（正文与页面）、`publication/representative.ts`（代表条目取舍）与 `reports.ts` / `stories.ts` / `timeline.ts` 的 `body_mode <> 'summary'` 过滤。
+- **实拍正对照别用跨行的片段**：`substring(body_text from 1200 for 60)` 会跨换行，页面渲染时空格/换行对不上，官方条目会被误判成「没正文」；改用 `regexp_match(body_text, '[^[:space:]<>&"]{16,24}')` 取一段不含空白的原文。这一段 SQL 写在 `node -e '…'` 里，整段是 shell 单引号，SQL 里再出现 `'` 会把字符串截断，改用 `$re$…$re$` 定界。
 - **实拍「media 条目还是全文」要抓 `/items/<id>/original`**：默认页面渲染的是 AI 译文（切换成「中文」语言标签），日文原文在默认页里一行都找不到，别误判成「已经切了」。
 
 ---
@@ -1385,7 +1405,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 
 | 包 | 要拍板的事 | 我的建议 |
 |---|---|---|
-| ~~**W17**~~ ✅ | ~~全文政策分层**推翻旧决定**：官方全文 / 第三方摘要+链接 / 许可全文，是否切换、切到哪一层；`T2_EVENT` 三个国内票务 / 展会源算哪层；官方判据用 `owner_entity_id IS NOT NULL`（12 个 T1_5 官方 X 也算官方，含 5 个成员个人 X）还是 `tier = 'T1'`（`first_party` 只认 T1，见 `packages/backend/src/publication/publish.ts:294`）~~ | **已拍板 2026-10-05**：① **先只落字段、不切** —— 公开页面一字不改，切换留到以后单独点头；② `T2_EVENT` **单列一层「活动数据」**（保持全文，不让 W6 验过的 15 条掉下来）⇒ 四层 `official / media / licensed / event_data`；③ **官方判据 = 有 `owner_entity_id` 就算官方**（T1 7 源 + T1_5 11 源 = 18 源 142 条保持全文）。已落地：见 §六「W17（2026-10-06 完成）：权利层级」 |
+| ~~**W17**~~ ✅ | ~~全文政策分层**推翻旧决定**：官方全文 / 第三方摘要+链接 / 许可全文，是否切换、切到哪一层；`T2_EVENT` 三个国内票务 / 展会源算哪层；官方判据用 `owner_entity_id IS NOT NULL`（12 个 T1_5 官方 X 也算官方，含 5 个成员个人 X）还是 `tier = 'T1'`（`first_party` 只认 T1，见 `packages/backend/src/publication/publish.ts:294`）~~ | **已拍板 2026-10-05**：① **先只落字段、不切** —— 公开页面一字不改，切换留到以后单独点头；② `T2_EVENT` **单列一层「活动数据」**（保持全文，不让 W6 验过的 15 条掉下来）⇒ 四层 `official / media / licensed / event_data`；③ **官方判据 = 有 `owner_entity_id` 就算官方**（T1 7 源 + T1_5 11 源 = 18 源 142 条保持全文）。**2026-10-06 站主「切」**：④ `media` 层强制摘要（`bodyModeOf` 读 `rights_tier`，`rss-lisani` 8 条 full → summary，快照 full 165 → 157）。已落地：见 §六「W17（2026-10-06 完成）：权利层级」与「W17 切换」 |
 | ~~**W12**~~ ✅ | ~~关注 → 邮件的 token 方案：**不做**读者端自生成 token（它同时是 `List-Unsubscribe` 凭据，自生成会把 `subscribers.token` 变成可猜面），改成 `/subscriptions/:token` 短链别名；「只看关注」本地过滤还是服务器筛；按类别过滤邮件（`0063_subscriber_kinds.sql` + `subscribers.kinds`）做不做~~ | **已拍板 2026-10-05**：短链别名照做；**服务器筛**（`?subjects=a,b`，本地过滤在服务端分页下每页只剩零星几条）；**不做按类别过滤** ⇒ W12 无迁移、0063 让给 W13。其余产品决定（关注只在列表页与订阅页起作用、企划 = 整个系列、开关默认关、关注列表放 `/starred` 顶部、没关注时也给引导）见 §六 W12 |
 | ~~**W7**~~ ✅ | ~~`.ics` 用当地时刻（日本 18:30 / 中国 15:30）还是统一北京时间；北京时间 21:00 之后的场次在「今天截止」里算哪天~~ | **已拍板 2026-10-05**：用当地时刻 + `TZID`、按当地日历（已完成） |
 | ~~**W8**~~ ✅ | ~~Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留~~ | **已拍板 2026-10-05**：① **保持「一站一实体」** —— 昼/夜按开演时刻分成两页、**演出名不同**的对盘公告各一页（谁的通知挂谁的页）、巡演一站一页；同日同时刻、同名、会场写法对得上的公告只留一页（香港 10-02 那两条 2026-10-05 站主「2 合并」已并入 19，`packages/backend/src/lives/link.ts` 新增 `sameShow()`）；要改成「巡演一实体 / 对盘一实体」只需动唯一键与 `mergeKeys`。② **已完结的 Live 页长期保留、照常收录**（页面 200、进 sitemap、企划页排在未开演之后），W16 的「事后档案」就建在这些页上。两条都不需要改代码。阶段 B 灰度重跑 2026-10-05 已跑完（`candidates: 28`、`tag live-ticket-v1`、约 170 次调用）：24 条抽到 `output.live`，但**没有新建演出、也没有轮次** —— 重跑过的条目不会再归组（21 条是历史条目、不建事实；其余走提前返回），新轮次改由回填脚本补进 `ticket_rounds`（2 条）。详见 §六 W8 |

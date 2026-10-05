@@ -11,12 +11,14 @@ export interface SourceFacts {
   first_party: boolean;
   site_fulltext: boolean;
   syndicate_fulltext: boolean;
+  rights_tier: string;
 }
 
 /**
  * Rights tiers (W17). The label records how a source's content may be shown, so the admin can answer a
- * rights holder and one day tighten by layer. It is **recorded and displayed only** for now: see
- * bodyModeOf below, which still reads the single licence flag (database/migrations/0066_rights_tiers.sql).
+ * rights holder and the site can tighten by layer (database/migrations/0066_rights_tiers.sql). Since the
+ * switch (2026-10-06) it is an input: bodyModeOf below forces a third party's report down to a summary
+ * and lets official, licensed and event-data material keep the licence flag's answer.
  */
 export const RIGHTS_TIERS = ["official", "media", "licensed", "event_data"] as const;
 
@@ -66,12 +68,17 @@ export function isSelectable(eligible: boolean, judgedSelected: boolean | null, 
  * Site full text: the source licence allows showing it and we have confirmed body text.
  * WeChat and paywalled content never get it just because it was fetchable (source flag false).
  *
- * W17 kept this as the only input on purpose. rights_tier is already labelled on every source, but
- * whether to show a third party's report as a summary is the station owner's call and is not made yet;
- * switching means reading rights_tier here (media → summary) **and** running the republish backfill,
- * because publications.body_mode is stored and an UPDATE alone does not re-render it (0056 knew that).
+ * A third party's report is a summary, always: `media` (a source with no owner entity — someone else's
+ * article, even when we can fetch the whole body) never reaches full text. Everything else keeps the
+ * licence flag's answer, which is how event data (a ticket page's dates, no article) and official
+ * channels stay as they are (station owner, 2026-10-06).
+ *
+ * Changing this changes what is already stored: publications.body_mode is a column, so a switch needs a
+ * republish backfill and not just an UPDATE (0056 knew that; admin/sources.ts keeps rights_tier in
+ * PUBLICATION_FIELDS for it).
  */
 export function bodyModeOf(source: SourceFacts, bodyStatus: string, hasBody: boolean): "full" | "summary" {
+  if (source.rights_tier === "media") return "summary";
   return source.site_fulltext && bodyStatus === "ok" && hasBody ? "full" : "summary";
 }
 
