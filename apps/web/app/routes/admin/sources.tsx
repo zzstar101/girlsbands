@@ -4,7 +4,7 @@ import type { Route } from "./+types/sources";
 import type { AdminSources } from "@girlsbands/contracts/admin";
 import { adminGet } from "../../lib/admin.server";
 import { num } from "../../features/admin/format";
-import { HEALTH_LABEL, KIND_LABEL, MODE_LABEL } from "../../features/admin/labels";
+import { HEALTH_LABEL, KIND_LABEL, MODE_LABEL, RIGHTS_LABEL } from "../../features/admin/labels";
 import { AdminPage, Badge, ButtonLink, Card, DataTable, Dot, FilterChips, healthTone, Input, Pager, Select, Stat, Time } from "../../features/admin/ui";
 
 
@@ -88,6 +88,11 @@ export default function Sources({ loaderData }: Route.ComponentProps) {
                   {r.first_party && <Badge tone="ok">一手</Badge>}
                 </div>
               ),
+            },
+            {
+              key: "rights",
+              label: "权利",
+              render: (r) => <Badge tone={r.rights_tier === "official" ? "ok" : r.rights_tier === "licensed" ? "info" : "muted"}>{RIGHTS_LABEL[r.rights_tier] ?? r.rights_tier}</Badge>,
             },
             {
               key: "health",

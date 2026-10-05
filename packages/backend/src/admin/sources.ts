@@ -6,6 +6,7 @@ import { audit, auditHistory, Conflict } from "../audit.ts";
 import { groupingReset } from "../content/provenance.ts";
 import { computeHotRanking } from "../events/hot.ts";
 import { publishArticleTx } from "../publication/publish.ts";
+import { RIGHTS_TIERS, rightsTierOf } from "../publication/rules.ts";
 import { sql, type Db } from "../db.ts";
 import { enqueue, QUEUES } from "../jobs/queue.ts";
 import { republishKey } from "../jobs/publication.ts";
@@ -32,7 +33,7 @@ export async function listSources(f: SourceListFilters): Promise<BeforeJson<Admi
   const q = f.q?.trim() ? `%${f.q.trim()}%` : null;
   const rows = await sql<BeforeJson<AdminSourceRow>[]>`
     SELECT s.id, s.name, s.kind, s.tier, s.participation_mode, s.enabled, s.health, s.fail_count, s.interval_minutes,
-           s.last_ok_at, s.last_fetch_at, s.last_error, (s.tier = 'T1') AS first_party, s.next_fetch_at,
+           s.last_ok_at, s.last_fetch_at, s.last_error, s.rights_tier, (s.tier = 'T1') AS first_party, s.next_fetch_at,
            (SELECT count(*)::int FROM articles a WHERE a.source_id = s.id AND a.discovered_at > now() - interval '7 days') AS items_7d,
            coalesce(selected.n, 0) AS selected_30d
     FROM sources s
@@ -105,6 +106,8 @@ const EDITABLE = z
     owner_entity_id: z.string().max(120).nullable(),
     site_fulltext: z.boolean(),
     syndicate_fulltext: z.boolean(),
+    rights_tier: z.enum(RIGHTS_TIERS),
+    rights_note: z.string().max(500).nullable(),
     tags: z.array(z.string().max(60)).max(30),
     config: z.record(z.string(), z.unknown()),
   })
@@ -121,6 +124,17 @@ export async function updateSource(id: string, input: { patch: unknown; version:
     if (new Date(before.updated_at as Date).toISOString() !== input.version) throw new Conflict("信源已被其他操作修改，请刷新后再改");
     // Kept in the admin shape for existing clients, but no independent first-party setting remains.
     if (patch.tier !== undefined || patch.first_party !== undefined) patch.first_party = (patch.tier ?? before.tier) === "T1";
+    // The rights tier follows the judge when the judge's inputs change, and is otherwise the admin's own
+    // word: a tier or owner edit relabels the source, and an explicit rights_tier in the same patch wins.
+    // A licensed source is never relabelled automatically — that label is an agreement with the rights
+    // holder, not a derivation, and losing it silently would be the one mistake with legal weight.
+    const judgeMoved = patch.tier !== undefined || patch.owner_entity_id !== undefined;
+    if (judgeMoved && patch.rights_tier === undefined && before.rights_tier !== "licensed") {
+      patch.rights_tier = rightsTierOf({
+        tier: String(patch.tier ?? before.tier),
+        ownerEntityId: (patch.owner_entity_id === undefined ? before.owner_entity_id : patch.owner_entity_id) ?? null,
+      });
+    }
     if (patch.config) {
       assertSupportedConfig(before.kind as SourceRow["kind"], patch.config);
       // A changed address must not be one another source already collects from. (Sources that share a
@@ -156,7 +170,13 @@ export async function updateSource(id: string, input: { patch: unknown; version:
   });
 }
 
-/** Source fields the public projection reads (publication/rules.ts and the v1 payload). */
+/**
+ * Source fields the public projection reads (publication/rules.ts and the v1 payload).
+ * rights_tier is deliberately not here yet: while the site shows every licensed source in full, editing a
+ * label changes nothing readers see, and enqueueing a republish per edit would be pure churn. When the
+ * switch lands (bodyModeOf reading rights_tier) it must be added here in the same change, or old stored
+ * body_mode values stay as they were.
+ */
 const PUBLICATION_FIELDS: string[] = ["participation_mode", "site_fulltext", "syndicate_fulltext", "tier", "name", "first_party", "owner_entity_id"];
 
 const CreateSchema = z
@@ -172,6 +192,8 @@ const CreateSchema = z
     tags: z.array(z.string()).default([]),
     site_fulltext: z.boolean().default(false),
     syndicate_fulltext: z.boolean().default(false),
+    rights_tier: z.enum(RIGHTS_TIERS).optional(),
+    rights_note: z.string().max(500).nullable().optional(),
   })
   .strict();
 
@@ -202,15 +224,17 @@ export async function findDuplicateSource(kind: string, config: Record<string, u
 export async function createSource(input: unknown, actor: string): Promise<BeforeJson<AdminSourceCreated>> {
   const s = CreateSchema.parse(input);
   s.first_party = s.tier === "T1";
+  // A new source has no owner yet, so the judge labels it media; filling in the owner later relabels it.
+  const rightsTier = s.rights_tier ?? rightsTierOf({ tier: s.tier, ownerEntityId: null });
   assertSupportedConfig(s.kind, s.config);
   return sql.begin(async (tx) => {
     await tx`SELECT pg_advisory_xact_lock(hashtext('admin-source-identity'))`;
     const dup = await findDuplicateSource(s.kind, s.config, undefined, tx);
     if (dup) return { created: false as const, duplicate: dup };
     const [row] = await tx<BeforeJson<AdminSource>[]>`
-    INSERT INTO sources (id, name, kind, config, tier, participation_mode, interval_minutes, first_party, tags, site_fulltext, syndicate_fulltext, next_fetch_at)
+    INSERT INTO sources (id, name, kind, config, tier, participation_mode, interval_minutes, first_party, tags, site_fulltext, syndicate_fulltext, rights_tier, rights_note, next_fetch_at)
     VALUES (${s.id}, ${s.name}, ${s.kind}, ${tx.json(s.config as never)}, ${s.tier}, ${s.participation_mode}, ${s.interval_minutes}, ${s.first_party}, ${s.tags},
-            ${s.site_fulltext}, ${s.syndicate_fulltext}, now())
+            ${s.site_fulltext}, ${s.syndicate_fulltext}, ${rightsTier}, ${s.rights_note ?? null}, now())
     ON CONFLICT (id) DO NOTHING RETURNING *`;
     if (!row) throw new Conflict(`信源 ID ${s.id} 已存在`);
     await audit(actor, "source.create", `source:${s.id}`, null, null, s, { db: tx });

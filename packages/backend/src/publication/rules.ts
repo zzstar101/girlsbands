@@ -13,6 +13,27 @@ export interface SourceFacts {
   syndicate_fulltext: boolean;
 }
 
+/**
+ * Rights tiers (W17). The label records how a source's content may be shown, so the admin can answer a
+ * rights holder and one day tighten by layer. It is **recorded and displayed only** for now: see
+ * bodyModeOf below, which still reads the single licence flag (database/migrations/0066_rights_tiers.sql).
+ */
+export const RIGHTS_TIERS = ["official", "media", "licensed", "event_data"] as const;
+
+export type RightsTier = (typeof RIGHTS_TIERS)[number];
+
+/**
+ * The tier a source is labelled with: official own channels (T1, and their T1_5 mirrors — a member's own
+ * account is as first-hand as the band's), event pages' facts, and everything else media. The judge is
+ * the owner entity, not the tier alone (station owner, 2026-10-05): a T2 feed of official material is
+ * still a third party, one of our own feeds with an owner is not.
+ */
+export function rightsTierOf(source: { tier: string; ownerEntityId: string | null }): RightsTier {
+  if (source.tier === "T2_EVENT") return "event_data";
+  if ((source.tier === "T1" || source.tier === "T1_5") && source.ownerEntityId) return "official";
+  return "media";
+}
+
 export function channelOf(sourceKind: string, hasXPost: boolean): "x" | "news" {
   return sourceKind === "x_search" || hasXPost ? "x" : "news";
 }
@@ -44,6 +65,11 @@ export function isSelectable(eligible: boolean, judgedSelected: boolean | null, 
 /**
  * Site full text: the source licence allows showing it and we have confirmed body text.
  * WeChat and paywalled content never get it just because it was fetchable (source flag false).
+ *
+ * W17 kept this as the only input on purpose. rights_tier is already labelled on every source, but
+ * whether to show a third party's report as a summary is the station owner's call and is not made yet;
+ * switching means reading rights_tier here (media → summary) **and** running the republish backfill,
+ * because publications.body_mode is stored and an UPDATE alone does not re-render it (0056 knew that).
  */
 export function bodyModeOf(source: SourceFacts, bodyStatus: string, hasBody: boolean): "full" | "summary" {
   return source.site_fulltext && bodyStatus === "ok" && hasBody ? "full" : "summary";

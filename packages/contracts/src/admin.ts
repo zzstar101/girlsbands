@@ -58,6 +58,8 @@ export interface AdminSourceRow {
   last_ok_at: Timestamp | null;
   last_fetch_at: Timestamp | null;
   last_error: string | null;
+  /** Rights tier (W17): how this source's content may be shown. Recorded and displayed, not yet enforced. */
+  rights_tier: string;
   first_party: boolean;
   next_fetch_at: Timestamp | null;
   items_7d: number;
@@ -84,6 +86,10 @@ export interface AdminSource {
   interval_minutes: number;
   site_fulltext: boolean;
   syndicate_fulltext: boolean;
+  /** see AdminSourceRow.rights_tier */
+  rights_tier: string;
+  /** Why the source carries that label: a licence's wording, the rights holder's request, an editor's note. */
+  rights_note: string | null;
   enabled: boolean;
   health: string;
   fail_count: number;

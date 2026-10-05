@@ -6,7 +6,7 @@ import type { AdminSource, AdminSourceDetail, AdminSourcePreview } from "@girlsb
 import { adminGet } from "../../lib/admin.server";
 import { useAdminAction } from "../../features/admin/action";
 import { bj, duration, num } from "../../features/admin/format";
-import { HEALTH_LABEL, KIND_LABEL, MODE_LABEL, TIER_LABEL, VISIBILITY_LABEL } from "../../features/admin/labels";
+import { HEALTH_LABEL, KIND_LABEL, MODE_LABEL, RIGHTS_LABEL, TIER_LABEL, VISIBILITY_LABEL } from "../../features/admin/labels";
 import { AdminPage, Badge, Button, Card, DataTable, Dot, Empty, Field, healthTone, Input, Json, KV, ReasonDialog, Select, Stat, Textarea, Time } from "../../features/admin/ui";
 
 
@@ -20,7 +20,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export const meta: Route.MetaFunction = ({ loaderData }) => [{ title: `${loaderData?.source.name ?? "信源"} · ${SITE.name} 后台` }];
 
-type Draft = Pick<AdminSource, "name" | "interval_minutes" | "tier" | "participation_mode" | "signal_group_id" | "first_party" | "owner_entity_id" | "site_fulltext" | "syndicate_fulltext"> & { tags: string; config: string };
+type Draft = Pick<AdminSource, "name" | "interval_minutes" | "tier" | "participation_mode" | "signal_group_id" | "first_party" | "owner_entity_id" | "site_fulltext" | "syndicate_fulltext" | "rights_tier" | "rights_note"> & { tags: string; config: string };
 
 function draftOf(s: AdminSource): Draft {
   return {
@@ -33,6 +33,8 @@ function draftOf(s: AdminSource): Draft {
     owner_entity_id: s.owner_entity_id,
     site_fulltext: s.site_fulltext,
     syndicate_fulltext: s.syndicate_fulltext,
+    rights_tier: s.rights_tier,
+    rights_note: s.rights_note,
     tags: s.tags.join(", "),
     config: JSON.stringify(s.config, null, 2),
   };
@@ -69,6 +71,7 @@ export default function SourceDetail({ loaderData }: Route.ComponentProps) {
       interval_minutes: Number(draft.interval_minutes),
       signal_group_id: draft.signal_group_id || null,
       owner_entity_id: draft.owner_entity_id || null,
+      rights_note: draft.rights_note || null,
     };
     const before = draftOf(s) as Record<string, unknown>;
     const changed: Record<string, unknown> = {};
@@ -180,6 +183,16 @@ export default function SourceDetail({ loaderData }: Route.ComponentProps) {
               <Field label="运营主体 ID">
                 <Input value={draft.owner_entity_id ?? ""} onChange={(e) => setDraft({ ...draft, owner_entity_id: e.target.value })} />
               </Field>
+              <Field label="权利层级" hint="官方一手＝官方账号（T1/T1.5 且有运营主体）。改等级或主体会自动跟着走">
+                <Select value={draft.rights_tier} onChange={(e) => setDraft({ ...draft, rights_tier: e.target.value })}>
+                  {Object.entries(RIGHTS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </Select>
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="权利备注" hint="层级是判断，理由记在这里：许可原话、来源方的要求、编辑的说明">
+                  <Input value={draft.rights_note ?? ""} onChange={(e) => setDraft({ ...draft, rights_note: e.target.value })} />
+                </Field>
+              </div>
               <Field label="标签（逗号分隔）">
                 <Input value={draft.tags} onChange={(e) => setDraft({ ...draft, tags: e.target.value })} />
               </Field>
