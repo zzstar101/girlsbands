@@ -67,7 +67,7 @@ after(async () => {
 });
 
 function masthead(html: string): string {
-  const header = /<header class="pt-5 lg:pt-0">([\s\S]*?)<\/header>/.exec(html);
+  const header = /<header\b[^>]*data-report-masthead[^>]*>([\s\S]*?)<\/header>/.exec(html);
   assert.ok(header, "the actual report masthead must be rendered");
   return header[1]!.replace(/<[^>]+>/g, "");
 }

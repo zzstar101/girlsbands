@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigation } from "react-router";
 import { Collapse } from "../../components/ui/Presence";
-import type { TimelineCard, TimelineFilters, TimelineResponse } from "@girlsbands/contracts/site";
+import type { TimelineCard, TimelineFilters, TimelineResponse, DeadlinesResponse } from "@girlsbands/contracts/site";
 import { FeedItem } from "./FeedItem";
 import { IconChevronDown } from "../../components/icons";
 import { RingMark } from "../../components/Logo";
@@ -31,99 +31,24 @@ function fromResponse(r: TimelineResponse): ListState {
   return { version: 2, cards: r.cards, nextCursor: r.nextCursor, dayCounts: r.dayCounts, collapsed: [], batches: 1 };
 }
 
-/** Sticky day header under the phone bar: a quiet row on desktop, a grey full-width bar on phones. */
+/** Date as a printed headline; folding remains available on every screen. */
 export function DayHeader({ day, today, count, collapsed, onToggle, aside }: { day: string; today: string; count: number | null; collapsed?: boolean; onToggle?: () => void; aside?: React.ReactNode }) {
-  const date = monthDay(day);
-  const weekday = beijingWeekday(day);
-  const short = weekdayShort(day);
-  const phoneRow = (
-    <>
-      <span className="text-[14px] font-bold text-ink">{day === today ? "今天" : date}</span>
-      {day === today && <span className="text-[12.5px] text-ink-4">{date}</span>}
-      <span className="text-[12.5px] text-ink-4">{short}</span>
-      <span className="ml-auto flex items-center gap-1 text-[12.5px] text-ink-4">
-        {aside}
-        {count !== null && (
-          <span>
-            <span className="num">{count}</span> 条
-          </span>
-        )}
-        {onToggle && <IconChevronDown size={15} className={`transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`} />}
-      </span>
-    </>
-  );
-  return (
-    <div className="bleed sticky top-[var(--bar-h)] z-20 bg-daybar lg:mx-0 lg:bg-bg lg:px-0">
-      {/* Phones: a full-width day bar; on the timeline the whole bar folds the day. */}
-      {onToggle ? (
-        <button type="button" onClick={onToggle} aria-expanded={!collapsed} aria-label={`${collapsed ? "展开" : "收起"}${date}`} className="flex h-11 w-full items-center gap-2 text-left lg:hidden">
-          {phoneRow}
-        </button>
-      ) : (
-        <div className="flex h-9 items-center gap-2 lg:hidden">{phoneRow}</div>
-      )}
-      {/* Desktop: date text shares the page's left edge, regardless of how many digits it has. */}
-      <div className="hidden h-11 items-center gap-3 lg:flex">
-        {onToggle ? (
-          <button type="button" onClick={onToggle} aria-expanded={!collapsed} className="whitespace-nowrap text-left text-[18px] font-semibold leading-6 text-ink">
-            {date}
-          </button>
-        ) : (
-          <time dateTime={day} className="whitespace-nowrap text-[18px] font-semibold leading-6 text-ink">{date}</time>
-        )}
-        {onToggle ? (
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? `展开${date}` : `收起${date}`}
-            className="grid size-6 place-items-center justify-self-center rounded-full text-ink-4 transition-colors hover:bg-bg-sunk hover:text-ink"
-          >
-            <IconChevronDown size={14} className={`transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`} />
-          </button>
-        ) : null}
-        <span className="text-[13px] text-ink-4">
-          {weekday}
-          {count !== null && (
-            <>
-              {" · "}
-              <span className="num">{count}</span> 条
-            </>
-          )}
-        </span>
-        {aside && <span className="ml-auto text-[12px] text-ink-4">{aside}</span>}
-      </div>
-    </div>
-  );
+  const date = day.slice(5).replace('-', '.');
+  const weekday = new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short' }).toUpperCase();
+  return <div className="day flyer-day">
+    {onToggle ? <button type="button" aria-expanded={!collapsed} aria-label={`${collapsed ? '展开' : '收起'}${monthDay(day)}`} onClick={onToggle} className="date">{date}</button> : <time dateTime={day} className="date">{date}</time>}
+    <span className="wk">{weekday}</span>{day === today && <span className="today">今天</span>}<span className="rule" aria-hidden="true" />
+    <span className="count">{count !== null && <><b>{count}</b> 条</>}{aside}</span>{onToggle && <button type="button" onClick={onToggle} aria-label={`${collapsed ? '展开' : '收起'}${monthDay(day)}`} aria-expanded={!collapsed}><IconChevronDown size={15} className={collapsed ? '-rotate-90' : ''} /></button>}
+  </div>;
 }
 
-/**
- * One dated slot: the time, the rail (desktop) and the item. As on the original timeline, the rail is a
- * 1px line from this node's centre to the next one's, so the day reads as one continuous thread.
- */
 export function TimelineSlot({ at, children, fresh = false, delay = 0, dataKey }: { at: string; children: React.ReactNode; fresh?: boolean; delay?: number; dataKey?: string }) {
-  return (
-    <li
-      data-card-key={dataKey}
-      className={`group/slot bleed touch:has-[a:active]:bg-bg-sunk/70 lg:mx-0 lg:px-0 lg:touch:has-[a:active]:bg-transparent ${fresh ? "animate-fade-up" : ""}`}
-      style={fresh ? { animationDelay: `${delay}ms` } : undefined}
-    >
-      {/* Phones: the row without the rail (the item shows its time); a hairline between rows. */}
-      <div className="grid grid-cols-[minmax(0,1fr)] border-b border-line-soft py-3.5 group-last/slot:border-b-0 lg:grid-cols-[64px_22px_minmax(0,1fr)] lg:border-b-0 lg:py-0 lg:pb-3 lg:group-last/slot:pb-0">
-        <time dateTime={at} className="mono hidden text-ink-3 lg:block lg:pt-[17px] lg:text-[12.5px] lg:font-semibold lg:leading-6">
-          {beijingTime(at)}
-        </time>
-        <span aria-hidden="true" className="relative hidden lg:block">
-          <span className="absolute -bottom-[41px] left-[10.5px] top-[29px] w-px bg-line-strong group-last/slot:hidden" />
-          <span className="absolute left-[7.5px] top-[25.5px] size-[7px] rounded-full bg-accent shadow-[0_0_0_4px_var(--bg)] transition-transform duration-300 group-hover/slot:scale-[1.15]" />
-        </span>
-        {children}
-      </div>
-    </li>
-  );
+  return <li data-card-key={dataKey} className={`timeline-slot ${fresh ? 'animate-fade-up' : ''}`} style={fresh ? { animationDelay: `${delay}ms` } : undefined}>
+    <time dateTime={at} className="slot-time">{beijingTime(at)}</time>{children}
+  </li>;
 }
 
-export function Timeline({ initial, filters }: { initial: TimelineResponse; filters: TimelineFilters }) {
+export function Timeline({ initial, filters, dates }: { initial: TimelineResponse; filters: TimelineFilters; dates?: DeadlinesResponse }) {
   const location = useLocation();
   const navigation = useNavigation();
   const readSet = useReadSet();
@@ -299,7 +224,7 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
                     const delay = fresh ? Math.min(order++, 10) * 40 : 0;
                     return (
                       <TimelineSlot key={c.key} dataKey={c.key} at={c.anchorAt} fresh={fresh} delay={delay}>
-                        <FeedItem item={c.item} group={c.group} filters={filters} read={readSet.has(c.item.id)} onOpen={markRead} at={c.anchorAt} />
+                        <FeedItem item={c.item} group={c.group} filters={filters} read={readSet.has(c.item.id)} onOpen={markRead} at={c.anchorAt} deadline={dates?.days.flatMap((d) => d.items).find((d) => d.itemId === c.item.id)} deadlineFrom={dates?.from} headliner={c.headliner} />
                       </TimelineSlot>
                     );
                   })}

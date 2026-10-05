@@ -90,7 +90,7 @@ export const TABS: Tab[] = [
   { key: "featured", to: "/", label: "首页", icon: IconBolt },
   { key: "feed", to: "/all", label: "动态", icon: IconList },
   { key: "live", to: "/topics/live", label: "Live", icon: IconCalendar },
-  { key: "ticket", to: "/topics/ticket", label: "票务", icon: IconTicket },
+  { key: "ticket", to: "/deadlines", label: "截止", icon: IconClock },
   { key: "me", to: "/more", label: "我的", icon: IconUser, changelog: true },
 ];
 

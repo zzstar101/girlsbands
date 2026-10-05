@@ -1,36 +1,21 @@
+import type { CSSProperties } from "react";
 import { Link } from "react-router";
-import { FRANCHISES, seriesOf } from "@girlsbands/industry/taxonomy";
-import { IconArrowRight } from "../../components/icons";
+import type { HomeResponse } from "@girlsbands/contracts/site";
+import { FRANCHISES, seriesOf, ENTITIES } from "@girlsbands/industry/taxonomy";
+import { BandLogo } from "../../components/ui/BandTip";
 import { subjectOfId } from "./bands";
 
-/**
- * The three franchises the site covers, above the tracking rail. Each card is that project's page, which
- * carries its bands' news as well, so this is the first thing a reader who follows one series taps.
- * The band count comes from the series definition in `industry/taxonomy.ts`, never from a hand-kept list.
- */
-export function ProjectRail({ className = "" }: { className?: string }) {
-  return (
-    <nav aria-label="企划入口" className={`grid grid-cols-1 gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-3 ${className}`}>
-      {FRANCHISES.map((id) => {
-        // SERIES only ever names entities, so the lookup cannot miss.
-        const subject = subjectOfId(id)!;
-        const bands = seriesOf(id).filter((member) => subjectOfId(member)?.kind === "band").length;
-        return (
-          <Link key={id} viewTransition to={`/topics/${id}`} className="group flex flex-col justify-between bg-surface p-3 transition-colors hover:bg-bg-sunk lg:p-4">
-            <span className="flex items-center justify-between">
-              <span className="block h-[3px] w-8 rounded-full" style={{ background: subject.accent ?? undefined }} />
-              <span className="font-mono text-[10.5px] font-semibold tracking-[0.12em] text-ink-4">{bands} BANDS</span>
-            </span>
-            <span className="mt-3 block">
-              <span className="flex items-center gap-1 text-[15px] font-bold text-ink lg:text-[16.5px]">
-                {subject.label}
-                <IconArrowRight size={13} className="opacity-0 transition-opacity group-hover:opacity-60" />
-              </span>
-              <span className="mt-0.5 block text-[12px] leading-[1.5] text-ink-4">企划与旗下乐队的全部动态</span>
-            </span>
-          </Link>
-        );
-      })}
-    </nav>
-  );
+export function ProjectRail({ className = "", projects }: { className?: string; projects?: HomeResponse['projects'] }) {
+  return <nav aria-label="企划入口" className={`posters ${className}`}>{FRANCHISES.map((id, i) => {
+    const subject = subjectOfId(id)!;
+    const bands = seriesOf(id).filter((member) => ENTITIES[member]?.kind === 'band');
+    const info = projects?.[id];
+    return <Link key={id} to={`/topics/${id}`} className="poster" style={{ '--c': subject.accent } as CSSProperties}>
+      <span className="p-top"><span className="meta">PROJECT 0{i + 1}</span><span className="meta">{bands.length} 支乐队</span></span>
+      <span className="logo"><BandLogo id={id} /></span><span className="sr-only">{subject.label}</span>
+      <span className="latest">{info?.latest?.title ?? '暂无近 7 天消息，查看企划归档'}</span>
+      <span className="chips" aria-hidden="true">{bands.map((band) => <i key={band} style={{ '--k': ENTITIES[band]?.accent } as CSSProperties} />)}</span>
+      {info && <span className="p-foot"><span><b>{info.today}</b> 今天</span><span><b>{info.deadlines}</b> 30 天内截止</span></span>}
+    </Link>;
+  })}</nav>;
 }

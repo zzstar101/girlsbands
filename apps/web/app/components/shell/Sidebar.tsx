@@ -1,69 +1,40 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
+import type { HomeResponse } from "@girlsbands/contracts/site";
 import { SITE } from "@girlsbands/industry/site";
+import { ENTITIES, FRANCHISES, CATEGORIES } from "@girlsbands/industry/taxonomy";
 import { Wordmark } from "../Logo";
 import { useChangelogSeen } from "../../lib/local-state";
-import { SIDEBAR, sidebarIsActive, type NavItem } from "./nav";
 import { ThemeSwitch } from "./ThemeSwitch";
+import { Countdown } from "../../features/feed/Ticket";
+import { ArtistLine } from "../ui/ArtistBadge";
+import { subjectOfId, type Subject } from "../../features/feed/bands";
 
-/** True while the changelog has an entry newer than the one this reader last opened. */
 export function useChangelogDot(latestVersion: string | null): boolean {
   const seen = useChangelogSeen();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted || !latestVersion) return false;
-  return !seen || seen < latestVersion;
+  return mounted && !!latestVersion && (!seen || seen < latestVersion);
 }
-
-function SideLink({ item, dot }: { item: NavItem; dot: boolean }) {
-  const { pathname } = useLocation();
-  const isActive = sidebarIsActive(item, pathname);
-  const Icon = item.icon;
-  return (
-    <Link
-      to={item.to}
-      prefetch="intent"
-      aria-current={isActive ? "page" : undefined}
-      className={`flex h-10 items-center gap-2.5 rounded-control px-2.5 text-[14px] transition-colors duration-150 ${
-        isActive ? "bg-accent/10 font-semibold text-ink dark:bg-accent-soft" : "font-medium text-ink-3 hover:bg-bg-sunk hover:text-ink"
-      }`}
-    >
-      <span className={`flex w-[22px] shrink-0 justify-center ${isActive ? "text-accent" : ""}`}>
-        <Icon size={17} />
-      </span>
-      <span className="min-w-0 truncate">{item.label}</span>
-      {dot && item.changelog && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-hot" aria-label="有新的更新" />}
-    </Link>
-  );
-}
-
-export function Sidebar({ changelogVersion }: { changelogVersion: string | null }) {
+const MAIN = [['/', '首页'], ['/all', '全部消息'], ['/deadlines', '截止雷达'], ['/topics/bang-dream#calendar', '日历'], ['/hot', '热议'], ['/daily', '日报']] as const;
+export function Sidebar({ changelogVersion, home }: { changelogVersion: string | null; home?: HomeResponse | null }) {
+  const { pathname, hash: windowHash } = useLocation();
   const dot = useChangelogDot(changelogVersion);
-  return (
-    <aside className="sticky top-0 hidden h-dvh w-[180px] shrink-0 flex-col border-r border-line bg-sidebar px-3 pb-3.5 pt-6 lg:flex">
-      <Link to="/" className="mb-4 flex h-[50px] items-center px-1 text-ink" aria-label={`${SITE.name} 首页`}>
-        <Wordmark size={24} />
-      </Link>
-      <nav className="-mx-1 flex-1 overflow-y-auto px-1" aria-label="主导航">
-        {SIDEBAR.map((section) => (
-          <div key={section.title}>
-            <div className="px-2.5 pb-1 pt-3.5 text-[11px] text-ink-4">{section.title}</div>
-            <div className="flex flex-col gap-1">
-              {section.items.map((item) => (
-                <SideLink key={item.to} item={item} dot={dot} />
-              ))}
-            </div>
-          </div>
-        ))}
-      </nav>
-      <div className="mt-2 space-y-2.5 px-1 pt-1">
-        <ThemeSwitch className="mx-1" />
-        {SITE.icp && (
-          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="block px-2 text-[10px] text-ink-4 hover:text-ink-3">
-            {SITE.icp}
-          </a>
-        )}
-      </div>
-    </aside>
-  );
+  const next = home?.deadlines.days.flatMap((d) => d.items).find((d) => d.kind === 'lottery_end' || d.kind === 'stream_end');
+  return <aside className="side hidden lg:flex">
+    <Link to="/" className="logo" aria-label={`${SITE.name} 首页`}><Wordmark size={32} /></Link>
+    {next && <div className="side-next"><div className="sn-top"><span>即将截止</span><Countdown at={next.at} from={home!.deadlines.from} /></div><Link to={`/items/${next.itemId}`} className="sn-title">{next.title}</Link><ArtistLine className="mt-2" subjects={next.subjects.map(subjectOfId).filter((s): s is Subject => !!s)} /></div>}
+    <nav className="nav flex-1 overflow-y-auto scrollbar-thin" aria-label="主导航">
+      {MAIN.map(([to, label], i) => {
+        const [path, query] = to.split('#');
+        const on = pathname === path && (query ? windowHash === `#${query}` : windowHash !== '#calendar');
+        return <Link key={to} to={to} className={on ? 'on' : ''} aria-current={on ? 'page' : undefined}><span className="no">0{i + 1}</span>{label}{home && i === 1 && <span className="cnt">{home.stats.today}</span>}{home && i === 2 && home.stats.soon > 0 && <span className="cnt hot">{home.stats.soon}</span>}</Link>;
+      })}
+      <div className="nav-title">企划<i /></div>{FRANCHISES.map((id) => <Link key={id} to={`/topics/${id}`} className={`fr ${pathname === `/topics/${id}` && windowHash !== '#calendar' ? 'on' : ''}`}><span className="sw" style={{ background: ENTITIES[id].accent }} /><span className="truncate">{ENTITIES[id].displayTag ?? ENTITIES[id].name}</span>{home && <span className="cnt">{home.projects[id]?.today ?? 0}</span>}</Link>)}
+      <div className="nav-title">分类<i /></div><div className="cats">{CATEGORIES.map((c) => <Link key={c.key} to={`/all?category=${c.key}`}>{c.label}</Link>)}</div>
+      <div className="side-links px-2"><Link to="/starred">收藏</Link><Link to="/changelog">更新日志{dot ? ' ·' : ''}</Link><Link to="/feedback">反馈</Link></div>
+    </nav>
+    <div className="side-foot"><ThemeSwitch /><div className="side-links"><Link to="/subscribe">邮件订阅</Link><a href="/feed.xml">RSS</a><Link to="/agent?tab=api">API</Link><Link to="/about">关于</Link></div>{SITE.icp && <a href="https://beian.miit.gov.cn/" className="text-[10px] text-ink-4">{SITE.icp}</a>}</div>
+    <div className="side-rail" aria-hidden="true"><span>GIRLSBANDS · LIVE · TICKET · RELEASE · GIRLSBANDS · LIVE · TICKET · RELEASE ·</span></div>
+  </aside>;
 }

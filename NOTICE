@@ -8,6 +8,7 @@ name and logo, and so must any further fork.
 This repository also contains third-party material under its own terms:
 
 - assets/og-fonts/: Noto Sans SC, SIL Open Font License 1.1 (assets/og-fonts/LICENSE).
+- apps/web/public/fonts/Anton-Regular.ttf: Anton by Vernon Adams, SIL Open Font License 1.1 (apps/web/public/fonts/OFL-Anton.txt).
 
 The sources in industry/sources.json are public feeds of their publishers. Their content belongs to them:
 this site republishes each item in full together with a Chinese translation. A rights holder who wants an

@@ -33,26 +33,26 @@ export function HotTopics({ entries }: { entries: HotStripEntry[] }) {
       <SectionHeader
         id="hot-topics"
         kicker="TRENDING"
-        title="现在在讨论"
+        title="热议"
         aside={
           <Link to="/hot" className="group inline-flex items-center gap-1 transition-colors hover:text-accent">
             完整榜单 <IconArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-0.5" />
           </Link>
         }
       />
-      <ol className="border-b border-line-soft">
+      <ol className="hot-strip border-b border-line-soft">
         {entries.slice(0, 5).map((e, i) => (
           <li key={e.rank} className={`border-t border-line-soft ${i >= 3 ? "max-sm:hidden" : ""}`}>
             <Link viewTransition
               to={hrefOf(e)}
               className="group grid min-h-10 grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-x-3 py-2 transition-colors hover:bg-bg-sunk/60 active:bg-bg-sunk sm:min-h-0 sm:grid-cols-[22px_minmax(0,1fr)_120px_64px_20px] sm:gap-x-4 dark:hover:bg-bg-muted/40"
             >
-              <span className={`num text-center leading-none ${RANK_COLOR[i] ?? "text-[14px] font-bold text-rank-rest"}`}>{e.rank}</span>
+              <span className={`hot-rank rank-${e.rank} text-center leading-none`}>{e.rank}</span>
               <span className="line-clamp-1 min-w-0 text-[14.5px] font-semibold leading-[1.5] text-ink transition-colors group-hover:text-accent lg:text-[14px]">{e.title}</span>
-              <span className="hidden justify-end sm:flex">
+              <span className="hot-faces hidden justify-end sm:flex">
                 <Faces participants={e.participants} total={e.participantCount} size={20} interactive={false} />
               </span>
-              <span className="flex items-center justify-end gap-2.5 sm:contents">
+              <span className="hot-metrics flex items-center justify-end gap-2.5 sm:contents">
                 <span className="whitespace-nowrap text-right text-[12.5px] text-ink-4" title="热度指数">
                   <span className="num text-[13.5px] font-semibold text-ink-2">{Math.round(e.heat)}</span> 热度
                 </span>

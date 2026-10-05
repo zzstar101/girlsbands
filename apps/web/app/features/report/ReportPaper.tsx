@@ -15,6 +15,7 @@ import { Kicker } from "../../components/ui/Kicker";
 import type { OutlineEntry } from "../../components/ui/OutlineSheet";
 import { SourceAvatar } from "../../components/ui/SourceAvatar";
 import { Halftone } from "./Halftone";
+import { Wordmark } from "../../components/Logo";
 import { Nameplate } from "./Nameplate";
 import { IssueDots } from "./IssueDots";
 import { monthDay } from "../../lib/format";
@@ -29,7 +30,7 @@ function Masthead({ report, index }: { report: ReportDetail; index: ReportNaviga
   const issue = report.issueNumber;
   const mark = dateMark(report.kind, report.key);
   return (
-    <header className="pt-5 lg:pt-0">
+    <header data-report-masthead className="report-masthead pt-5 lg:pt-0">
       <div className="flex items-center justify-between gap-4 text-[12px] text-ink-4">
         <span className="num">{dateLine(report.kind, report.key)}</span>
         <span className="hidden tracking-[0.3em] @[640px]:inline">{MOTTO[report.kind]}</span>
@@ -42,7 +43,7 @@ function Masthead({ report, index }: { report: ReportDetail; index: ReportNaviga
             <span className="sr-only">
               {withSubject(KIND_LABEL[report.kind])} · {dateLine(report.kind, report.key)}
             </span>
-            <Nameplate which={report.kind} className="block h-[44px] w-auto @[520px]:h-[58px] @[880px]:h-[74px] @[1040px]:h-[84px]" />
+            <Wordmark size={40} /><span className="mt-3 block text-[26px] font-black">{KIND_LABEL[report.kind]}</span>
           </h1>
           <p className="mt-3 text-[11.5px] tracking-[0.36em] text-ink-4 @[880px]:mt-4 @[880px]:text-[12.5px]">{SITE.name.toUpperCase()}</p>
         </div>

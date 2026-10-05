@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 type Tone = "selected" | "accent" | "amber" | "hot" | "ok" | "neutral";
 
 const TONES: Record<Tone, string> = {
-  selected: "bg-amber-soft text-amber-ink",
+  selected: "text-accent",
   accent: "bg-accent-soft text-accent",
   amber: "bg-amber-soft text-amber-ink",
   hot: "bg-hot-soft text-hot",
@@ -24,8 +24,8 @@ export function Badge({ tone = "neutral", dot = false, children, className = "",
 /** The "精选" mark on a report. */
 export function SelectedBadge() {
   return (
-    <Badge tone="selected" dot>
-      精选
+    <Badge tone="selected" className="display tracking-[.1em]" title="精选">
+      ★ PICK
     </Badge>
   );
 }

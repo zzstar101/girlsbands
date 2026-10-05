@@ -1,3 +1,4 @@
+import { deadlineRange, jstDate, addDays } from "./deadlines.ts";
 // Item detail and Markdown export, both behind the same visibility and licence rules.
 import type { OutlineEntry, SiteItemDetail, StoryRef } from "@girlsbands/contracts/site";
 import { SITE } from "@girlsbands/industry/site";
@@ -146,6 +147,8 @@ export async function loadItemDetail(id: string, language: "zh" | "original" = "
   const sameEvent = (await seatHolders([row], now)).get(row.id) ?? null;
   const item: SiteItemDetail = {
     ...summary,
+    datesFrom: jstDate(now),
+    dates: await deadlineRange(now, { from: jstDate(now), to: addDays(jstDate(now), 730), itemIds: [row.id] }),
     x,
     ...(sameEvent ? { reason: null, sameEvent } : {}),
     readingMode: "full",

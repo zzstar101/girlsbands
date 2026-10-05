@@ -6,6 +6,7 @@ import type { ReportIndexResponse, ReportLatestPage, ReportNavigationResponse, S
 import { InvalidCursorError } from "@girlsbands/backend/lib/cursor";
 import { exportMarkdown, loadItemDetail } from "@girlsbands/backend/publication/detail";
 import { loadPool, SearchBusyError } from "@girlsbands/backend/publication/pool";
+import { loadHome } from "@girlsbands/backend/publication/home";
 import { loadTimeline } from "@girlsbands/backend/publication/timeline";
 import { loadStoryFollowups } from "@girlsbands/backend/publication/followups";
 import { loadGroupReports } from "@girlsbands/backend/publication/groups";
@@ -59,6 +60,8 @@ export function parseFilters(q: Record<string, string>): FilterParams {
 }
 
 export function registerSite(app: FastifyInstance) {
+  app.get("/api/site/home", siteHandler(async (req, reply) => sendJsonWithEtag(req, reply, await loadHome(), { etagPrefix: "home", cacheControl: "public, max-age=60, s-maxage=60" })));
+
   app.get("/api/site/meta", siteHandler(async (req, reply) => {
     return sendJsonWithEtag(req, reply, siteMeta(), { etagPrefix: "meta", cacheControl: "public, max-age=60, s-maxage=60" });
   }));

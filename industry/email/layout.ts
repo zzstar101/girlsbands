@@ -128,7 +128,4 @@ export function readableOn(c: string, bg: string, fallback: string, min = 4.5): 
  * 深浅字色的对比度交叉点跟阈值本来就不是一个数（默认这对字色约在 L≈0.179），
  * 所以这里不再猜阈值，直接比。不是合法色值时给深字。
  */
-export function inkOn(bg: string, dark = "#111111", light = "#ffffff"): string {
-  if (!rgb(bg)) return dark;
-  return contrast(bg, dark) >= contrast(bg, light) ? dark : light;
-}
+export { inkOn } from "../colors.ts";

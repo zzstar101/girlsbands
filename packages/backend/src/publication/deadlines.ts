@@ -12,7 +12,7 @@
 // news; the reports that did clear the bar carry `selected` and sort first within their day.
 import type { DeadlineKind, DeadlinesResponse, DeadlineView } from "@girlsbands/contracts/site";
 import { sql } from "../db.ts";
-import { entityIds, entityTags, publicSourceName } from "./rules.ts";
+import { entityIds, entityTags, publicSourceName, hasItemPage } from "./rules.ts";
 import { listedCondition } from "./scope.ts";
 
 const JST_OFFSET_MS = 9 * 3600 * 1000;
@@ -48,6 +48,7 @@ interface Row {
   selected: boolean;
   published_at: Date | null;
   source_name: string;
+  source_mode: string;
   kind: string | null;
   at: string | null;
   note: string | null;
@@ -60,13 +61,15 @@ interface Row {
  */
 async function deadlineWindow(
   now: Date,
-  opts: { from: string; to: string; limit: number; storyId?: number; subject?: string },
+  opts: { from: string; to: string; limit: number; storyId?: number; subject?: string; itemIds?: string[] },
 ): Promise<{ days: Array<{ date: string; items: DeadlineView[] }>; total: number }> {
+  if (opts.itemIds?.length === 0) return { days: [], total: 0 };
+  const itemFilter = opts.itemIds ? sql`AND p.article_id IN ${sql(opts.itemIds)}` : sql``;
   const storyFilter = opts.storyId === undefined ? sql`` : sql`AND p.story_id = ${opts.storyId}`;
   const subjectFilter = opts.subject === undefined ? sql`` : sql`AND p.tags && ${entityTags(opts.subject)}::text[]`;
   const rows = await sql<Row[]>`
     SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at,
-           s.name AS source_name,
+           s.name AS source_name, s.participation_mode AS source_mode,
            d.value->>'kind' AS kind, d.value->>'at' AS at, d.value->>'note' AS note
     FROM publications p
     JOIN sources s ON s.id = p.source_id
@@ -74,6 +77,7 @@ async function deadlineWindow(
     CROSS JOIN LATERAL jsonb_array_elements(an.output->'fact'->'deadlines') AS d(value)
     WHERE ${listedCondition(now)}
       AND jsonb_typeof(an.output->'fact'->'deadlines') = 'array'
+      ${itemFilter}
       ${storyFilter}
       ${subjectFilter}
       AND d.value->>'at' >= ${opts.from} AND d.value->>'at' < ${addDays(opts.to, 1)}
@@ -83,6 +87,7 @@ async function deadlineWindow(
   const days = new Map<string, DeadlineView[]>();
   let total = 0;
   for (const r of rows) {
+    if (!hasItemPage({ visibility: "public", sourceMode: r.source_mode })) continue;
     const at = r.at;
     // A malformed or time-less row never reaches a reader: the extraction only emits both, and this
     // is the last gate before the page prints a date someone might plan around.
@@ -134,10 +139,10 @@ export async function upcomingDeadlines(
  */
 export async function deadlineRange(
   now: Date,
-  opts: { from: string; to: string; limit?: number; subject?: string },
+  opts: { from: string; to: string; limit?: number; subject?: string; itemIds?: string[] },
 ): Promise<DeadlineView[]> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit ?? MAX_LIMIT), 1), MAX_LIMIT);
-  const { days } = await deadlineWindow(now, { from: opts.from, to: opts.to, limit, subject: opts.subject });
+  const { days } = await deadlineWindow(now, { from: opts.from, to: opts.to, limit, subject: opts.subject, itemIds: opts.itemIds });
   return days.flatMap((d) => d.items);
 }
 

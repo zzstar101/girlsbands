@@ -1,7 +1,15 @@
-import { data as withHeaders, redirect, useLoaderData } from "react-router";
+import { data as withHeaders, redirect, useLoaderData, useRouteLoaderData, Link } from "react-router";
 import type { Route } from "./+types/home";
 import type { TimelineResponse } from "@girlsbands/contracts/site";
-import { SITE } from "@girlsbands/industry/site";
+import { FRANCHISES, ENTITIES } from "@girlsbands/industry/taxonomy";
+import type { loader as rootLoader } from "../root";
+import type { HomeResponse } from "@girlsbands/contracts/site";
+import { BandEqualizer } from "../features/feed/BandEqualizer";
+import { Ticket } from "../features/feed/Ticket";
+import { DeadlineRadar, SubscribeBlock } from "../features/feed/DeadlineRadar";
+import { Count } from "../components/ui/Count";
+import { IssueSeal } from "../components/ui/IssueSeal";
+import { Ticker } from "../components/shell/Ticker";
 import { apiDeadlineCache, loadOr404 } from "../lib/api.server";
 import { filterParams, itemListLd, listPath, pageMeta, readFilters, siteLd } from "../lib/seo";
 import type { Screen } from "../components/shell/screens";
@@ -35,54 +43,38 @@ export function headers({ loaderHeaders }: Route.HeadersArgs) {
   return loaderHeaders;
 }
 
-/** The standing question, set as the page's own headline. The description is desktop-only so phones reach the feed sooner. */
-function HomeHero() {
-  return (
-    <header className="border-b border-line pb-4 pt-1 lg:pb-6 lg:pt-2">
-      <p className="meta uppercase">BAND INTELLIGENCE · LIVE · TICKET</p>
-      <h1 className="mt-1.5 text-[25px] font-black leading-[1.15] tracking-[-0.025em] text-ink lg:mt-2 lg:text-[36px]">{SITE.tagline}</h1>
-      <p className="mt-2 hidden max-w-[62ch] text-[14px] leading-[1.75] text-ink-3 lg:block">{SITE.description}</p>
-    </header>
-  );
+function HomeHero({ home }: { home: HomeResponse }) {
+  const tickets = home.deadlines.days.flatMap((d) => d.items).slice(0, 3);
+  return <header className="hero">
+    <div className="beams" aria-hidden="true"><span className="beam b1" /><span className="beam b2" /></div><div className="hero-dots halftone" aria-hidden="true" />
+    <div>
+      <div className="issue"><span className="vol">ISSUE {home.today.slice(5).replace('-', '.')}</span><time className="meta" dateTime={home.computedAt}>更新于 {new Date(home.computedAt).toLocaleTimeString('zh-CN', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hour12: false })} JST</time></div>
+      <h1><span className="ln"><span>今天 <em className="n"><Count value={home.stats.today} /></em> 条</span></span><span className="live zh"><span className="flick">新消息</span></span>{home.stats.soon > 0 && <span className="hero-deadline"><em className="n"><Count value={home.stats.soon} delay={80} /></em> 个截止在 <em className="n">48</em> 小时内</span>}</h1>
+      <p className="project-names">{FRANCHISES.map((id) => ENTITIES[id].name).join(' / ')}</p>
+      <p className="hero-lede">收录 {home.stats.bands} 支乐队的官方消息、票务信息和国内同人活动，翻译成中文，按日期整理。所有日期都标注日本时间。</p>
+      <IssueSeal day={home.today} /><div className="stats">{[[home.stats.weekDeadlines, '本周截止'], [home.stats.monthDates, '30 天内日程'], [home.stats.bands, '收录乐队'], [home.stats.sources, '信源']].map(([n, label], i) => <div className="stat" key={label}><span className="n"><Count value={Number(n)} delay={i * 80} /></span><div className="l">{label}</div></div>)}</div>
+    </div>
+    <section className="nextup"><div className="nextup-head"><h2>NEXT UP <span className="text-[14px] font-sans font-bold">近期日程</span></h2><Link to="/deadlines">日程列表</Link></div><div className="tickets">{tickets.map((item, i) => <Ticket key={`${item.itemId}-${item.at}-${i}`} item={item} from={home.deadlines.from} />)}{!tickets.length && <p className="border-y border-line py-6 text-ink-3">未来 30 天暂无已收录日程。</p>}</div></section>
+  </header>;
 }
 
 export default function Home() {
   const { data, filters } = useLoaderData<typeof loader>();
-  const title = filters.tag ? `#${filters.tag}` : "精选";
-  // A category, channel or tag in the URL means the reader is inside one slice: the hero and the entry
-  // rail give way to the slice's own heading. `channel` always has a value, so only a non-default one counts.
+  const home = useRouteLoaderData<typeof rootLoader>('root')?.home;
   const sliced = Boolean(filters.tag || filters.category || filters.channel !== "all");
-  return (
-    <div className="pb-6">
-      {/* Phones: the bar (精选 | 全部, filter, search), the filter in use, the tracking entry points, the feed. */}
-      <FeedBar base="/" category={filters.category} channel={filters.channel} />
-      <ActiveFilters base="/" category={filters.category} channel={filters.channel} tag={filters.tag} />
-      {!sliced && <HomeHero />}
-      <div className="hidden lg:block">
-        {sliced ? (
-          <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">{title}</h1>
-        ) : (
-          <h2 className="mt-5 text-[15px] font-semibold text-ink">最新情报</h2>
-        )}
-        <div className={`flex items-center justify-between gap-4 ${sliced ? "mb-5 mt-4" : "mb-5 mt-3"}`}>
-          <CategoryTabs base="/" category={filters.category} channel={filters.channel} layoutId="home-cat-desk" className="min-w-0" />
-          <SearchField keep={{ category: filters.category }} />
-        </div>
-      </div>
-
-      {!sliced && <ProjectRail className="mt-4 lg:mt-0" />}
-      {!sliced && <TrackRail className="mt-3" />}
-
-      {!sliced && (
-        <div className="mb-3 lg:hidden">
-          <SectionHeader kicker="LATEST" title="最新情报" />
-        </div>
-      )}
-
-      <Timeline initial={data} filters={data.filters} />
-
-      {/* Trending comes last on purpose: what the reader can still act on outranks what is merely being talked about. */}
-      {data.hot && <HotTopics entries={data.hot} />}
+  return <div className="pb-6 flyer-home">
+    <FeedBar base="/" category={filters.category} channel={filters.channel} />
+    <ActiveFilters base="/" category={filters.category} channel={filters.channel} tag={filters.tag} />
+    {home && !sliced && <><Ticker items={home.deadlines.days.flatMap((d) => d.items)} /><HomeHero home={home} />
+      <SectionHeader title="乐队" kicker="BANDS" aside={<span className="text-[12px] text-ink-4">近 7 天</span>} />
+      <BandEqualizer counts={home.bandWeek} /><ProjectRail projects={home.projects} /><TrackRail counts={home.trackCounts} />
+    </>}
+    <div className={`body-grid ${sliced ? 'sliced' : ''}`}>
+      <section className="min-w-0"><SectionHeader title={filters.tag ? `#${filters.tag}` : '最新消息'} kicker="LATEST" />
+        <div className="feed-filters"><CategoryTabs base="/" category={filters.category} channel={filters.channel} layoutId="home-cat-desk" className="min-w-0" /><SearchField keep={{ category: filters.category }} /></div>
+        <Timeline initial={data} filters={data.filters} dates={home?.deadlines} />
+      </section>
+      <aside className="feed-aside">{home && <DeadlineRadar data={home.deadlines} />}{data.hot && <HotTopics entries={data.hot} />}<SubscribeBlock /></aside>
     </div>
-  );
+  </div>;
 }

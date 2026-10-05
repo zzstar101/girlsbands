@@ -1,3 +1,4 @@
+import { attachFeedDates } from "./feed-dates.ts";
 // Topics: stable slugs in three groups (subjects, directions, content forms), defined by the industry
 // pack (industry/topics.json) and read from there when the process starts. Which reports a topic takes
 // is one SQL predicate, `membership`: a direction or a form takes its tags; a subject (a company, a band,
@@ -359,13 +360,15 @@ export async function loadTopicPage(slug: string, page: number, now?: Date, scop
   });
   const groupName = TOPIC_GROUPS.find((g) => g.key === topic.group)?.name ?? "";
   const picked = first ? selectTopicChronicle(topic, shown, window) : [];
+  const items = rows.map(toFeedItemSummary);
+  await attachFeedDates(items, at);
   return {
     topic: { ...summarize(topic, seats, index.at, brands, live), groupName, poolTotal: pool },
     kinds: CHRONICLE_KINDS,
     chronicle: first && !tracksAsSubject(topic.group) ? picked : [],
     milestones: first && tracksAsSubject(topic.group) ? companyMilestones(history, picked) : [],
     highlights: first ? selectTopicHighlights(topic, shown, window) : [],
-    items: rows.map(toFeedItemSummary),
+    items,
     page,
     pageCount,
     pageSize: TOPIC_PAGE_SIZE,

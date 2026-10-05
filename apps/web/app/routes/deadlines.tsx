@@ -4,6 +4,8 @@ import { subjectAfter, withSubject } from "@girlsbands/industry/site";
 import { edgeTtl, loadOr404 } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { weekdayShort } from "../lib/format";
+import { DayHeader } from "../features/feed/Timeline";
+import { Ticket, daysAway, Countdown } from "../features/feed/Ticket";
 import { subjectOfId } from "../features/feed/bands";
 import { DEADLINE_KINDS, clock, dayName, md } from "../features/feed/deadlines";
 import { ArtistLine } from "../components/ui/ArtistBadge";
@@ -12,7 +14,7 @@ import { IconCalendar, IconInfo } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import type { Screen } from "../components/shell/screens";
 
-export const handle: Screen = { tab: "live", name: "截止雷达" };
+export const handle: Screen = { tab: "ticket", name: "截止雷达" };
 
 const HORIZON_DAYS = 30;
 
@@ -34,7 +36,7 @@ export function headers() {
   return edgeTtl(300);
 }
 
-function Row({ d }: { d: DeadlineView }) {
+function Row({ d, from }: { d: DeadlineView; from: string }) {
   const kind = DEADLINE_KINDS[d.kind];
   const subjects = d.subjects.flatMap((id) => {
     const s = subjectOfId(id);
@@ -43,13 +45,9 @@ function Row({ d }: { d: DeadlineView }) {
   const time = clock(d.at);
   const date = d.publishedAt ? new Date(d.publishedAt) : null;
   return (
-    <li className="group grid grid-cols-[52px_minmax(0,1fr)] items-start gap-x-3 px-4 py-3 transition-colors hover:bg-bg-sunk/70 sm:px-5 lg:grid-cols-[52px_68px_minmax(0,1fr)_auto] lg:items-center lg:gap-x-5 lg:px-6 dark:hover:bg-bg-muted/40">
-      <span className={`mono text-[13px] font-semibold leading-[22px] tabular-nums lg:text-[14px] ${d.soon ? "text-hot" : "text-ink-2"}`}>
-        {time ?? md(d.day)}
-      </span>
-      <span className={`self-center text-[11px] font-semibold tracking-[0.08em] ${kind.className}`} title={kind.hint}>
-        {kind.label}
-      </span>
+    <li className={`radar-row ${d.soon ? 'soon' : ''}`}>
+      <span className="radar-date"><b>{daysAway(d.day, from)}</b><span>{md(d.day)}</span></span>
+      <div className="min-w-0"><span className={`block text-[12px] font-bold ${kind.className}`}>{kind.label} · {time ?? '全天'} JST</span><Countdown at={d.at} from={from} /></div>
       <div className="min-w-0">
         <h3 className="text-[15px] font-[650] leading-[1.55] text-ink">
           <Link viewTransition to={`/items/${d.itemId}`} prefetch="intent" className="transition-colors group-hover:text-accent">
@@ -122,6 +120,7 @@ export default function DeadlinesPage() {
         </div>
       </header>
 
+      {days.length > 0 && <div className="tickets mb-7">{days.flatMap((d) => d.items).slice(0, 3).map((d, i) => <Ticket key={i} item={d} from={from} />)}</div>}
       {days.length === 0 ? (
         <div className="card rounded-sheet">
           <EmptyState title="未来 30 天没有已公布的截止日">等到有明确日期的公告时，这里会列出抽选、发售与演出当天。</EmptyState>
@@ -130,14 +129,10 @@ export default function DeadlinesPage() {
         <div className="space-y-5">
           {days.map((day) => (
             <section key={day.date} aria-label={day.date}>
-              <div className="mb-2 flex items-baseline gap-2.5 px-1">
-                <h2 className="mono text-[15px] font-bold tracking-[0.04em] text-ink">{md(day.date)}</h2>
-                <span className="text-[13px] text-ink-3">{dayName(day.date, from) || weekdayShort(day.date)}</span>
-                <span className="num ml-auto text-[12px] text-ink-4">{day.items.length} 件</span>
-              </div>
+              <DayHeader day={day.date} today={from} count={day.items.length} />
               <ol className="card divide-y divide-line-soft overflow-hidden">
                 {day.items.map((d, i) => (
-                  <Row key={`${d.itemId}-${d.at}-${i}`} d={d} />
+                  <Row key={`${d.itemId}-${d.at}-${i}`} d={d} from={from} />
                 ))}
               </ol>
             </section>
@@ -157,7 +152,7 @@ export default function DeadlinesPage() {
         <div className="max-w-[760px] space-y-2 pb-2 pl-[21px] pt-2 leading-[1.75] text-ink-3">
           <p>每一条都是从公告原文里读出来的日期，并保留原句作为凭据；原文没有写明日期的节点不会出现在这里，我们不会替官方推算。</p>
           <p>
-            日期按日本时间（JST）计算，因为受理截止通常写的是日本当地的 23:59。一行只代表一个节点，同一条公告里的受理期与一般发售会拆成两行。
+            日期按日本时间（JST）计算，因为受理截止通常写的是日本当地的 23:59。换算成北京时间需减 1 小时。一行只代表一个节点，同一条公告里的受理期与一般发售会拆成两行。
           </p>
           <p>这里不只有已选入头条的公告：只要公告本身写清了日期，就会进入雷达——截止日不值得上头条，但值得你提前知道。</p>
           <p>

@@ -1,3 +1,7 @@
+import { Ticket } from "../features/feed/Ticket";
+import { ArtistLine } from "../components/ui/ArtistBadge";
+import { EventTypeBadge } from "../components/ui/EventTypeBadge";
+import { subjectsOfItem } from "../features/feed/bands";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Await, isRouteErrorResponse, Link, useAsyncError, useLoaderData, useNavigate, useRevalidator } from "react-router";
 import type { Route } from "./+types/item";
@@ -465,8 +469,11 @@ function ItemView({ item }: { item: SiteItemDetail }) {
               </span>
             )}
           </div>
+          <div className="mb-3 flex flex-wrap items-center gap-2"><EventTypeBadge category={item.category} /><ArtistLine subjects={subjectsOfItem(item)} /></div>
           {!isX && <h1 data-page-title="" className="text-[26px] font-bold leading-[1.38] tracking-[-0.01em] text-ink lg:text-[32px] lg:leading-[1.34] xl:text-[36px] xl:leading-[1.3]">{item.title}</h1>}
           {!isX && item.originalTitle && <p className="mt-2.5 text-[14px] leading-relaxed text-ink-4">{item.originalTitle}</p>}
+
+          {item.dates?.[0] && <div className="mt-5 max-w-[520px]"><Ticket item={item.dates[0]} from={item.datesFrom ?? item.dates[0].day} /></div>}
 
           {item.summary && (
             <section className={isX ? "mt-4" : "mt-7 xl:mt-8"}>

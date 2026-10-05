@@ -9,6 +9,7 @@ const base = (at > 0 ? process.argv[at + 1] : process.env.SITE_URL) ?? "http://l
 const PAGES = ["/", "/all", "/hot", "/deadlines", "/daily", "/daily/archive", "/topics/bang-dream", "/starred", "/agent", "/about", "/changelog", "/feedback", "/subscribe", "/terms", "/privacy", "/more", "/admin/login"];
 const MACHINE: Array<[path: string, type: RegExp]> = [
   ["/api/health", /json/],
+  ["/api/site/home", /json/],
   ["/api/v1/items", /json/],
   ["/api/v1/hot-topics", /json/],
   ["/api/v1/selected/snapshot", /json/],

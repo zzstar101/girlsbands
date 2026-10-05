@@ -19,19 +19,11 @@ const CODES: Record<CategoryKey, string> = {
   other: "OTHER",
 };
 
-const TONES: Partial<Record<CategoryKey, string>> = {
-  ticket: "text-hot border-hot/35",
-  notice: "text-hot border-hot/35",
-  live: "text-accent border-accent/35",
-  release: "text-accent border-accent/35",
-  member: "text-amber-ink border-amber/35",
-};
-
 export function EventTypeBadge({ category, className = "" }: { category: CategoryKey | null | undefined; className?: string }) {
   if (!category) return null;
   return (
     <span
-      className={`inline-flex items-center rounded-[3px] border px-1.5 py-[1px] font-mono text-[10.5px] font-semibold leading-[1.5] tracking-[0.1em] ${TONES[category] ?? "text-ink-3 border-line"} ${className}`}
+      className={`stamp ${category} ${className}`}
       title={CATEGORY_LABELS[category]}
     >
       {CODES[category]}

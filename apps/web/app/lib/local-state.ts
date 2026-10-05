@@ -244,16 +244,11 @@ export function setThemePreference(pref: ThemePreference) {
 }
 
 export function resolvedTheme(pref: ThemePreference = getThemePreference()): "light" | "dark" {
-  if (pref) return pref;
-  try {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  } catch {
-    return "light";
-  }
+  return pref ?? "dark";
 }
 
 /** The browser chrome colour per theme; the same values as the `--bg` design token in app.css. */
-export const THEME_COLOR = { light: "#f6f4ef", dark: "#0b0b0f" } as const;
+export const THEME_COLOR = { light: "#efebe2", dark: "#0b0a0d" } as const;
 
 /** Puts a theme on the page: the document's data-theme and the browser's theme colour. */
 export function applyTheme(theme: "light" | "dark", followsSystem: boolean) {
@@ -271,25 +266,11 @@ export function applyTheme(theme: "light" | "dark", followsSystem: boolean) {
  */
 export function useThemeSync() {
   const pref = useThemePreference();
-  useEffect(() => {
-    // Read the stored choice itself: during hydration the hook still reports the server's "none".
-    const current = getThemePreference();
-    applyTheme(resolvedTheme(current), current === null);
-    if (current !== null) return;
-    let query: MediaQueryList;
-    try {
-      query = window.matchMedia("(prefers-color-scheme: dark)");
-    } catch {
-      return;
-    }
-    const onChange = () => applyTheme(query.matches ? "dark" : "light", true);
-    query.addEventListener("change", onChange);
-    return () => query.removeEventListener("change", onChange);
-  }, [pref]);
+  useEffect(() => applyTheme(resolvedTheme(getThemePreference()), false), [pref]);
 }
 
 /** Inline script run before paint so the first frame already has the reader's theme. */
-export const THEME_BOOT_SCRIPT = `(function(){try{var t=localStorage.getItem('${KEYS.theme}');if(t==='light'||t==='dark'){var c=t==='dark'?'${THEME_COLOR.dark}':'${THEME_COLOR.light}';document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.content=c})}else{t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){document.documentElement.setAttribute('data-theme','light')}})();`;
+export const THEME_BOOT_SCRIPT = `(function(){try{var t=localStorage.getItem('${KEYS.theme}');if(t==='light'||t==='dark'){var c=t==='dark'?'${THEME_COLOR.dark}':'${THEME_COLOR.light}';document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.content=c})}else{t='dark'}document.documentElement.setAttribute('data-theme',t)}catch(e){document.documentElement.setAttribute('data-theme','dark')}})();`;
 
 // changelog red dot
 function getChangelogSeen(): string | null {

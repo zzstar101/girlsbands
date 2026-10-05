@@ -75,6 +75,9 @@ export interface ItemSummary {
 
 /** The fields rendered by a site feed card; full original text lives in the item detail. */
 export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "source" | "publishedAt" | "timelineAt" | "category" | "tags" | "subjects" | "score" | "selected" | "channel"> {
+  /** Upcoming original-stated dates, from the shared calendar read layer. */
+  dates?: DeadlineView[];
+  datesFrom?: string;
   x: (Pick<XPostView, "authorName" | "handle" | "avatarUrl" | "avatarSrcSet" | "media"> & {
     quoted: Omit<NonNullable<XPostView["quoted"]>, "url"> | null;
   }) | null;
@@ -98,6 +101,8 @@ export interface TimelineCard {
   anchorAt: string;
   item: FeedItemSummary;
   group: GroupInfo | null;
+  /** The highest-scoring representative of this full day, independent of pagination. */
+  headliner?: boolean;
 }
 
 export interface HotStripEntry {
@@ -146,6 +151,8 @@ export interface OutlineEntry {
  * unless …/original asks for the original. Only the body shown is sent, with its outline.
  */
 export interface SiteItemDetail extends ItemSummary {
+  dates?: DeadlineView[];
+  datesFrom?: string;
   /** The post with all its media; its text is the body. */
   x: Omit<XPostView, "text" | "translation"> | null;
   /** Selected, but its fact's seat is held by this report: marked 同新闻, without a reason of its own. */
@@ -645,3 +652,15 @@ export interface TopicPage {
  * topic's membership rule, so the wider one is never a different topic, only a wider cut of it.
  */
 export type TopicScope = "picked" | "all";
+
+/** Site homepage figures, aggregated by the public read layer, independent of feed filters. */
+export interface HomeResponse {
+  computedAt: string;
+  today: string;
+  stats: { today: number; soon: number; weekDeadlines: number; monthDates: number; bands: number; sources: number };
+  bandWeek: Record<string, number>;
+  bandMonthDeadlines: Record<string, number>;
+  trackCounts: Record<string, number>;
+  projects: Record<string, { latest: { id: string; title: string } | null; today: number; deadlines: number }>;
+  deadlines: DeadlinesResponse;
+}

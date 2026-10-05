@@ -2,11 +2,12 @@ import {
   isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLoaderData, useLocation, useNavigation, useRouteError, useRouteLoaderData,
   type ShouldRevalidateFunction,
 } from "react-router";
-import type { SiteMeta } from "@girlsbands/contracts/site";
+import type { SiteMeta, HomeResponse } from "@girlsbands/contracts/site";
 import { SITE } from "@girlsbands/industry/site";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Route } from "./+types/root";
 import "./app.css";
+import "./flyer.css";
 import { Sidebar } from "./components/shell/Sidebar";
 import { TabBar } from "./components/shell/TabBar";
 import { PullToRefresh } from "./components/shell/PullToRefresh";
@@ -30,13 +31,17 @@ export const links: Route.LinksFunction = () => [
 
 export async function loader({ request }: Route.LoaderArgs) {
   try {
-    return await apiGet<SiteMeta>("/api/site/meta", { signal: request.signal });
+    const [meta, home] = await Promise.allSettled([
+      apiGet<SiteMeta>("/api/site/meta", { signal: request.signal }),
+      apiGet<HomeResponse>("/api/site/home", { signal: request.signal }),
+    ]);
+    return { changelogVersion: meta.status === "fulfilled" ? meta.value.changelogVersion : null, home: home.status === "fulfilled" ? home.value : null };
   } catch {
-    return { changelogVersion: null };
+    return { changelogVersion: null, home: null };
   }
 }
 
-export const shouldRevalidate: ShouldRevalidateFunction = () => false;
+export const shouldRevalidate: ShouldRevalidateFunction = ({ defaultShouldRevalidate }) => defaultShouldRevalidate;
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -68,7 +73,7 @@ export function meta({ error }: Route.MetaArgs) {
 }
 
 /** Sidebar, main column and phone tab bar around a page (or an error). */
-function SiteShell({ changelogVersion, children }: { changelogVersion: string | null; children: ReactNode }) {
+function SiteShell({ changelogVersion, home, children }: { changelogVersion: string | null; home?: HomeResponse | null; children: ReactNode }) {
   const navigation = useNavigation();
   // The phone search and pull-to-refresh are client-side, mounted once the page is interactive.
   const [interactive, setInteractive] = useState(false);
@@ -79,13 +84,13 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-control focus:bg-surface focus:px-3 focus:py-2">
         跳到正文
       </a>
-      <Sidebar changelogVersion={changelogVersion} />
+      <Sidebar changelogVersion={changelogVersion} home={home} />
       {/* Phone shell (≤ 960px): each page's top bar (PhoneBar), one centred column, the tab bar below.
           Desktop: the page fills the main area up to the list width (--page-max-wide), centred beyond it. */}
-      <main id="main" className="min-w-0 flex-1 pb-[calc(72px+env(safe-area-inset-bottom))] lg:px-7 lg:pb-[72px] lg:pt-6">
+      <main id="main" className="min-w-0 flex-1 pb-[calc(72px+env(safe-area-inset-bottom))] lg:px-8 lg:pb-[72px] lg:pt-0">
         <div className="mx-auto w-full max-w-[640px] pl-[var(--gutter-l)] pr-[var(--gutter-r)] lg:max-w-[var(--page-max-wide)] lg:px-0">{children}</div>
       </main>
-      <TabBar changelogVersion={changelogVersion} />
+      <TabBar changelogVersion={changelogVersion} urgent={(home?.stats.soon ?? 0) > 0} />
       {interactive && <SearchOverlay />}
       {interactive && <PullToRefresh />}
       <BackToTop />
@@ -109,7 +114,7 @@ export default function App() {
   // The admin has its own chrome.
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return <Outlet />;
   return (
-    <SiteShell changelogVersion={meta.changelogVersion}>
+    <SiteShell changelogVersion={meta.changelogVersion} home={meta.home}>
       <Outlet />
     </SiteShell>
   );
@@ -147,5 +152,5 @@ export function ErrorBoundary() {
   );
   // Admin errors stay inside the admin's own chrome.
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return body;
-  return <SiteShell changelogVersion={site?.changelogVersion ?? null}>{body}</SiteShell>;
+  return <SiteShell changelogVersion={site?.changelogVersion ?? null} home={site?.home}>{body}</SiteShell>;
 }

@@ -7,6 +7,7 @@ import { SITE } from "@girlsbands/industry/site";
 import { IconCheck, IconClose, IconFilter, IconSearch } from "../../components/icons";
 import { PillTabs } from "../../components/ui/Tabs";
 import { Sheet } from "../../components/ui/Sheet";
+import { ThemeSwitch } from "../../components/shell/ThemeSwitch";
 import { Wordmark } from "../../components/Logo";
 import { BarButton, PhoneBar } from "../../components/shell/PhoneBar";
 import { openSearch } from "../search/SearchOverlay";
@@ -64,25 +65,14 @@ export function FeedBar({ base, category, channel }: { base: "/" | "/all"; categ
             <Wordmark size={16} />
           </Link>
         }
-        center={
-          <PillTabs
-            size="sm"
-            layoutId="feed-scope"
-            label="看精选或全部"
-            active={base === "/" ? "featured" : "all"}
-            items={[
-              { key: "featured", label: "精选", to: scope("/"), resetScroll: true },
-              { key: "all", label: "全部", to: scope("/all"), resetScroll: true },
-            ]}
-          />
-        }
+        center={null}
         actions={
           <>
             <BarButton label={filtered ? "筛选（已选）" : "筛选"} on={filtered} onClick={() => setSheet(true)}>
               <IconFilter size={21} />
-              {filtered && <span aria-hidden="true" className="absolute right-[9px] top-[9px] size-[7px] rounded-full bg-accent ring-2 ring-bg" />}
+              {filtered && <span aria-hidden="true" className="absolute right-[9px] top-[9px] size-[7px] rounded-control bg-accent ring-2 ring-bg" />}
             </BarButton>
-            <SearchButton />
+            <SearchButton /><ThemeSwitch className="phone-theme" />
           </>
         }
       />
@@ -123,7 +113,7 @@ export function ActiveFilters({ base, category, channel, tag }: { base: string; 
   const [params] = useSearchParams();
   const label = channel === "firstParty" ? CHANNEL_LABELS.firstParty : category ? CATEGORY_LABELS[category] : null;
   if (!label && !tag) return null;
-  const chip = "inline-flex min-h-11 max-w-full items-center gap-1 rounded-full bg-accent-soft pl-3 pr-2 text-[13px] font-medium text-accent transition-opacity active:opacity-60";
+  const chip = "inline-flex min-h-11 max-w-full items-center gap-1 rounded-control bg-accent-soft pl-3 pr-2 text-[13px] font-medium text-accent transition-opacity active:opacity-60";
   return (
     <div className="flex flex-wrap gap-2 pb-3 pt-1 lg:hidden">
       {label && (
@@ -190,7 +180,7 @@ export function SearchField({ defaultValue = "", keep = {} }: { defaultValue?: s
         placeholder="搜索标题、摘要…"
         maxLength={200}
         autoComplete="off"
-        className="h-[42px] w-full rounded-full bg-bg-sunk pl-10 pr-10 text-[14px] text-ink outline-none ring-1 ring-inset ring-line-soft transition-[background-color,box-shadow] placeholder:text-ink-4 hover:ring-line-strong focus:bg-surface focus:shadow-[0_0_0_3px_var(--accent-soft)] focus:ring-accent dark:bg-bg-muted/60 dark:focus:bg-surface"
+        className="h-[42px] w-full rounded-control bg-bg-sunk pl-10 pr-10 text-[14px] text-ink outline-none ring-1 ring-inset ring-line-soft transition-[background-color,box-shadow] placeholder:text-ink-4 hover:ring-line-strong focus:bg-surface focus:shadow-[0_0_0_3px_var(--accent-soft)] focus:ring-accent dark:bg-bg-muted/60 dark:focus:bg-surface"
       />
       {value ? (
         <button
@@ -200,7 +190,7 @@ export function SearchField({ defaultValue = "", keep = {} }: { defaultValue?: s
             setValue("");
             inputRef.current?.focus();
           }}
-          className="absolute right-3 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-ink-4 transition-colors hover:bg-bg-sunk hover:text-ink"
+          className="absolute right-3 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-control text-ink-4 transition-colors hover:bg-bg-sunk hover:text-ink"
         >
           <IconClose size={13} />
         </button>

@@ -13,7 +13,7 @@ import { sessionCache } from "../../lib/session-cache";
 const reportsUrl = (factId: string, filters: TimelineFilters | undefined) =>
   listPath(`/api/site/groups/${encodeURIComponent(factId)}/reports`, filters ? filterParams(filters) : {});
 
-const labelOf = (group: GroupInfo) => (group.additionalSourceCount > 0 ? `另有 ${group.additionalSourceCount} 家信源报道` : `${group.reportCount} 篇报道`);
+const labelOf = (group: GroupInfo) => (group.additionalSourceCount > 0 ? `另有 ${group.additionalSourceCount} 个来源` : `${group.reportCount} 篇报道`);
 
 // The groups left open in each history entry, with what they showed (null: still loading): back from an
 // item finds them open again. In memory for back within the app; in session storage for a page the
@@ -89,7 +89,7 @@ function LoadState({ loading, error, onRetry, empty }: { loading: boolean; error
   return null;
 }
 
-/** "另有 N 家信源报道": the other reports of the fact the card stands for, behind a toggle. */
+/** "另有 N 个来源": the other reports of the fact the card stands for, behind a toggle. */
 export function GroupSources({ group, filters, parentId }: { group: GroupInfo; filters?: TimelineFilters; parentId: string }) {
   const entry = useLocation().key;
   const key = `${group.factId}|${parentId}`;

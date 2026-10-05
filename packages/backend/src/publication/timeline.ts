@@ -1,6 +1,7 @@
 // Selected news timeline: one card per fact, or per standalone article. Only duplicate reports
 // fold together. Each fact stays at its first appearance; other news in its story never moves it.
 import type { GroupInfo, TimelineCard, TimelineFilters, TimelineResponse } from "@girlsbands/contracts/site";
+import { attachFeedDates } from "./feed-dates.ts";
 import { beijingDate, beijingMidnight } from "@girlsbands/contracts/time";
 import { sql } from "../db.ts";
 import { cachedByKey } from "../lib/cache.ts";
@@ -153,9 +154,39 @@ export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineRespo
     return [{ key, anchorAt, item: toFeedItemSummary(row), group }];
   });
 
+  await attachFeedDates(cards.map((c) => c.item), now);
+
   // Day header counts for the days on this page, over the full grouped set.
   const days = new Set(page.map((g) => beijingDate(g.anchor_at)));
   const dayCounts = countTimelineDays(grouped, days);
+
+  // Rank the full day's representatives, not just this cursor page. A filter may hide the
+  // day's headliner but never awards a second one to a lower scoring report.
+  if (days.size) {
+    type HeadlineMember = RepresentativeRow & { id: string; gk: string; anchor_at: Date };
+    const candidates = await sql<HeadlineMember[]>`
+      WITH base AS (
+        SELECT p.article_id, p.sort_at, CASE WHEN p.fact_id IS NOT NULL AND ${ownFactEvidenceCondition()}
+          THEN 'f' || p.fact_id::text ELSE 'a' || p.article_id END AS gk
+        FROM publications p WHERE ${selectedCondition(now)}
+      ), anchors AS (SELECT gk, min(sort_at) AS anchor_at FROM base GROUP BY gk)
+      SELECT p.article_id AS id, b.gk, g.anchor_at, p.body_mode, p.score, p.timeline_at, ${REPRESENTATIVE_COLUMNS}
+      FROM base b JOIN anchors g ON g.gk = b.gk JOIN publications p ON p.article_id = b.article_id
+        JOIN sources s ON s.id = p.source_id LEFT JOIN facts f ON f.id = p.fact_id
+      WHERE (g.anchor_at AT TIME ZONE 'Asia/Shanghai')::date::text IN ${sql([...days])}
+        AND ${selectedCondition(now)}`;
+    const byGroup = new Map<string, HeadlineMember[]>();
+    for (const row of candidates) byGroup.set(row.gk, [...(byGroup.get(row.gk) ?? []), row]);
+    const best = new Map<string, HeadlineMember>();
+    for (const members of byGroup.values()) {
+      const rep = pickRepresentative(members);
+      if (rep.score === null) continue;
+      const day = beijingDate(rep.anchor_at);
+      const prev = best.get(day);
+      if (!prev || rep.score > prev.score! || (rep.score === prev.score && rep.id < prev.id)) best.set(day, rep);
+    }
+    for (const card of cards) card.headliner = best.get(beijingDate(card.anchorAt))?.id === card.item.id;
+  }
 
   const last = page[page.length - 1];
   const nextCursor = hasMore && last ? encodeCursor("tl2", { a: last.anchor_at.getTime(), g: last.gk, b: bind }) : null;
