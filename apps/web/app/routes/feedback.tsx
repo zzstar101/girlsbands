@@ -59,6 +59,13 @@ function FeedbackAside() {
       <AsideCard title="来源方">
         <p className="text-[13px] leading-[1.75] text-ink-3">如果你是来源方，希望更正、下架或调整展示方式，写明对应的文章链接和你的诉求即可。</p>
       </AsideCard>
+      <AsideCard title="投稿信源">
+        <p className="text-[13px] leading-[1.75] text-ink-3">
+          有我们还没收录的官方账号或情报站？到
+          <Link viewTransition to="/submit" className="mx-0.5 text-band hover:underline">情报投稿</Link>
+          把地址丢过来，人工看过再收。
+        </p>
+      </AsideCard>
     </>
   );
 }

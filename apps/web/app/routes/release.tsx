@@ -16,6 +16,7 @@ import { CoverImage } from "../components/ui/CoverImage";
 import { EmptyState } from "../components/ui/Page";
 import { IconArrowLeft } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
+import { ReportProblem } from "../features/feedback/ReportProblem";
 import type { Screen } from "../components/shell/screens";
 
 export const handle: Screen = { home: "feed" };
@@ -198,6 +199,10 @@ export default function ReleaseRoute() {
         <Link to={`/topics/${release.subject}`} className="mx-0.5 text-band hover:underline">去{release.subjectName}的主页</Link>
         看这个主题的全部动态。本站 <time dateTime={release.firstSeenAt}>{relativeTime(release.firstSeenAt)}</time>首次收录，
         <time dateTime={release.updatedAt}>{relativeTime(release.updatedAt)}</time>最近更新。
+      </p>
+
+      <p className="mt-3 text-[12px] leading-[1.75] text-ink-4">
+        <ReportProblem kind="release" id={release.publicId} what={release.title} />
       </p>
     </div>
   );

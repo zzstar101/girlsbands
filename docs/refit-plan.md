@@ -856,7 +856,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 
 ---
 
-### W18 · 用户纠错与情报投稿（P2）
+### W18 · 用户纠错与情报投稿（P2，2026-10-06 已落地）
 
 **为什么**：站里已经有完整的匿名反馈通道（`/feedback` → `feedback` 表 → 飞书 → `/admin/feedback` 处理），但它现在是**自由文本**：读者想说的是「这条的日期错了」「这个场馆名不对」「这场 Live 我在别处也看到过」，而页面只给一个空白框。同时站主自己找新源靠手工（W6 那三个源就是手工试出来的），读者手里往往有现成的一手链接。这两件事都不需要账号，只是缺一个「结构化的入口 + 人工确认的出口」。
 
@@ -889,6 +889,12 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 
 **待站主拍板**：「报告问题」要不要在页面上显示成「纠错」还是更弱的「告诉我们」；投稿链接要不要保留原始 URL（会留在数据库里，涉及投稿人隐私）；后台聚合视图要不要给同一目标的纠错排优先级（建议按 `from_source` 去重后计数）；要不要给已处理的纠错发一封邮件回执（需要 SMTP，当前只有飞书内部通知）。
 **工作量**：2 天（迁移与入口 0.5 + 后台聚合视图 1 + 投稿页与流程 0.5）。
+
+**已落地（2026-10-06，站主 `/grill-me` 六条拍板）**：站主把六处都选了推荐项，其中入口一处比建议更全 —— ① 范围 = 纠错 + `/submit` 一起做；② **入口挂在五处**（条目页 / 故事页 / 演出页 / 主题页 / 发售页，比原设计的「条目 / 故事 / 主题」多两处）；③ 下拉选字段 + 写一句期望值；④ 投稿链接不额外存列（只在正文里，跟着删除请求一起清）；⑤ 后台按**不同来源数**（`count(DISTINCT source_hash)`）排序；⑥ **不发邮件回执**（`industry/pages/privacy.md:26` 的「确认后才发信」规矩不动）。
+- 迁移 `database/migrations/0067_feedback_targets.sql`（四列 `ADD COLUMN IF NOT EXISTS` + 两条 `CHECK` + 索引 `feedback_target_idx`）；`packages/backend/src/operations/feedback.ts` 的 `FEEDBACK_TARGET_KINDS`/`FEEDBACK_TARGET_FIELDS`/`targetOf()`：**有 id/field/expected 却没有 kind ⇒ 400**「请说明这条纠错是针对哪一条内容。」（半条记录不如不存）；`POST /api/site/feedback` 表单多四个可选字段，**没有新增公开接口** ⇒ 限流 / 封禁 / 截图 / 飞书转发全部白拿；`packages/backend/src/notify/feishu.ts` 的转发正文多一行「针对：live lZujWU0-5XqM · venue → Zepp DiverCity」。
+- 后台 `packages/backend/src/admin/feedback.ts` 新增 `listFeedbackTargets()`（一条 `json_agg` 聚合，`WHERE target_kind IS NOT NULL AND target_kind <> 'source'`，`ORDER BY sources DESC, latest DESC LIMIT 50`；投稿单独按时间列 50 条，**不聚合** —— 它们还没指向站上任何对象，每条都是独立线索），端点 `GET /api/admin/feedback/targets`，页面 `/admin/feedback?view=targets`（`FilterChips` 两视图切换，组头「N 个来源 / M 条」+ 跳到该条目，组内仍是完整 `FeedbackCard`，所以状态 / 备注 / 封禁 / 删除资料都照旧）。
+- **与设计的两处偏差**（都是收窄，不是扩张）：设计写「每行给『跳到该条目』按钮进 `/admin/content/:id`」，实际跳的是**公开页**（`targetHref()`）—— 后台只有条目有内容详情页，演出 / 故事 / 主题 / 发售在后台没有对应页；设计写的「按 `from_source` 去重计数」落成 `count(DISTINCT source_hash)`（与 `from_source` 同源，都是同一个不可逆来源标识）。设计第 3 条里「人工确认后可调 `collectSource` 试抓一次」**没有做成任何代码路径**，仍按 `AGENTS.md` 的手工流程加 `industry/sources.json`。
+- 隐私说明 `industry/pages/privacy.md` 升 **1.1**（生效 2026-10-06），§2 加「点『报告问题』会记下你指的是哪一条内容、哪一类问题」与「投稿地址随正文保存，我们不会自动去抓」。
 
 ---
 
@@ -1395,6 +1401,27 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - **实拍正对照别用跨行的片段**：`substring(body_text from 1200 for 60)` 会跨换行，页面渲染时空格/换行对不上，官方条目会被误判成「没正文」；改用 `regexp_match(body_text, '[^[:space:]<>&"]{16,24}')` 取一段不含空白的原文。这一段 SQL 写在 `node -e '…'` 里，整段是 shell 单引号，SQL 里再出现 `'` 会把字符串截断，改用 `$re$…$re$` 定界。
 - **实拍「media 条目还是全文」要抓 `/items/<id>/original`**：默认页面渲染的是 AI 译文（切换成「中文」语言标签），日文原文在默认页里一行都找不到，别误判成「已经切了」。
 
+**W18（2026-10-06 完成）：读者纠错与情报投稿**
+
+读者侧：五处页面（`apps/web/app/routes/item.tsx`、`story.tsx`、`live.tsx`、`topic.tsx`、`release.tsx`）各挂一枚 `ReportProblem`（`apps/web/app/features/feedback/ReportProblem.tsx`，`Sheet centered` 弹层：选字段 + 写期望值 + 说明 + 选填邮箱），提交仍走 `POST /api/site/feedback`；`/submit` 投稿页（`apps/web/app/routes/submit.tsx`，`target_kind = 'source'`，只收链接、无截图、无草稿）。后台 `/admin/feedback?view=targets` 按目标聚合。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | **全绿（六段 exit 0）** |
+| `tests/feedback-targets.test.ts` | **5 通过 / 0 失败**（四列落库与截断；普通反馈与投稿的 null / `source`；半条纠错三条 400 文案 + 非法 kind/field；聚合分组 `sources=2 / n=2`、投稿不聚合、按来源数排序；**采集侧与反馈写入路径都不认识 `target_*` 且不引入抓取器**） |
+| 全量 `npm test` | **715 通过 / 0 失败**（710 + 新增 5 条） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **42 通过 / 0 失败** |
+| 端到端实拍 | **37 项全 PASS**（`/tmp/w18-e2e.sh`，真 API + 真 web + dev 库）：未登录 `/api/admin/feedback/targets` 401、登录 303；纠错 201 且库里 `live\|lZujWU0-5XqM\|venue\|Zepp DiverCity`；半条纠错 400 且带「请说明这条纠错是针对哪一条内容」；投稿 201 且只记 `source`；**投稿前后 `sources` 111 / `articles` 481 不变**（读者给的地址没有被抓）；聚合视图分组与投稿列各自就位、按来源数排序、组里是完整一行；按时间视图的四列回到行上；五个入口页 200 且都带「发现错误？报告问题」；`/submit`、`/feedback`、`/more`、`/privacy` 200 且文案到位；实拍数据已删 |
+| 迁移 | `0067_feedback_targets.sql` 已应用 dev 库，重跑只有 NOTICE（幂等） |
+| 未做 | 众包直接改库 / 投票点赞 / 排行榜 / 投稿人账号 / 公开更正日志出口（更正出口仍是 W14 的变更 Diff）；已处理的纠错**不发邮件回执**（站主拍板） |
+
+**W18 踩到的坑**
+- **`sql<BeforeJson<X["field"]>[]>` 会在字段本身已是数组时报 TS2322**（`RowList<...[][]>`）：`AdminFeedbackTargets["submissions"]` 与 `["groups"]` 已经是数组类型，泛型里**不能再加 `[]`**（分组那条要用 `["groups"][number]`）。同一处栽了两次。
+- **`RingMark` 的转圈属性是 `spinning` 不是 `spin`**：`apps/web` 的 typecheck 只在这一步报 `Property 'spin' does not exist`，六段里最后一段才发现。
+- **五个入口的 id 字段名不统一**：条目页是 `item.id`（文章 id）、故事/演出/发售是 `publicId`、主题页是 `slug` —— 弹层只认字符串，映射写在 `apps/web/app/features/feedback/labels.ts` 的 `targetHref()` 里，加第六个入口时改这一处。
+- **dev 库里没有 `topics` 表**（主题页 slug 由 `publication/topics.ts` 算出来），实拍取 slug 要走 `GET /api/site/topics`；`publications` / `live_events` / `releases` 都**没有 `created_at`**，取样本行要用 `updated_at`。
+- **实拍里同 IP 连发会被 `rateLimit`（5 次/分钟）挡住**：`sourceFingerprint` 把 `ip` 与 User-Agent 里的浏览器家族一起哈希，所以实拍用不同 UA 家族（Chrome / Safari / Firefox / Edg）凑出不同来源，而不是关掉限流。
+
 ---
 
 ## 七、待站主拍板汇总（动手前先看这里）
@@ -1414,7 +1441,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 | ~~**W11**~~ ✅ | ~~店铺特典真源（公告通常只写「対象店舗」）：开人工 `industry/releases/{slug}.json` 还是接受「模型只抽公告里写了的」；粒度是 1 个 `releases` + 3 个 editions 还是 3 行；存量 `other` 要不要花钱重抽~~ | **已拍板 2026-10-05**：只抽公告写了的（不开人工配置，公告只写「対象店舗」就显示这几个字）；粒度取 **1 个 `releases` + N 个 editions**；存量**重抽**。已落地：见 §六「W11 · 发售·版本·特典数据库」的「实现与验证（2026-10-05 完成）」（68 条候选 → 55 张碟 / 21 个版本 / 15 个店铺特典 / 3 个序列号；`processing_attempt_tag` 沿用上次评估的标签 ⇒ 只花 `release` 这一步的钱） |
 | ~~**W13**~~ ✅ | ~~索引门槛（建议 `total >= 5`，比主题页宽松）；成员页要不要显示「中之人」真名与所属乐队（真人隐私）；成员要不要进 `/starred` 与订阅 `bands[]`~~ | **已拍板 2026-10-05**：门槛 `total >= 5`；只显示角色 ↔ 声优关系（页面写声优艺名，不查真名）；**不进 `/starred`、不进订阅 `bands[]`**（v1）。另外两条产品决定：**只做角色页、不建声优页**（声优只在角色页里出现，一位声优配多个角色就出现在多页）；**先补齐 Canna Lily / F-272 的 10 个角色再动工** ⇒ 88 页。其余（提及口径含声优艺名、别名并入本名页、不要「这位声优还配了谁」、要 `/members` 总览页）见 §六 W13 |
 | ~~**W15**~~ ✅ | ~~索引门槛（建议有 `officialUrl` 或有 `live_events` 记录才进 sitemap）；要不要做「东京 11 月」地区聚合页；三条未核实规范化名；闭馆场馆要不要收录~~ | **已拍板 2026-10-05**：W15 **不做场馆实体页**，改成**远征参考页**（`/guide` 只做外链指路，**不写正文**，无迁移、无 API、不联动站内数据）。原场馆设计整体暂缓 —— 那四条问题留给以后单开的「场馆实体页」包（今天 dev 库只有 3 行 `live_events`、场馆标签只命中 3 行报道，做出来是空壳）。已落地：见 §六「W15（2026-10-05 完成）：远征参考页」 |
-| **W18** | 投稿链接要不要保留原始 URL（留在库里，涉及投稿人隐私）；后台聚合视图要不要按 `from_source` 去重计数排优先级；要不要给已处理的纠错发邮件回执（需 SMTP，当前只有飞书内部通知） | 保留但只给管理员看；去重计数；先不发邮件 |
+| ~~**W18**~~ ✅ | ~~投稿链接要不要保留原始 URL（留在库里，涉及投稿人隐私）；后台聚合视图要不要按 `from_source` 去重计数排优先级；要不要给已处理的纠错发邮件回执（需 SMTP，当前只有飞书内部通知）~~ | **已拍板 2026-10-06**：① 投稿链接**不额外存列**，只在正文里，跟着删除请求一起清（`target_id` 的语义是站内对象 id）；② 聚合视图按**不同来源数**（`count(DISTINCT source_hash)`）排序；③ **不发邮件回执**（隐私说明「确认后才发信」的规矩不动）；④ 入口**五处**全挂（条目 / 故事 / 演出 / 主题 / 发售，比原设计多演出与发售）；⑤ 纠错 + `/submit` 一起做。已落地：见 §六「W18（2026-10-06 完成）：读者纠错与情报投稿」 |
 
 ### 可以边做边定
 
@@ -1430,6 +1457,6 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 - **提示词一律新增文件、不改 `industry/prompts/structure.md`**：提示词版本是内容哈希，改它 = 全部回执失效 + 已入库条目重跑结构步 + `grouping_status` 置 `pending`（`packages/backend/src/events/group.ts:237-241`）导致条目**短暂下架**。所以 W8 的 `live-ticket.md`、W11 的 `release.md`、W16 的 `setlist.md` 都是新文件。
 - **公开出口只从 `packages/backend/src/publication/` 读**（`tests/architecture.test.ts:57-64` 会拦）；**日期一律走 `deadlineRange`/`deadlineMonths`**，任何包都不许在别处另算日期；`/api/site/*` 与 `/og/*` 已被 `packages/contracts/src/http-policy.ts:97`/`:106` 覆盖，**不用登记 `API_OWNED_PATTERNS`**。
 - **成员与场馆都不进 `ENTITIES`**：会连带 `assets/band-logos/manifest.json` 一一对应校验、`scripts/fetch-band-logos.ts` 抓 164 个不存在的字标、主题 slug 校验全红。
-- **迁移编号**（按包号顺延，谁先落地谁拿号）：W7 `0059_source_timezone.sql`、W8 `0060_live_events.sql`、W9 `0061_ticket_rounds.sql`、W11 `0062_releases.sql`、**W12 无迁移**（原定的 `0063_subscriber_kinds.sql` 已取消）、**W13 `0063_member_mentions.sql`**（已落地）、**W14 `0064_story_digest_facts.sql`**（已落地）、**W16 `0065_setlist_entries.sql`**（已落地）、**W17 `0066_rights_tiers.sql`**（已落地）、W18 `0067_feedback_targets.sql`（W10 与 W15 不建表、无迁移）。
+- **迁移编号**（按包号顺延，谁先落地谁拿号）：W7 `0059_source_timezone.sql`、W8 `0060_live_events.sql`、W9 `0061_ticket_rounds.sql`、W11 `0062_releases.sql`、**W12 无迁移**（原定的 `0063_subscriber_kinds.sql` 已取消）、**W13 `0063_member_mentions.sql`**（已落地）、**W14 `0064_story_digest_facts.sql`**（已落地）、**W16 `0065_setlist_entries.sql`**（已落地）、**W17 `0066_rights_tiers.sql`**（已落地）、**W18 `0067_feedback_targets.sql`**（已落地）（W10 与 W15 不建表、无迁移）。
 - **任何重跑都换 `attemptTag`**（`packages/backend/src/editorial/analyze.ts` 的回执按 prompt version + 输入哈希复用，不换 tag 会把条目翻回旧状态）。
 - **不做**：账号/注册/登录、审核队列、众包直接改库、信源覆盖率与覆盖率评分（§四）。

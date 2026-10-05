@@ -26,6 +26,7 @@ import { RELEASE_KINDS } from "../features/feed/releases";
 import { beijingDate } from "@girlsbands/contracts/time";
 import { monthDay, monthDayTime, weekdayShort } from "../lib/format";
 import { PhoneBar } from "../components/shell/PhoneBar";
+import { ReportProblem } from "../features/feedback/ReportProblem";
 import type { Screen } from "../components/shell/screens";
 
 export const handle: Screen = { home: "feed" };
@@ -320,6 +321,9 @@ export default function TopicRoute() {
         <DayList items={items} headerAside={<span className="num whitespace-nowrap">第 {first}–{last} 条<span className="hidden sm:inline"> · 共 {shown.toLocaleString("zh-CN")} 条</span></span>} />
       )}
       <Pagination page={page} pageCount={pageCount} href={(p) => href(p)} />
+      <p className="mt-6 border-t border-line-soft pt-4 text-[12.5px] text-ink-4">
+        <ReportProblem kind="topic" id={topic.slug} what={topic.name} />
+      </p>
     </div>
   );
 }

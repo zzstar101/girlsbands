@@ -22,13 +22,36 @@ export function sniffImageType(data: Buffer): "image/png" | "image/jpeg" | "imag
   return null;
 }
 
+/** What a reader can be pointing at (W18): a piece of content, or a source they want us to add. */
+export const FEEDBACK_TARGET_KINDS = ["article", "story", "topic", "release", "live", "venue", "source"] as const;
+/** Which part of that content they say is wrong. */
+export const FEEDBACK_TARGET_FIELDS = ["title", "date", "venue", "price", "translation", "category", "duplicate", "other"] as const;
+
 export interface FeedbackInput {
   content: string;
   email?: string | null;
   pageUrl?: string | null;
   screenshot?: { mime: string; data: Buffer } | null;
+  /** Set by the "报告问题" dialog: which content and which part of it. Null on the plain form. */
+  targetKind?: string | null;
+  targetId?: string | null;
+  targetField?: string | null;
+  /** What the reader says it should be. */
+  expected?: string | null;
   ip: string;
   userAgent: string;
+}
+
+function targetOf(input: FeedbackInput): { kind: string | null; id: string | null; field: string | null; expected: string | null } {
+  const kind = input.targetKind?.trim() || null;
+  const id = input.targetId?.trim().slice(0, 200) || null;
+  const field = input.targetField?.trim() || null;
+  const expected = input.expected?.trim().slice(0, 500) || null;
+  if (kind && !(FEEDBACK_TARGET_KINDS as readonly string[]).includes(kind)) throw new Rejected(400, "invalid_request", "纠错目标不正确。");
+  if (field && !(FEEDBACK_TARGET_FIELDS as readonly string[]).includes(field)) throw new Rejected(400, "invalid_request", "纠错类型不正确。");
+  // "哪里错了" without "说的是哪一条" cannot be acted on: refuse rather than store a half record.
+  if (!kind && (id || field || expected)) throw new Rejected(400, "invalid_request", "请说明这条纠错是针对哪一条内容。");
+  return { kind, id, field, expected };
 }
 
 export async function submitFeedback(input: FeedbackInput): Promise<{ id: number }> {
@@ -38,6 +61,7 @@ export async function submitFeedback(input: FeedbackInput): Promise<{ id: number
   const email = input.email?.trim() || null;
   if (email && (email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) throw new Rejected(400, "invalid_request", "邮箱格式不正确。");
   const pageUrl = input.pageUrl?.trim().slice(0, 500) || null;
+  const target = targetOf(input);
   const source = sourceFingerprint(input.ip, input.userAgent);
   const [banned] = await sql`SELECT 1 FROM feedback_bans WHERE source_hash = ${source}`;
   if (banned) throw new Rejected(403, "forbidden", "暂时无法提交反馈。");
@@ -62,8 +86,10 @@ export async function submitFeedback(input: FeedbackInput): Promise<{ id: number
     screenshotKey = `local:${name}`;
   }
   const [row] = await sql<{ id: number }[]>`
-    INSERT INTO feedback (content, email, page_url, screenshot_key, source_hash, forward_error)
-    VALUES (${content}, ${email}, ${pageUrl}, ${screenshotKey}, ${source}, 'pending') RETURNING id`;
+    INSERT INTO feedback (content, email, page_url, screenshot_key, source_hash, forward_error,
+                          target_kind, target_id, target_field, expected)
+    VALUES (${content}, ${email}, ${pageUrl}, ${screenshotKey}, ${source}, 'pending',
+            ${target.kind}, ${target.id}, ${target.field}, ${target.expected}) RETURNING id`;
   const id = row!.id;
   void forwardFeedbackToFeishu(id).catch(() => {});
   return { id };

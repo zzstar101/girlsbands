@@ -168,16 +168,23 @@ export async function forwardFeedbackToFeishu(id: number): Promise<"sent" | "dis
   if (!feishuInternalEnabled()) return "disabled";
   const chat = credential("integrations", "FEISHU_INTERNAL_CHAT_ID");
   if (!chat) return "disabled";
-  const [fb] = await sql<{ id: number; content: string; email: string | null; note: string | null; page_url: string | null; screenshot_key: string | null; created_at: Date }[]>`
-    SELECT id, content, email, note, page_url, screenshot_key, created_at FROM feedback WHERE id = ${id} AND forwarded_at IS NULL`;
+  const [fb] = await sql<{ id: number; content: string; email: string | null; note: string | null; page_url: string | null; screenshot_key: string | null; created_at: Date; target_kind: string | null; target_id: string | null; target_field: string | null; expected: string | null }[]>`
+    SELECT id, content, email, note, page_url, screenshot_key, created_at,
+           target_kind, target_id, target_field, expected
+    FROM feedback WHERE id = ${id} AND forwarded_at IS NULL`;
   if (!fb) return "disabled";
   try {
     const shot = await screenshotFor(fb);
-    const paragraphs: unknown[][] = [
-      [{ tag: "text", text: fb.content }],
+    const paragraphs: unknown[][] = [[{ tag: "text", text: fb.content }]];
+    // A structured correction reads better as one line than as four separate paragraphs.
+    if (fb.target_kind) {
+      const where = [fb.target_kind, fb.target_id].filter(Boolean).join(" ");
+      paragraphs.push([{ tag: "text", text: `针对：${where}${fb.target_field ? ` · ${fb.target_field}` : ""}${fb.expected ? ` → ${fb.expected}` : ""}` }]);
+    }
+    paragraphs.push(
       [{ tag: "text", text: `页面：${fb.page_url ?? "—"}` }],
       [{ tag: "text", text: `邮箱：${fb.email ?? "（未留）"}` }],
-    ];
+    );
     if (fb.note) paragraphs.push([{ tag: "text", text: fb.note }]);
     if (shot.imageKey) paragraphs.push([{ tag: "img", image_key: shot.imageKey }]);
     else if (shot.note) paragraphs.push([{ tag: "text", text: shot.note }]);

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { FeedbackRejected, submitFeedback, type FeedbackInput } from "@girlsbands/backend/operations/feedback";
 import { sendProblem } from "../http/respond.ts";
 
-type FeedbackBody = Pick<FeedbackInput, "content" | "email" | "pageUrl" | "screenshot">;
+type FeedbackBody = Pick<FeedbackInput, "content" | "email" | "pageUrl" | "screenshot" | "targetKind" | "targetId" | "targetField" | "expected">;
 
 /** The feedback form as the site posts it: multipart, with at most one screenshot file. */
 async function readForm(raw: unknown, contentType: string): Promise<FeedbackBody> {
@@ -21,6 +21,8 @@ async function readForm(raw: unknown, contentType: string): Promise<FeedbackBody
   if (file !== null && !(file instanceof File)) throw new FeedbackRejected(400, "invalid_request", "截图上传格式不正确。");
   return {
     content: text("content") ?? "", email: text("email"), pageUrl: text("pageUrl"),
+    // W18: the "报告问题" dialog and /submit add what the report is about; the plain form sends none.
+    targetKind: text("targetKind"), targetId: text("targetId"), targetField: text("targetField"), expected: text("expected"),
     screenshot: file ? { mime: file.type, data: Buffer.from(await file.arrayBuffer()) } : null,
   };
 }

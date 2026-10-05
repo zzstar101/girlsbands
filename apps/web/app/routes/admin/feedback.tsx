@@ -2,17 +2,21 @@ import { SITE } from "@girlsbands/industry/site";
 import { useState } from "react";
 import { Form, useSearchParams } from "react-router";
 import type { Route } from "./+types/feedback";
-import type { AdminFeedback, AdminFeedbackRow } from "@girlsbands/contracts/admin";
+import type { AdminFeedback, AdminFeedbackRow, AdminFeedbackTargets } from "@girlsbands/contracts/admin";
 import { adminGet } from "../../lib/admin.server";
 import { useAdminAction } from "../../features/admin/action";
 import { bj } from "../../features/admin/format";
 import { FEEDBACK_STATUS } from "../../features/admin/labels";
-import { AdminPage, Badge, Button, Card, Empty, FilterChips, Input, Pager, ReasonDialog, Select, Textarea, Time } from "../../features/admin/ui";
-
-
+import { fieldLabel, targetHref, targetLabel } from "../../features/feedback/labels";
+import { AdminPage, Badge, Button, ButtonLink, Card, Empty, FilterChips, Input, Pager, ReasonDialog, Select, Textarea, Time } from "../../features/admin/ui";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  return adminGet<AdminFeedback>(request, `/api/admin/feedback${new URL(request.url).search}`);
+  const url = new URL(request.url);
+  // 两个视图读两条不同的查询：按时间（老样子）与按目标聚合（W18 加的那条）。
+  if (url.searchParams.get("view") === "targets") {
+    return { view: "targets" as const, targets: await adminGet<AdminFeedbackTargets>(request, "/api/admin/feedback/targets") };
+  }
+  return { view: "list" as const, list: await adminGet<AdminFeedback>(request, `/api/admin/feedback${url.search}`) };
 }
 
 export const meta: Route.MetaFunction = () => [{ title: `反馈 · ${SITE.name} 后台` }];
@@ -30,6 +34,7 @@ function FeedbackCard({ f }: { f: AdminFeedbackRow }) {
       <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-3">
         <span className="num font-medium text-ink-2">#{f.id}</span>
         <Badge tone={TONE[f.status] ?? "muted"}>{FEEDBACK_STATUS[f.status] ?? f.status}</Badge>
+        {f.target_kind === "source" && <Badge tone="info">投稿信源</Badge>}
         <Time at={f.created_at} />
         {f.email && <a className="text-accent" href={`mailto:${f.email}`}>{f.email}</a>}
         {f.page_url && <a className="max-w-[320px] truncate hover:text-accent" href={f.page_url} target="_blank" rel="noreferrer">{f.page_url}</a>}
@@ -39,6 +44,15 @@ function FeedbackCard({ f }: { f: AdminFeedbackRow }) {
           <Badge tone="warn" title={f.forward_error && f.forward_error !== "pending" ? `还没有转发到内部飞书群：${f.forward_error}` : "还没有转发到内部飞书群"}>未转发</Badge>
         )}
       </div>
+      {/* 读者说的是哪一条内容的哪一处（W18）：后台据此跳转与聚合，历史反馈没有这一段。 */}
+      {f.target_kind && f.target_kind !== "source" && (
+        <p className="mt-1.5 text-[12px] text-ink-4">
+          针对 {targetLabel(f.target_kind)}
+          {f.target_id ? <span className="mono"> {f.target_id}</span> : null}
+          {fieldLabel(f.target_field) ? ` · ${fieldLabel(f.target_field)}` : ""}
+          {f.expected ? ` → ${f.expected}` : ""}
+        </p>
+      )}
       <p className="mt-2.5 whitespace-pre-wrap text-[14px] leading-relaxed text-ink">{f.content}</p>
       {f.screenshot === "local" && (
         <a href={`${base}/screenshot`} target="_blank" rel="noreferrer" className="mt-2 inline-block">
@@ -99,13 +113,14 @@ function FeedbackCard({ f }: { f: AdminFeedbackRow }) {
   );
 }
 
-export default function FeedbackAdmin({ loaderData }: Route.ComponentProps) {
-  const { rows, counts, bans, page } = loaderData;
+/** 按时间：一条一条处理（老视图）。 */
+function TimeView({ data }: { data: AdminFeedback }) {
   const [sp] = useSearchParams();
   const { run } = useAdminAction();
+  const { rows, counts, bans, page } = data;
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
-    <AdminPage title="反馈" subtitle={`回复前确认收件人、主题、正文；“已修复上线”要有生产证据。签名统一 ${SITE.name}。`}>
+    <>
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <FilterChips
           param="status"
@@ -136,6 +151,63 @@ export default function FeedbackAdmin({ loaderData }: Route.ComponentProps) {
           </ul>
         </Card>
       )}
+    </>
+  );
+}
+
+/** 按目标聚合：同一个对象上的纠错并排看，改一次就够；投稿单独列，每条都是线索。 */
+function TargetView({ data }: { data: AdminFeedbackTargets }) {
+  return (
+    <div className="space-y-6">
+      {data.groups.length ? (
+        data.groups.map((g) => {
+          const href = targetHref(g.target_kind, g.target_id);
+          return (
+            <section key={`${g.target_kind}-${g.target_id ?? ""}`} className="rounded-panel bg-bg-sunk/50 p-3 ring-1 ring-line-soft">
+              <header className="flex flex-wrap items-center gap-2 px-1 text-[13.5px]">
+                <span className="font-semibold text-ink">{targetLabel(g.target_kind)}</span>
+                {g.target_id && <span className="mono text-[12px] text-ink-3">{g.target_id}</span>}
+                <Badge tone="info" title="不同来源（IP 与浏览器家族的不可逆标识）">{g.sources} 个来源</Badge>
+                <Badge tone="muted">{g.n} 条</Badge>
+                <Time at={g.latest} />
+                {href && <ButtonLink to={href} size="sm">跳到该条目</ButtonLink>}
+              </header>
+              <div className="mt-3 space-y-3">
+                {g.rows.map((f) => <FeedbackCard key={`${f.id}-${f.updated_at}`} f={f} />)}
+              </div>
+            </section>
+          );
+        })
+      ) : (
+        <Card><Empty>还没有针对具体内容的纠错</Empty></Card>
+      )}
+
+      <Card title="投稿的信源" right={`${data.submissions.length} 条`}>
+        <p className="mb-3 text-[12.5px] leading-relaxed text-ink-4">
+          读者给的地址不会被自动抓取 —— 看中了就照着往 <span className="mono">industry/sources.json</span> 加一条，人工确认过才进信源列表。
+        </p>
+        <div className="space-y-3">
+          {data.submissions.length ? data.submissions.map((f) => <FeedbackCard key={`${f.id}-${f.updated_at}`} f={f} />) : <Empty>还没有投稿</Empty>}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+export default function FeedbackAdmin({ loaderData }: Route.ComponentProps) {
+  const [sp] = useSearchParams();
+  const targets = sp.get("view") === "targets";
+  return (
+    <AdminPage
+      title="反馈"
+      subtitle={targets
+        ? "按目标聚合：同一个对象上的纠错并排看，改一次就够；投稿信源在最后，人工确认后才收录。"
+        : `回复前确认收件人、主题、正文；“已修复上线”要有生产证据。签名统一 ${SITE.name}。`}
+    >
+      <div className="mb-4">
+        <FilterChips param="view" options={[{ value: "", label: "按时间" }, { value: "targets", label: "按目标聚合" }]} />
+      </div>
+      {loaderData.view === "targets" ? <TargetView data={loaderData.targets} /> : <TimeView data={loaderData.list} />}
     </AdminPage>
   );
 }

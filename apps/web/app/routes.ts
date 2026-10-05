@@ -30,6 +30,7 @@ export default [
   route("rights", "routes/rights.tsx"),
   route("changelog", "routes/changelog.tsx"),
   route("feedback", "routes/feedback.tsx"),
+  route("submit", "routes/submit.tsx"),
   route("more", "routes/more.tsx"),
   route("starred", "routes/starred.tsx"),
   route("subscribe", "routes/subscribe.tsx"),

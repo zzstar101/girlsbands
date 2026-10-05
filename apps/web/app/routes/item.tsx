@@ -23,6 +23,7 @@ import { MediaGallery } from "../features/item/MediaGallery";
 import { QuotedPost } from "../features/item/QuotedPost";
 import { ArticleBody } from "../features/item/ArticleBody";
 import { ActionsSheet, ReaderToolbar, type ActionRow } from "../features/item/ReaderTools";
+import { ReportProblem } from "../features/feedback/ReportProblem";
 import { OutlineSheet, scrollToAnchor } from "../components/ui/OutlineSheet";
 import { CoverImage } from "../components/ui/CoverImage";
 import { takePreview } from "../features/item/preview";
@@ -582,6 +583,10 @@ function ItemView({ item }: { item: SiteItemDetail }) {
               </ul>
             </section>
           )}
+
+          <p className="mt-8 border-t border-line-soft pt-4 text-[12.5px] text-ink-4">
+            <ReportProblem kind="article" id={item.id} what={item.title} />
+          </p>
         </article>
       </ArticleLayout>
 

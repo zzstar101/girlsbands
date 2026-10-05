@@ -1,6 +1,6 @@
 // Feedback handling: list, status and note, per-source bans, and deletion on request
 // (privacy notice: feedback material is removed once handling ends or when the sender asks).
-import type { AdminFeedback, BeforeJson } from "@girlsbands/contracts/admin";
+import type { AdminFeedback, AdminFeedbackTargets, BeforeJson } from "@girlsbands/contracts/admin";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config.ts";
@@ -16,6 +16,7 @@ export async function listFeedback(f: { status?: string; q?: string; page?: numb
   const rows = await sql<BeforeJson<AdminFeedback["rows"][number]>[]>`
     SELECT fb.id, fb.content, fb.email, fb.page_url, split_part(fb.screenshot_key, ':', 1) AS screenshot, fb.source_hash, fb.status, fb.note,
            fb.forwarded_at, fb.forward_error, fb.created_at, fb.updated_at,
+           fb.target_kind, fb.target_id, fb.target_field, fb.expected,
            EXISTS (SELECT 1 FROM feedback_bans b WHERE b.source_hash = fb.source_hash) AS banned,
            (SELECT count(*)::int FROM feedback o WHERE o.source_hash = fb.source_hash) AS from_source
     FROM feedback fb
@@ -25,6 +26,41 @@ export async function listFeedback(f: { status?: string; q?: string; page?: numb
   const counts = await sql<{ status: string; n: number }[]>`SELECT status, count(*)::int AS n FROM feedback GROUP BY 1`;
   const bans = await sql<BeforeJson<AdminFeedback["bans"][number]>[]>`SELECT source_hash, reason, created_by, created_at FROM feedback_bans ORDER BY created_at DESC LIMIT 100`;
   return { page, rows, counts: Object.fromEntries(counts.map((c) => [c.status, c.n])), bans };
+}
+
+/**
+ * The same feedback, seen by what it is about (W18): corrections aimed at one piece of content are put
+ * side by side, so the admin can act on one edit instead of reading the same complaint three times.
+ * Sorted by how many different people said it, because that is the closest thing to a priority.
+ *
+ * Source submissions (`/submit`) are not grouped: they point at nothing on the site yet, so each one is
+ * its own lead and they are listed by time instead.
+ */
+export async function listFeedbackTargets(): Promise<BeforeJson<AdminFeedbackTargets>> {
+  const groups = await sql<BeforeJson<AdminFeedbackTargets["groups"][number]>[]>`
+    SELECT fb.target_kind, fb.target_id, count(*)::int AS n, count(DISTINCT fb.source_hash)::int AS sources,
+           max(fb.created_at) AS latest,
+           json_agg(json_build_object(
+             'id', fb.id, 'content', fb.content, 'email', fb.email, 'page_url', fb.page_url,
+             'screenshot', split_part(fb.screenshot_key, ':', 1), 'source_hash', fb.source_hash,
+             'status', fb.status, 'note', fb.note, 'forwarded_at', fb.forwarded_at, 'forward_error', fb.forward_error,
+             'created_at', fb.created_at, 'updated_at', fb.updated_at,
+             'target_kind', fb.target_kind, 'target_id', fb.target_id, 'target_field', fb.target_field, 'expected', fb.expected,
+             'banned', EXISTS (SELECT 1 FROM feedback_bans b WHERE b.source_hash = fb.source_hash),
+             'from_source', (SELECT count(*)::int FROM feedback o WHERE o.source_hash = fb.source_hash)
+           ) ORDER BY fb.created_at DESC) AS rows
+    FROM feedback fb
+    WHERE fb.target_kind IS NOT NULL AND fb.target_kind <> 'source'
+    GROUP BY fb.target_kind, fb.target_id
+    ORDER BY sources DESC, latest DESC LIMIT 50`;
+  const submissions = await sql<BeforeJson<AdminFeedbackTargets["submissions"]>>`
+    SELECT fb.id, fb.content, fb.email, fb.page_url, split_part(fb.screenshot_key, ':', 1) AS screenshot, fb.source_hash, fb.status, fb.note,
+           fb.forwarded_at, fb.forward_error, fb.created_at, fb.updated_at,
+           fb.target_kind, fb.target_id, fb.target_field, fb.expected,
+           EXISTS (SELECT 1 FROM feedback_bans b WHERE b.source_hash = fb.source_hash) AS banned,
+           (SELECT count(*)::int FROM feedback o WHERE o.source_hash = fb.source_hash) AS from_source
+    FROM feedback fb WHERE fb.target_kind = 'source' ORDER BY fb.created_at DESC LIMIT 50`;
+  return { groups, submissions };
 }
 
 export async function updateFeedback(id: number, input: { status?: string; note?: string | null; version: string }, actor: string) {

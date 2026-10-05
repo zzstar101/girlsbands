@@ -19,6 +19,7 @@ import { CoverImage } from "../components/ui/CoverImage";
 import { EmptyState } from "../components/ui/Page";
 import { IconArrowLeft, IconCalendar } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
+import { ReportProblem } from "../features/feedback/ReportProblem";
 import type { Screen } from "../components/shell/screens";
 
 export const handle: Screen = { home: "feed" };
@@ -263,6 +264,10 @@ export default function LiveRoute() {
         要去现地？
         <Link to="/guide" className="mx-0.5 text-band hover:underline">远征参考</Link>
         把公开的远征攻略与座位视角实拍收在一处。
+      </p>
+
+      <p className="mt-3 text-[12px] leading-[1.75] text-ink-4">
+        <ReportProblem kind="live" id={live.publicId} what={live.title} />
       </p>
     </div>
   );

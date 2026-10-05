@@ -262,6 +262,11 @@ export interface AdminFeedbackRow {
   updated_at: Timestamp;
   banned: boolean;
   from_source: number;
+  /** W18: which content the reader pointed at, which part of it, and what they say it should be. */
+  target_kind: string | null;
+  target_id: string | null;
+  target_field: string | null;
+  expected: string | null;
 }
 
 export interface AdminFeedback {
@@ -269,6 +274,26 @@ export interface AdminFeedback {
   rows: AdminFeedbackRow[];
   counts: Record<string, number>;
   bans: Array<{ source_hash: string; reason: string | null; created_by: string | null; created_at: Timestamp }>;
+}
+
+/**
+ * Corrections aimed at the same content, worst first: three readers saying the same thing outranks one
+ * (W18). `sources` counts distinct senders, `n` counts reports. Each row is a full feedback row, so the
+ * admin can settle it (status, note, ban, erase) without leaving this view.
+ */
+export interface AdminFeedbackTargetGroup {
+  target_kind: string;
+  target_id: string | null;
+  sources: number;
+  n: number;
+  latest: Timestamp;
+  rows: AdminFeedbackRow[];
+}
+
+/** The 按目标聚合 view: corrections grouped by content, plus source submissions listed one by one. */
+export interface AdminFeedbackTargets {
+  groups: AdminFeedbackTargetGroup[];
+  submissions: AdminFeedbackRow[];
 }
 
 // Runs

@@ -20,6 +20,7 @@ import { PillTabs } from "../components/ui/Tabs";
 import { Select } from "../components/ui/Controls";
 import { IconArrowLeft, IconChevronRight, IconClock, IconDisc, IconDoc, IconHistory, IconTicket, IconUsers } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
+import { ReportProblem } from "../features/feedback/ReportProblem";
 import type { Screen } from "../components/shell/screens";
 
 export const handle: Screen = { home: "featured" };
@@ -559,6 +560,12 @@ export default function StoryPage() {
               )}
             </dl>
             <p className="mt-3 border-t border-line-soft pt-3 text-[12px] leading-relaxed text-ink-4">同一事件的报道集中在这里，新的进展会继续补充。</p>
+          </RailCard>
+          <RailCard title="发现问题？">
+            <p className="text-[12.5px] leading-relaxed text-ink-4">日期、场馆、归属或翻译有出入，直接告诉我们 —— 同一条内容上的多条纠错会并在一起处理。</p>
+            <p className="mt-2">
+              <ReportProblem kind="story" id={story.publicId} what={story.title} />
+            </p>
           </RailCard>
         </aside>
       </div>

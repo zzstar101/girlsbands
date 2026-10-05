@@ -9,7 +9,7 @@ import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { useStarred } from "../lib/local-state";
 import { ThemeSwitch } from "../components/shell/ThemeSwitch";
-import { IconBookmark, IconChevronRight, IconHeart, IconMail, IconMessage, IconMoon, IconPin, IconPlug, IconSparkles, IconUsers } from "../components/icons";
+import { IconBookmark, IconChevronRight, IconHeart, IconMail, IconMessage, IconMoon, IconPin, IconPlug, IconRss, IconSparkles, IconUsers } from "../components/icons";
 
 export const handle: Screen = { tab: "me", name: "我的" };
 
@@ -89,6 +89,7 @@ export default function MorePage() {
         <Group title="关于">
           <RowLink row={{ to: "/about", label: `关于 ${SITE.name}`, icon: <IconHeart size={20} /> }} />
           <RowLink row={{ to: "/changelog", label: "更新日志", icon: <IconSparkles size={20} /> }} dot={changelogDot} />
+          <RowLink row={{ to: "/submit", label: "情报投稿", icon: <IconRss size={20} /> }} />
           <RowLink row={{ to: "/feedback", label: "意见反馈", icon: <IconMessage size={20} /> }} />
         </Group>
       </div>

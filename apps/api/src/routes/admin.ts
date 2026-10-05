@@ -9,7 +9,7 @@ import { importSelectBenchRun, listSelectBenchRuns, selectBenchRun } from "@girl
 import { modelsOverview, switchModel } from "@girlsbands/backend/admin/models";
 import { contentChain, overrideFields, rerun, searchContent, setSeoIndexed, setVisibility } from "@girlsbands/backend/admin/content";
 import { detachFromFact, mergeStories } from "@girlsbands/backend/events/corrections";
-import { banSource, eraseFeedback, feedbackScreenshot, listFeedback, unbanSource, updateFeedback } from "@girlsbands/backend/admin/feedback";
+import { banSource, eraseFeedback, feedbackScreenshot, listFeedback, listFeedbackTargets, unbanSource, updateFeedback } from "@girlsbands/backend/admin/feedback";
 import { adoptReaderSetlist } from "@girlsbands/backend/lives/setlists";
 import { requeueFailedArticles, runsOverview } from "@girlsbands/backend/admin/runs";
 import { reviewSample } from "@girlsbands/backend/admin/review";
@@ -74,6 +74,8 @@ export function registerAdmin(app: FastifyInstance) {
 
   // Feedback
   app.get("/api/admin/feedback", adminHandler(async (req) => listFeedback({ status: q(req).status, q: q(req).q, page: page(req) })));
+  // 按目标聚合（W18）：同一条内容上的纠错并排看，投稿单列。
+  app.get("/api/admin/feedback/targets", adminHandler(async () => listFeedbackTargets()));
   app.patch("/api/admin/feedback/:id", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await updateFeedback(Number(param(req, "id")), body(req) as never, actorOf(admin)))));
   app.post("/api/admin/feedback/:id/erase", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await eraseFeedback(Number(param(req, "id")), String(body(req).reason ?? ""), actorOf(admin)))));
   // 把这条反馈里的「一行一首」采纳成某场演出的曲目单（写入点只有 lives/setlists.ts 一处）。
