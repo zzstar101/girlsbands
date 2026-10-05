@@ -1103,6 +1103,22 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - **契约里对象字面量的键也算「接口字段」**：`tests/architecture.test.ts` 的正则会把 `TICKET_ROUND_LABELS` 的 9 个键当成待读字段，而 api 侧用 `TICKET_ROUND_LABELS[r.kind]` 并不产生这些标识符。照 `DEADLINE_KINDS` 的老写法在 `apps/web/app/features/feed/tickets.ts` 镜像一份 `ROUND_KINDS`（名字来自契约、颜色归网站）才算读掉。
 - **加了日期种类就要同步四处**：`tests/deadlines-time.test.ts` 写死 `DEADLINE_KINDS.length === 9`，加到 11 会红（那条测试的作用就是这个）。
 
+**详情页配图（2026-10-05 完成，站主看完 W11 页面后提出）**
+
+站主原话：「得带图吧，都没图片」。范围只到详情页（条目页 / 演出页 / story 页 / 碟页），列表页先不动；没图不占位、保持纯文字头。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（含 web） |
+| `tests/covers.test.ts` | **3 通过 / 0 失败**（挑图规则、四个出口同一条公告的图、下架后一起收回、没图就是 null） |
+| `tests/architecture.test.ts` | **8 通过 / 0 失败**（`CoverView` 的字段都被网站读到） |
+| 全量 `npm test` | **665 通过 / 0 失败**（W11 后基线 662） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **29 通过 / 0 失败** |
+| dev 实测 | `/release/ryi7IYdn0UNs`、`/live/l5LGeAg8pXys`、`/story/a51df353-…`、`/items/c8tmftj6furcves5utu2w9txq` 的 SSR HTML 都带 `/api/img-proxy?...mode=image-1200` + hero 三档 `srcSet`；代理本身 `200 image/webp 1024×576` |
+| 模型花费 | 零 |
+
+**为什么原本没图**：`articles.media` 里本来就有图（439 条公告 285 条有图，公开的 438 条里 285 条有、153 条没有），但公开读取层只有 X 帖与正文里的 `<img>` 会渲染，四个详情页的头部都没有取过 `media`。**挑图规则**只有一处：`packages/backend/src/lib/image-url.ts` 的 `pickPicture` —— 只认 `kind: "image"`、跳过追踪像素与 Hatena 的 favicon（**67 条公告的第一张正是那个 64px 图标**）、跳过声明宽度 < 480 的缩略图、把属性里残留的 `&amp;` 还原成 `&`；排序与可见性在 `packages/backend/src/publication/covers.ts`（第一方 > 已选中 > 分数高，可见性沿用 `storyReportCondition`，所以公告下架图跟着消失）。条目页在正文已经排过图时不重复放封面（dev 里 91/438 条正文自带 `<img>`）。
+
 ---
 
 ## 七、待站主拍板汇总（动手前先看这里）
@@ -1127,6 +1143,8 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 | **W18** | 投稿链接要不要保留原始 URL（留在库里，涉及投稿人隐私）；后台聚合视图要不要按 `from_source` 去重计数排优先级；要不要给已处理的纠错发邮件回执（需 SMTP，当前只有飞书内部通知） | 保留但只给管理员看；去重计数；先不发邮件 |
 
 ### 可以边做边定
+
+- **列表页要不要配图**（详情页已配：条目 / 演出 / story / 碟）：首页与「全部」的卡片、主题页的碟与演出列表、热榜。图已经取得到（`packages/backend/src/publication/covers.ts`），要定的是版式与首屏图片数量（每张卡一张图 ≈ 首页 40–50 张缩略图，`image-336` 那一档本来就是给卡片的）；`/og/items|stories|releases` 的分享卡现在只有文字，要不要把封面嵌进去是同一批。
 
 - **W14**：变更 Diff 是否进 v1 API；要不要做公开的「更正日志」出口；要不要顺手修「`facts` 三列永不更新」这个上游问题（改了会影响现有聚簇与 digest 输入，风险要单独评估）。
 - **W16**：Setlist 落库还是现算；歌名要不要进 `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍）；粉丝现场 repo 的版权边界（`site_fulltext` 只对 editorial 源全开）。

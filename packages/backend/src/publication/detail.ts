@@ -7,6 +7,7 @@ import { sql } from "../db.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
 import { textToHtml } from "../content/sanitize.ts";
 import { exportTranslation, isChineseBody, ITEM_COLUMNS, ITEM_FROM, seatHolders, toItemSummary, xView, type ItemRow } from "./items.ts";
+import { coverOfMedia } from "./covers.ts";
 import { listedCondition } from "./scope.ts";
 import { itemUrl } from "./links.ts";
 import { hasItemPage, publicSourceName } from "./rules.ts";
@@ -19,6 +20,8 @@ interface DetailRow extends ItemRow {
   tr_html: string | null;
   tr_complete: boolean | null;
   topics: string[];
+  /** The announcement's own media list; the page's lead picture comes from it (covers.ts). */
+  media: unknown;
 }
 
 export type DetailResult =
@@ -41,7 +44,7 @@ function withOutline(html: string): { html: string; outline: OutlineEntry[] } {
 
 async function loadRow(id: string): Promise<DetailRow | null> {
   const [row] = await sql<DetailRow[]>`
-    SELECT ${ITEM_COLUMNS}, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete,
+    SELECT ${ITEM_COLUMNS}, a.body_html, a.body_text, a.body_status, a.media, tr.body_html AS tr_html, tr.complete AS tr_complete,
       ${topicMembership()} AS topics
     ${ITEM_FROM}
     WHERE p.article_id = ${id}`;
@@ -89,6 +92,7 @@ export async function loadItemDetail(id: string, language: "zh" | "original" = "
       x: null,
       readingMode: "summary-only",
       author: null,
+      cover: coverOfMedia(row.media),
       body: null,
       outline: [],
       relatedStories: [],
@@ -153,6 +157,7 @@ export async function loadItemDetail(id: string, language: "zh" | "original" = "
     ...(sameEvent ? { reason: null, sameEvent } : {}),
     readingMode: "full",
     author: row.author,
+    cover: coverOfMedia(row.media),
     body: reading.body,
     outline: reading.outline,
     relatedStories: related,

@@ -14,6 +14,7 @@ import { latestHotRanking, rankingExtras } from "./hot.ts";
 import { upcomingDeadlines } from "./deadlines.ts";
 import { liveRefForStory } from "./lives.ts";
 import { releaseOfStory } from "./releases.ts";
+import { coverOfStory } from "./covers.ts";
 import { storyTexts } from "./story-text.ts";
 import { topicsOfStory } from "./topics.ts";
 import { itemUrl, storyApiUrl, storyUrl } from "./links.ts";
@@ -112,11 +113,12 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
     ? await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM ${currentSignals()} cs WHERE story_id = ${storyId} AND source_id = ANY(${behind}::text[])
                                   AND observed_at > ${now}::timestamptz - interval '48 hours' AND observed_at <= ${now}`
     : [{ n: 0 }];
-  const [related, topics, texts, dates, live, release] = await Promise.all([
+  const [related, topics, texts, dates, live, release, cover] = await Promise.all([
     relatedStories(storyId, now), topicsOfStory(storyId, now), storyTexts([storyId], now),
     upcomingDeadlines(now, { storyId, horizonDays: 365, limit: 60 }),
     liveRefForStory(storyId, now),
     releaseOfStory(storyId, now),
+    coverOfStory(storyId, now),
   ]);
   const text = texts.get(storyId)!;
   // Shown beside the latest development, so its time; without one, the timeline's newest report.
@@ -153,6 +155,7 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
     topics,
     live,
     release,
+    cover,
   };
 }
 

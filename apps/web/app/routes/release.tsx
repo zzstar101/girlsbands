@@ -12,6 +12,7 @@ import { EDITION_KINDS, RELEASE_KINDS, SERIAL_KINDS, priceText, releaseProgress 
 import { subjectOfId } from "../features/feed/bands";
 import { ArtistLine } from "../components/ui/ArtistBadge";
 import { Badge } from "../components/ui/Badge";
+import { CoverImage } from "../components/ui/CoverImage";
 import { EmptyState } from "../components/ui/Page";
 import { IconArrowLeft } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
@@ -64,28 +65,37 @@ export default function ReleaseRoute() {
         <IconArrowLeft size={14} /> 返回{back.label}
       </Link>
 
-      <header className="pb-5 pt-3 lg:pt-1">
-        <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.1em] text-accent">
-          <span aria-hidden="true" className="h-[2px] w-6 flex-none rounded-full bg-accent" />
-          发售
-        </p>
-        <h1 data-page-title="" className="mt-1.5 text-[24px] font-bold leading-[1.3] tracking-[-0.01em] text-ink lg:text-[26px]">{release.title}</h1>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <span className={`text-[13px] font-bold ${kind.className}`}>{kind.label}</span>
-          <ArtistLine subjects={subjects} />
-          {release.announcedOn && <span className="text-[12.5px] text-ink-4">公告公布于 {monthDay(release.announcedOn)}</span>}
-        </div>
-        <p className="mt-2.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13.5px] text-ink-3">
-          {release.releaseOn ? (
-            <span className="num text-ink">
-              {monthDay(release.releaseOn)}（{weekdayShort(release.releaseOn)}）发售
-            </span>
-          ) : (
-            <span className="text-ink-3">公告还没写出具体发售日</span>
-          )}
-          {progress && <span className="text-[12.5px] text-ink-4">{progress}</span>}
-        </p>
-      </header>
+      <div className="flex flex-col gap-4 pt-3 lg:flex-row lg:items-start lg:gap-7 lg:pt-1">
+        {/* 竖版封面（碟的 jacket 多半是 3:4）：有就摆在标题左边，没有就整页还是纯文字。 */}
+        <CoverImage
+          cover={release.cover}
+          sizes="(min-width: 1024px) 280px, calc(100vw - 32px)"
+          className="max-w-[280px] shadow-sm"
+          priority
+        />
+        <header className="min-w-0 flex-1 pb-5">
+          <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.1em] text-accent">
+            <span aria-hidden="true" className="h-[2px] w-6 flex-none rounded-full bg-accent" />
+            发售
+          </p>
+          <h1 data-page-title="" className="mt-1.5 text-[24px] font-bold leading-[1.3] tracking-[-0.01em] text-ink lg:text-[26px]">{release.title}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className={`text-[13px] font-bold ${kind.className}`}>{kind.label}</span>
+            <ArtistLine subjects={subjects} />
+            {release.announcedOn && <span className="text-[12.5px] text-ink-4">公告公布于 {monthDay(release.announcedOn)}</span>}
+          </div>
+          <p className="mt-2.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13.5px] text-ink-3">
+            {release.releaseOn ? (
+              <span className="num text-ink">
+                {monthDay(release.releaseOn)}（{weekdayShort(release.releaseOn)}）发售
+              </span>
+            ) : (
+              <span className="text-ink-3">公告还没写出具体发售日</span>
+            )}
+            {progress && <span className="text-[12.5px] text-ink-4">{progress}</span>}
+          </p>
+        </header>
+      </div>
 
       <section className="card p-5 lg:p-6">
         <h2 className="text-[17px] font-[650] leading-[1.5] text-ink">版本</h2>

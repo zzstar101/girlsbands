@@ -24,6 +24,7 @@ import { QuotedPost } from "../features/item/QuotedPost";
 import { ArticleBody } from "../features/item/ArticleBody";
 import { ActionsSheet, ReaderToolbar, type ActionRow } from "../features/item/ReaderTools";
 import { OutlineSheet, scrollToAnchor } from "../components/ui/OutlineSheet";
+import { CoverImage } from "../components/ui/CoverImage";
 import { takePreview } from "../features/item/preview";
 import { IconArrowLeft, IconCopy, IconDownload, IconExternal, IconImage, IconMenu, IconMore, IconShare } from "../components/icons";
 import { BarButton, PhoneBar } from "../components/shell/PhoneBar";
@@ -282,6 +283,8 @@ function ItemView({ item }: { item: SiteItemDetail }) {
   const bodyHtml = lang === "zh" ? (item.body?.zh ?? item.body?.original) : (item.body?.original ?? item.body?.zh);
   const bodyLabel = !item.body ? null : lang === "zh" && item.body.zhKind === "translation" ? "正文 · AI 翻译" : lang === "original" && hasTranslation ? "正文 · 原文" : "正文";
   const isX = item.channel === "x" && !!item.x;
+  // 公告自己的主视觉。X 帖的图由那条帖子自己带着，正文里已经排过图的也不再重复放同一张。
+  const leadCover = isX || (bodyHtml ? /<img[\s>]/i.test(bodyHtml) : false) ? null : item.cover;
   const publishedIso = item.publishedAt ?? item.discoveredAt;
   const summaryOnly = item.readingMode === "summary-only";
   const showOutline = item.outline.length >= 3;
@@ -472,6 +475,12 @@ function ItemView({ item }: { item: SiteItemDetail }) {
           <div className="mb-3 flex flex-wrap items-center gap-2"><EventTypeBadge category={item.category} /><ArtistLine subjects={subjectsOfItem(item)} /></div>
           {!isX && <h1 data-page-title="" className="text-[26px] font-bold leading-[1.38] tracking-[-0.01em] text-ink lg:text-[32px] lg:leading-[1.34] xl:text-[36px] xl:leading-[1.3]">{item.title}</h1>}
           {!isX && item.originalTitle && <p className="mt-2.5 text-[14px] leading-relaxed text-ink-4">{item.originalTitle}</p>}
+
+          {leadCover && (
+            <div className="mt-6 max-w-[620px]">
+              <CoverImage cover={leadCover} className="shadow-sm" priority />
+            </div>
+          )}
 
           {item.dates?.[0] && <div className="mt-5 max-w-[520px]"><Ticket item={item.dates[0]} from={item.datesFrom ?? item.dates[0].day} /></div>}
 

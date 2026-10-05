@@ -8,6 +8,7 @@ import { timezoneDate } from "@girlsbands/contracts/time";
 import { ENTITIES } from "@girlsbands/industry/taxonomy";
 import { sql } from "../db.ts";
 import { liveRefs } from "./lives.ts";
+import { coverOfItems } from "./covers.ts";
 import { storyReportCondition } from "./scope.ts";
 
 const MAX_SUBJECT_RELEASES = 40;
@@ -23,6 +24,8 @@ interface ReleaseRow {
   timezone: Timezone;
   story_public_id: string | null;
   story_title: string | null;
+  /** 说出这张碟的那篇公告：封面就从它的图里挑（公告被删就没了，那就不放图）。 */
+  first_article_id: string | null;
   first_seen_at: Date;
   updated_at: Date;
 }
@@ -38,7 +41,7 @@ const visibleCondition = (now: Date) => sql`
 const RELEASE_COLUMNS = sql`
   r.id, r.public_id::text AS public_id, r.subject_entity, r.title, r.kind,
   r.release_on::text AS release_on, r.announced_on::text AS announced_on, r.timezone,
-  st.public_id::text AS story_public_id, st.title AS story_title,
+  st.public_id::text AS story_public_id, st.title AS story_title, r.first_article_id,
   r.first_seen_at, r.updated_at`;
 const RELEASE_FROM = sql`
   FROM releases r
@@ -98,7 +101,7 @@ export async function loadRelease(publicId: string, now = new Date()): Promise<R
   const rows = await sql<ReleaseRow[]>`SELECT ${RELEASE_COLUMNS} ${RELEASE_FROM} WHERE r.public_id = ${publicId} AND ${visibleCondition(now)}`;
   const [row] = rows;
   if (!row) return null;
-  const [editions, bonuses, serials] = await Promise.all([
+  const [editions, bonuses, serials, cover] = await Promise.all([
     sql<{ name: string; kind: ReleaseEditionView["kind"]; includes_bluray: boolean; includes_serial: boolean; price_yen: number | null; sku: string | null; quote: string | null }[]>`
       SELECT name, kind, includes_bluray, includes_serial, price_yen, sku, quote
       FROM release_editions WHERE release_id = ${row.id} ORDER BY id`,
@@ -109,6 +112,7 @@ export async function loadRelease(publicId: string, now = new Date()): Promise<R
     sql<{ kind: ReleaseSerialView["kind"]; live_event_id: number | null; live_title: string | null; url: string | null; quote: string | null }[]>`
       SELECT kind, live_event_id, live_title, url, quote
       FROM release_serials WHERE release_id = ${row.id} ORDER BY id`,
+    coverOfItems(row.first_article_id === null ? [] : [row.first_article_id], now),
   ]);
   // 序列号能指到一场有页面的演出时给出那一行；指不到就只留原文写的名字。
   const refs = await liveRefs(serials.flatMap((s) => (s.live_event_id === null ? [] : [s.live_event_id])), now);
@@ -138,6 +142,7 @@ export async function loadRelease(publicId: string, now = new Date()): Promise<R
       quote: s.quote,
     })),
     story: row.story_public_id === null ? null : { publicId: row.story_public_id, title: row.story_title ?? row.title },
+    cover,
     firstSeenAt: (row.first_seen_at ?? now).toISOString(),
     updatedAt: (row.updated_at ?? now).toISOString(),
   };

@@ -42,6 +42,18 @@ export interface XPostView {
   media: MediaView[];
 }
 
+/**
+ * A detail page's lead picture: the announcement's own illustration, carried at one size (url) plus the
+ * hero `srcSet`. Empty media means null, and a page without one keeps its text header — nothing is
+ * drawn in its place.
+ */
+export interface CoverView {
+  url: string;
+  srcSet?: string;
+  width: number | null;
+  height: number | null;
+}
+
 export interface StoryRef {
   publicId: string;
   title: string;
@@ -159,6 +171,8 @@ export interface SiteItemDetail extends ItemSummary {
   sameEvent?: { id: string; title: string } | null;
   readingMode: "full" | "summary-only";
   author: string | null;
+  /** The announcement's own lead picture; null when it carries none. */
+  cover: CoverView | null;
   /** Whitelisted HTML of the language shown; the other one is null. */
   body: { zh: string | null; original: string | null; zhKind: "translation" | "original" | null; complete: boolean } | null;
   outline: OutlineEntry[];
@@ -454,6 +468,8 @@ export interface StoryDetail {
   live: LiveRef | null;
   /** The release this event is about (an announcement that puts out a disc), when its facts carry one. */
   release: ReleaseSummary | null;
+  /** The lead picture of the story's reports; null when none of them carries one. */
+  cover: CoverView | null;
 }
 
 // Reports (daily / weekly / monthly)
@@ -780,6 +796,8 @@ export interface LiveEventView extends LiveEventSummary {
   rounds: TicketRoundView[];
   /** The event page its reports are grouped under, when they are grouped under one. */
   story: { publicId: string; title: string } | null;
+  /** The lead picture of its reports; null when none of them carries one. */
+  cover: CoverView | null;
 }
 
 // Ticket rounds (一场演出的一条受理)
@@ -944,6 +962,8 @@ export interface ReleaseView {
   serials: ReleaseSerialView[];
   /** The story its announcements are grouped under, when they are: the way to read the whole thing. */
   story: { publicId: string; title: string } | null;
+  /** The jacket the announcement carries; null when it carries none. */
+  cover: CoverView | null;
   firstSeenAt: string;
   updatedAt: string;
 }

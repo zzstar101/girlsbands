@@ -14,6 +14,7 @@ import { RELEASE_KINDS } from "../features/feed/releases";
 import { sessionCache } from "../lib/session-cache";
 import { isReload } from "../lib/restore";
 import { Badge, SelectedBadge } from "../components/ui/Badge";
+import { CoverImage } from "../components/ui/CoverImage";
 import { PillTabs } from "../components/ui/Tabs";
 import { Select } from "../components/ui/Controls";
 import { IconArrowLeft, IconChevronRight, IconClock, IconDisc, IconDoc, IconTicket, IconUsers } from "../components/icons";
@@ -220,6 +221,9 @@ export default function StoryPage() {
         <span className="h-3 w-px bg-line-strong" aria-hidden="true" />
         <span>事件详情</span>
       </nav>
+
+      {/* 事件的主视觉取自它自己那些报道里第一张能用的图；没有就整页还是纯文字。 */}
+      <CoverImage cover={story.cover} className="max-w-[960px] shadow-sm" priority />
 
       <header className="max-w-[960px] pt-3 lg:pt-0">
         <div className="flex items-center gap-2 text-[12px] text-ink-4">

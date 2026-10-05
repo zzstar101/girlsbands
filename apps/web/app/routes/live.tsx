@@ -15,6 +15,7 @@ import { subjectOfId } from "../features/feed/bands";
 import { LIVE_STAGES, openStage } from "../features/feed/lives";
 import { ArtistLine } from "../components/ui/ArtistBadge";
 import { Badge } from "../components/ui/Badge";
+import { CoverImage } from "../components/ui/CoverImage";
 import { EmptyState } from "../components/ui/Page";
 import { IconArrowLeft, IconCalendar } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
@@ -62,6 +63,9 @@ export default function LiveRoute() {
       <Link to={back.to} className="hidden items-center gap-1.5 py-2 text-[13px] text-ink-3 transition-colors hover:text-accent lg:inline-flex">
         <IconArrowLeft size={14} /> 返回{back.label}
       </Link>
+
+      {/* 演出的主视觉通常是横幅：有就摆在页面最上面，没有就整页还是纯文字。 */}
+      <CoverImage cover={live.cover} className="mt-3 shadow-sm lg:mt-1" priority />
 
       <header className="pb-5 pt-3 lg:pt-1">
         <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.1em] text-band">
