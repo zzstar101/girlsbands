@@ -9,6 +9,7 @@ import { collapseWhitespace, looksChinese } from "../lib/text.ts";
 import { deriveReleases } from "../releases/derive.ts";
 import { timezoneOf } from "../sources/timezone.ts";
 import { itemUrl } from "./links.ts";
+import { deriveMemberMentions } from "./member-mentions.ts";
 import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "./representative.ts";
 import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import {
@@ -359,6 +360,13 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   } else {
     await tx`DELETE FROM pool_search WHERE article_id = ${articleId}`;
   }
+
+  // 角色页的投影：这篇报道提到了 industry/members.ts 里的哪些角色/声优（本名、假名、罗马字与别名
+  // 一起匹配）。与 pool_search 同一批文本、同一条「收录才留」的规则：撤收录就整篇删掉。
+  await deriveMemberMentions(tx, articleId, eligible, {
+    title: next.title, originalTitle, summary,
+    body: bodyMode === "full" ? (article.body_text ?? "").slice(0, 12_000) : null,
+  });
 
   // Content-group push: once, for an item that arrives live and becomes selected (never for imports,
   // backfill or stale-on-discovery material).

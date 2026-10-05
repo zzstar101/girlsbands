@@ -15,6 +15,7 @@ import { BandLogo } from "../components/ui/BandTip";
 import { BrandMark } from "../components/ui/BrandMark";
 import { PillTabs } from "../components/ui/Tabs";
 import { ChronicleBand, ChronicleRail } from "../features/topic/Chronicle";
+import { memberPath, membersOfSubject } from "../features/topic/member";
 import { MonthCalendar } from "../features/topic/Calendar";
 import { EmptyState } from "../components/ui/Page";
 import { IconArrowLeft } from "../components/icons";
@@ -174,6 +175,47 @@ function ReleaseSection({ releases }: { releases: TopicPage["releases"] }) {
   );
 }
 
+/**
+ * 这支乐队/这个企划的角色。成员不是采集主体，名单是静态的（industry/members.ts），这里只把它们
+ * 摆出来；企划页按乐队分组，乐队页就一组（队名与页头重复，不画）。
+ */
+function MemberSection({ subject }: { subject: string }) {
+  const bands = membersOfSubject(subject);
+  if (bands.length === 0) return null;
+  return (
+    <section id="members" className="card mb-8 scroll-mt-16 p-5 lg:p-6">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-[16px] font-[650] text-ink">角色</h2>
+        <Link viewTransition to="/members" className="text-[12.5px] font-semibold text-accent hover:text-accent-ink">
+          全部角色 →
+        </Link>
+      </div>
+      {bands.map((band, i) => (
+        <div key={band.id} className={i > 0 ? "mt-3 border-t border-line-soft pt-3" : "mt-2"}>
+          {bands.length > 1 && (
+            <p className="flex items-center gap-2 text-[13px] font-semibold text-ink-3">
+              <span aria-hidden="true" className="size-2.5 shrink-0" style={{ background: band.accent ?? "var(--ink-4)" }} />
+              <Link viewTransition to={`/topics/${band.id}`} className="transition-colors hover:text-accent">
+                {band.name}
+              </Link>
+            </p>
+          )}
+          <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5">
+            {band.members.map((m) => (
+              <li key={m.id}>
+                <Link viewTransition to={memberPath(m.id)} prefetch="intent" className="inline-flex items-baseline gap-1.5 text-[14px] text-ink-2 transition-colors hover:text-accent">
+                  {m.name}
+                  {m.role && <span className="text-[11.5px] text-ink-4">{m.role}</span>}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 export default function TopicRoute() {
   const { data, calendar, scope } = useLoaderData<typeof loader>();
   const home = useRouteLoaderData<typeof rootLoader>("root")?.home;
@@ -253,6 +295,8 @@ export default function TopicRoute() {
           {subject ? <ChronicleBand milestones={data.milestones} kinds={data.kinds} /> : <ChronicleRail months={data.chronicle} kinds={data.kinds} />}
         </div>
       )}
+
+      {page === 1 && band && <MemberSection subject={topic.slug} />}
 
       <h2 className="sr-only">{all ? `${topic.name}的全部动态` : `${topic.name}的精选`}{page > 1 ? ` · 第 ${page} 页` : ""}</h2>
       <div className="mb-3 flex flex-wrap items-center gap-3">

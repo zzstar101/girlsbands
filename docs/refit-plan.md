@@ -665,26 +665,44 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 - `apps/web/app/features/feed/bands.ts` 的 `Subject` 只认 `ENTITIES`。
 
 **设计**
-1. **新真源 `industry/members.ts`**：`export const MEMBER_ENTITIES: Record<string, MemberEntity>`，字段 `{ id, name, forms, bands?: readonly string[], roles?, portrayedBy?, portrays?, accent? }`；知识图谱 `character —portrayedBy→ actor/musician —bands→ band —seriesKeyOf→ project`，**不建关系表**（关系全是静态人工数据，跟代码一起发布）。
+1. **新真源 `industry/members.ts`**（实际落地）：`export const MEMBER_ENTITIES: readonly MemberEntity[]` + `memberById(id)`，每条 `{ id, band, forms, aliases, actor: { forms, role? }, role? }`；`band` 是 `ENTITIES` 的乐队 id，`aliases` 是并进这一页的别名（Ave Mujica 五个舞台代号、Hello, Happy World! 的米歇尔）⇒ 词表的 182 行 = 94 条角色行 + 88 条声优行，其中 6 条角色行是别名（不另开页）⇒ **88 个角色页**；声优不单独开页，只在角色页里出现。**不建关系表**（关系全是静态人工数据，跟代码一起发布）；由 `.data/build-glossary-tables.ts` 生成（`.data/` 不进仓库，生成物进仓库，与 `industry/glossary-members.ts` 同一套规矩）。
 2. **不进 `ENTITIES`**：`ENTITIES` 与 `assets/band-logos/manifest.json` 有一一对应校验（`tests/email-hero.test.ts:151-155`）、`scripts/fetch-band-logos.ts` 会照着 `ENTITIES` 去抓字标（164 个不存在的字标会全红）、`industry/topics.json` 的主题 slug 与 `tests/topics.test.ts:253-271` 的校验也挂在 `ENTITIES` 上。**也不进 `glossary.ts` 的 `GlossaryEntry`**（那是 `{kind, forms}` 翻译白名单，塞 id 会污染语义）。
-3. **数据库只建投影表**（迁移 `0064_member_mentions.sql`，编号按实际顺序）：`member_mentions(member_id, article_id, source CHECK (title|body|x_post), PRIMARY KEY (member_id, article_id, source))` —— **不建成员表**，成员跟代码发布；这张表只是「哪篇文章提到了谁」的倒排索引，删了能重建。写入在 `packages/backend/src/publication/publish.ts:314-351` 的 upsert **同一事务**里，用 `industry/glossary.ts:123-145` 的 `fold`/`contains` 匹配 `title` / `original_title` / `summary` 与 `pool_search.body`。**不走 `publications.tags`**：成员进 `ENTITY_TAGS` 会改 `packages/backend/src/editorial/vocabulary.ts:7` 的 `ALLOWED_TAGS`，进而换掉 `promptVersion("structure")`＝全库回执失效。
-4. **读取** `packages/backend/src/publication/members.ts`：`listMembers()`、`loadMemberPage(id, page, now, scope)`、`membersOfSubject(subject)`、`bandsOfMember(id)`、`memberOfStory(storyId)`；「出演 / Live / 采访 / 发售」是同一批报道按 `publications.category` 切段，**不另建表**。索引门槛**不要复用** `packages/backend/src/publication/topics.ts:237` 的 `isIndexable`（`total >= 50 || (total >= 20 && recent > 0)` 是为新闻主题定的，对成员太严），建议 `total >= 5`（待拍板）。
-5. **出口**：`apps/web/app/routes/member.tsx`（`/member/:id`）+ `/api/site/members`、`/api/site/members/:id` + `apps/api/src/routes/og.ts` 的 `/og/members/:file` + `packages/backend/src/publication/sitemap.ts`（只收 indexable）+ 乐队页与企划页侧栏入口。API/OG 都已在 `packages/contracts/src/http-policy.ts:97`/`:106` 覆盖的模式里，**不用登记 `API_OWNED_PATTERNS`**。`apps/web/app/features/feed/bands.ts` **不改**，新开 `apps/web/app/features/topic/member.ts`，页面的主体/方向渲染直接复用主题页组件。
-6. **`GLOSSARY_VERSION` 的代价（本包最关键的一条）**：`scripts/build-members.ts` 从 `industry/glossary-members.ts` 生成 `industry/members.ts` 时，每条 `forms` 的**顺序与内容必须逐字节保持**（顺序变了 `GLOSSARY.length` 不变但 `fnv(...)` 变，版本照样变）⇒ 只要保持，「重构」这次改动**不重译一个字**。**「重构」与「扩充写法」必须分成两次改动**，第二次才付重译代价。
+3. **数据库只建投影表**（实际编号 `0063_member_mentions.sql` —— W12 砍掉了自己的迁移，这个号让给了 W13）：`member_mentions(member_id, article_id REFERENCES articles ON DELETE CASCADE, PRIMARY KEY (member_id, article_id))` + `member_mentions_article_idx(article_id)` —— **不建成员表**，成员跟代码发布；这张表只是「哪篇文章提到了谁」的倒排索引，删了能重建（`scripts/backfill-member-mentions.ts`）。**砍掉了原设计的 `source CHECK (title|body|x_post)` 列**：没有一处读它，而 `tests/architecture.test.ts:108-117` 要求每一列都被生产代码引用。写入在 `packages/backend/src/publication/publish.ts` 的 pool_search 块之后、内容组推送之前，与 publications upsert **同一事务**（`packages/backend/src/publication/member-mentions.ts` 的 `deriveMemberMentions`：eligible 才留、整篇重写而不是累加）。匹配 `title` / `original_title` / `summary` 与 `body_mode='full'` 时的正文（与 `pool_search` 同一条规则），写法取本名 + 假名 + 罗马字 + 别名 + **声优名**（站主拍板：只提声优艺名也算这个角色的报道）。**一处偏离词表**：多词的拉丁写法（`Nina Iseri`）不能直接用 `contains` —— `fold` 会抹掉空白，`"Nina Iseri announces"` 折成 `ninaiseriannounces` 之后贴边界的规则反而不命中；这些写法改成按词序匹配的正则（词之间允许空白），单字与含汉字的写法仍走 `contains`（所以 `Rina` 不会命中 `Marina`）。**不走 `publications.tags`**：成员进 `ENTITY_TAGS` 会改 `packages/backend/src/editorial/vocabulary.ts:7` 的 `ALLOWED_TAGS`，进而换掉 `promptVersion("structure")`＝全库回执失效。
+4. **读取** `packages/backend/src/publication/members.ts`：`listMembers(now?)`（按企划 → 乐队铺开，`/members` 用）、`loadMemberPage(id, page, now?)`（角色页；未知 id、页码不是正整数、页码越界都返回 null ⇒ 404）、`memberLinks(subject)`（乐队页/企划页侧栏；企划给整个系列，方向页与未知主体给空）、`bandsWithMembers(subject)`、`memberSitemapEntries(now?)`；索引缓存 `cached(..., { freshMs: 60_000, maxStaleMs: 10 * 60_000 })`（与主题页同一套）。「出演 / Live / 采访 / 发售」是同一批报道按 `publications.category` 切段，**不另建表**。索引门槛 `total >= 5`（**不复用** `packages/backend/src/publication/topics.ts` 的 `isIndexable`：`total >= 50 || (total >= 20 && recent > 0)` 是为新闻主题定的，对成员太严）；不够 5 篇的页面**仍然可达**，只是 `noindex` 且不进 sitemap。
+5. **出口**（实际落地）：`apps/web/app/routes/members.tsx`（`/members` 总览）+ `apps/web/app/routes/member.tsx`（`/member/:id`，站主拍板要总览页）+ `/api/site/members`、`/api/site/members/:id` + `apps/api/src/routes/og.ts` 的 `/og/members/:file` + `packages/backend/src/publication/sitemap.ts`（`/members` 与 indexable 的 `/member/`）+ 乐队页与企划页侧栏的「角色」栏（`apps/web/app/features/topic/member.ts`，22 个实体页）。API/OG 都已在 `packages/contracts/src/http-policy.ts:97`/`:106` 覆盖的模式里，**不用登记 `API_OWNED_PATTERNS`**。`apps/web/app/features/feed/bands.ts` **不改**（成员不是抓取主体），页面的主体/方向渲染直接复用主题页组件。**v1 不接关注与邮件订阅**（站主拍板：成员不进 `subjects`、不进订阅勾选）；文章里的角色名也**不会**变成链接（动 `ALLOWED_TAGS` 会让全库回执与译文失效）。
+6. **`GLOSSARY_VERSION` 的代价（本包最关键的一条）**：生成器从 `industry/glossary-members.ts` 生成 `industry/members.ts` 时，每条 `forms` 的**顺序与内容逐字节保持**（顺序变了 `GLOSSARY.length` 不变但 `fnv(...)` 变，版本照样变），所以「把成员名接上归属」这件事本身**不重译一个字**。但站主拍板要先补齐 Canna Lily / F-272 两支手游乐队（10 角色 + 10 声优）⇒ 词表**只增不减**，`GLOSSARY_VERSION` 变化是预期行为，随后所有翻译回执按新版本重跑（回执键含 `promptVersion`）。生成器是 `.data/build-glossary-tables.ts`（`.data/` 不进仓库），不是原计划的 `scripts/build-members.ts`。
 
 **验收标准**
 
 | 检查 | 通过标准 |
 |---|---|
-| 词表零漂移 | 改动前后 `GLOSSARY_VERSION` 完全相同（`tests/glossary.test.ts` 的断言不变） |
+| 词表只增不减 | 既有 162 条写法的 `forms` 逐字节没动；新增的 20 条（Canna Lily / F-272）只增不减，`GLOSSARY_VERSION` 变化后翻译回执按新版本重跑（`tests/glossary.test.ts:96` 断言的是形状） |
 | `ENTITIES` 没被动 | `tests/email-hero.test.ts` / `tests/topics.test.ts` / `fetch-band-logos` 全绿且抓取数仍是 22 |
-| 归属关系真实 | `MEMBER_ENTITIES` 里 BanG Dream! 的角色能经 `portrayedBy` 走到 CV、再经 `bands` 走到乐队 |
+| 归属关系真实 | `MEMBER_ENTITIES` 每条都能经 `band` 走回 `ENTITIES`，角色 ↔ 声优（`actor.forms`）一一对应；`tests/members.test.ts` 双向核对角色行与声优行 |
 | 投影表被用 | `tests/architecture.test.ts` 全绿（每列都被生产代码引用）；同一文章重复 publish 不产生重复行 |
 | 页面 | 一个成员页 200、404 规则（未 indexable 仍可达但不进 sitemap）、下架文章从列表消失 |
 | 出口 | `npm run typecheck` 全绿；`/og/members/<id>.png` 200；sitemap 有 `/member/` |
 | 测试 | 新增 `tests/members.test.ts` 全绿 + 全量 `npm test` 0 失败 |
 
-**待站主拍板**：索引门槛（建议 `total >= 5`）该不该比主题页更宽松；成员页要不要显示「中之人」的真名与所属乐队（涉及真人隐私，也可以只显示角色 ↔ 声优关系）；成员页要不要进 `/starred`（浏览器本地关注）与邮件订阅的 `bands[]`（本设计**不进**，订阅仍只按主体）。
+**站主拍板（2026-10-05 grilling 逐条敲定）**
+1. **只做角色页**：声优不单独开页，只在角色页里出现（不建 162 个页面）。
+2. **提及口径**：文章只提声优艺名也算这个角色的报道（合并进角色页）。
+3. **索引门槛 `total >= 5`**：不够 5 篇的页面仍然可达，只是 `noindex` 且不进 sitemap。
+4. **别名并入本名页**：Ave Mujica 五个舞台代号 + 米歇尔 ⇒ 84 → 78 页；**先补齐 Canna Lily / F-272**（站主发现这两支手游乐队在 TSV 里一条成员行都没有）⇒ **88 页**。
+5. **不列「这位声优还配了谁」**（一个角色一位声优，站主原话）。
+6. **v1 不接关注与邮件订阅**：关注仍只按 22 个主体，成员不进 `subjects`、不进订阅勾选。
+7. **要 `/members` 总览页**（按乐队分组的角色目录）。
+8. 零重译：`forms` 逐字节照抄词表，另加一条测试防两份数据漂移。
+
+**实现与验证（2026-10-05 完成）**
+1. **真源** `industry/members.ts`（88 条，`MEMBER_ENTITIES` + `memberById`）：由 `.data/build-glossary-tables.ts` 从 `.data/glossary-members.tsv` 生成，`forms` 与 `industry/glossary-members.ts` 逐条相同（`tests/members.test.ts` 双向核对）；成员**不进** `ENTITIES`、**不进** `glossary.ts` 的条目。补齐的两支手游乐队按官方公布（Gamer / 4gamer / Real Sound / Skream!）写：Canna Lily 5 人、F-272 5 人，没有官方罗马字的按读音拼 slug。
+2. **迁移与写入** `database/migrations/0063_member_mentions.sql`（只有 `(member_id, article_id)` 两列 + article 索引，砍掉原设计的 `source` 列）；`packages/backend/src/publication/member-mentions.ts` 的 `mentionedMembers` / `deriveMemberMentions` 在 `publish.ts` 的 pool_search 之后、同一事务里整篇重写；`scripts/backfill-member-mentions.ts` 用 publications 已定稿的列回填存量（可重复跑）。
+3. **读取层** `packages/backend/src/publication/members.ts`：`listMembers` / `loadMemberPage` / `memberLinks` / `bandsWithMembers` / `memberSitemapEntries`，索引缓存 60s。
+4. **出口** `/api/site/members`、`/api/site/members/:id`（ETag 前缀 `members` / `member`）、`/og/members/:file`（kicker「角色 · 乐队」、副标题「担当 · CV · 别名」）、sitemap 的 `/members` 与 indexable 的 `/member/<id>`。
+5. **踩到的坑**：① `contains` 的空白归一让多词拉丁写法贴不上边界（`Nina Iseri announces` 折成 `ninaiseriannounces`）⇒ 多词拉丁写法改成按词序匹配的正则，单字与含汉字写法仍走 `contains`；② 声优名一开始漏在匹配表外（站主口径要求「只提声优也算」），补 `actor.forms`；③ 正文只在 `body_mode='full'` 时参与匹配（与 pool_search 同一条规则），测试文章的正文点了名不算；④ `originalTitle` 就是 `articles.title`，改「标题不再点名」必须同时改 `articles.title` 与 `analyses.title_zh`；⑤ sitemap 断言别写死协议（`SITE_URL` 在测试里不是 https）。
+6. **验收数字**：`tests/members.test.ts` **6 通过 / 0 失败**；全量 `npm test` **686 通过 / 0 失败**（93.2s；W12 基线 680）；`npm run typecheck` 全绿；dev 库跑完 0063 + 回填：**149 行提及、84 篇报道、35 个角色**，其中够 5 篇的是 8 个（Canna Lily / F-272 的 10 位在现有语料里 0 篇提及，页面可达但暂不进 sitemap）。
+7. **已知缺口（待办）**：`role`（担当）只有官方写明的才有 —— 目前 **15/88**（Mugendai Mewtype 5 + Canna Lily / F-272 10），其余 73 行 TSV 备注里没记担当。补齐要按 16 支乐队的官网逐条研究后重跑生成器；页面在没有 `role` 时照常显示，只是不写担当。
+
 **工作量**：4 天（真源重构 1 + 投影表与写入 1 + 读取与页面 1.5 + 出口与测试 0.5）。
 
 ---
@@ -700,7 +718,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 - `facts` **只新建不更新**：`packages/backend/src/events/group.ts:111-119` 的 `createFact` 只 `INSERT`，全仓唯一的 `UPDATE facts` 是 `packages/backend/src/events/merge.ts:17` 的 `SET story_id`。⇒ **快照必须取 `analyses.output->'fact'`**（分析当时的说法），取 `facts.subject/action/object` 的话 diff 永远是空。
 
 **设计**
-1. 迁移 `0065_story_digest_facts.sql`：`story_digests` 加 `facts jsonb`、`facts_hash text`、`changes jsonb`、`change_kinds text[]`。
+1. 迁移 `0064_story_digest_facts.sql`：`story_digests` 加 `facts jsonb`、`facts_hash text`、`changes jsonb`、`change_kinds text[]`。
 2. `packages/backend/src/events/change-diff.ts`：`factsSnapshot(storyId)` 取该 story 各 article **最新一条** `analyses.output->'fact'`（注意 dev 库里 CPP 的 article 有两条 `analyses`，必须走 `publications.analysis_id` 或取 max）→ 规范化 JSON → `facts_hash`。
 3. **接入点**：把 `facts_hash` 加进 `digest.ts:93` 的门，但**不改 `inputs_hash` 的定义** —— 于是纯日期变化（OPEN 17:00→16:30）只插一行版本、**零模型调用**，也不会让全库 story 重写 digest。
 4. `changes` 生成：结构化字段级 diff（时间 / 会场 / 出演者 / 票价 / 票务轮次）优先；只有「结构化 diff 非空且需要中文措辞」时才调一次模型（新提示词 `industry/prompts/story-changes.md`，新文件不使旧回执失效）。
@@ -764,7 +782,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 
 **设计**
 1. 新提示词 `industry/prompts/setlist.md`（新文件 ⇒ 旧回执不失效）+ `packages/backend/src/editorial/analyze.ts` 新步骤 `runSetlist`，只对「已结束的 Live」条目跑；把 `analyze.ts:174-204` 里 `grounded` 的闭包抽成共享的 `groundedFor(...)` 复用 —— **歌名必须能在正文里找到，否则不落库**。
-2. 表 `0066_setlist_entries.sql`：`setlist_entries(live_event_id FK, position, title, is_encore, is_cover, quote, article_id)`。**外键要等 W8 的 `live_events` 列名与阶段枚举定稿**（这是 W8 → W16 的接口）。
+2. 表 `0065_setlist_entries.sql`：`setlist_entries(live_event_id FK, position, title, is_encore, is_cover, quote, article_id)`。**外键要等 W8 的 `live_events` 列名与阶段枚举定稿**（这是 W8 → W16 的接口）。
 3. 页面：Live 页由 `upcoming` 切到 `archive`（W8 的阶段派生已有 `finished`）；Archive 截止日期照常进 `.ics`（走 W9 的轮次 / `deadlines`，不另算）。
 4. **降级路径**：W8 未落地时，先在 Event 页做**不依赖 `live_events` 的那一半**（按 story 收集 Setlist 与 Archive 信息），等 W8 合了再迁到实体上。
 
@@ -802,7 +820,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 - 影响面（dev 库实测）：`full` 118 条（其中**非一手 112 条**）、`summary` 320 条 ⇒ 分层一旦生效，这 112 条会从 full 掉到 summary。
 
 **设计**
-1. **保守默认（可以先做）**：迁移 `0067_rights_tiers.sql` 只加 `sources.rights_tier`（`official | media | licensed`）与 `sources.rights_note`，**`site_fulltext` 与公开读数一字不改**；管理后台显示层级；`docs/rights.md` 与 `/rights` 页补一段说明。
+1. **保守默认（可以先做）**：迁移 `0066_rights_tiers.sql` 只加 `sources.rights_tier`（`official | media | licensed`）与 `sources.rights_note`，**`site_fulltext` 与公开读数一字不改**；管理后台显示层级；`docs/rights.md` 与 `/rights` 页补一段说明。
 2. **切换（等点头）**：`bodyModeOf` 改成读 `rights_tier`（`official` / `licensed` → 允许 full；`media` → 强制 summary），然后按 republish 出站链回填。
 3. **引用方案**：默认 A —— 摘要里直接引用原文句子（零提示词改动）；方案 B 是改提示词让模型产出「必要引用」字段，代价是 prompt version 变更、已入库条目重跑（重跑必须换 `attemptTag`，否则命中回执不花钱也不重问，见 `packages/backend/src/providers/receipts.ts:83`）。
 
@@ -833,7 +851,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 - 缺口：`feedback` 表没有「针对哪一条内容/哪个字段」的列；没有 `/submit` 投稿页；后台没有按目标聚合的视图。
 
 **设计**
-1. **表只加列，不建表**（迁移 `0068_feedback_targets.sql`，编号按实际顺序；`feedback` 表本身在 `0003_monitor_leaderboard_notify.sql`/`0004_admin_ops.sql`，`0027_feedback_forward_error.sql` 加过 `forward_error`）：`ALTER TABLE feedback ADD COLUMN target_kind text, ADD COLUMN target_id text, ADD COLUMN target_field text, ADD COLUMN expected text;` 加 `CHECK (target_kind IS NULL OR target_kind IN ('article','story','topic','release','live','venue','source'))`、`CHECK (target_field IS NULL OR target_field IN ('title','date','venue','price','translation','category','duplicate','other'))`、索引 `(target_kind, target_id, created_at DESC)`；全部可空 ⇒ 老数据与自由文本反馈不受影响。
+1. **表只加列，不建表**（迁移 `0067_feedback_targets.sql`，编号按实际顺序；`feedback` 表本身在 `0003_monitor_leaderboard_notify.sql`/`0004_admin_ops.sql`，`0027_feedback_forward_error.sql` 加过 `forward_error`）：`ALTER TABLE feedback ADD COLUMN target_kind text, ADD COLUMN target_id text, ADD COLUMN target_field text, ADD COLUMN expected text;` 加 `CHECK (target_kind IS NULL OR target_kind IN ('article','story','topic','release','live','venue','source'))`、`CHECK (target_field IS NULL OR target_field IN ('title','date','venue','price','translation','category','duplicate','other'))`、索引 `(target_kind, target_id, created_at DESC)`；全部可空 ⇒ 老数据与自由文本反馈不受影响。
 2. **读者侧入口**：条目页 / 故事页 / 主题页加「报告问题」小按钮，弹层里预填 `target_kind`/`target_id`（从 loader 已有数据取，**不新增公开接口**），读者选字段 + 写一句期望值；提交仍走**同一个** `POST /api/site/feedback`（表单多四个可选字段），于是限流、封禁、截图、飞书转发全部白拿。
 3. **投稿入口 `/submit`**：同一张表、`target_kind = 'source'`、正文里放链接与说明。**硬约束：读者提交的 URL 绝不直接抓取发布**（投毒、SSRF、版权、以及 429 配额都会被一个陌生链接打满）。人工在 `/admin/feedback` 确认后二选一：①按 `AGENTS.md` 的手工流程加进 `industry/sources.json`（推荐，走既有 review）；②用 `scripts/` 里的一次性脚本调 `packages/backend/src/sources/collect.ts` 的 `collectSource` 试抓一次看质量（必须带 `attemptTag`，且 `COLLECT_ENABLED` 只在本机临时打开）。
 4. **后台视图**：`/admin/feedback` 加一个「按目标聚合」标签页 —— 同一 `(target_kind, target_id)` 的纠错并排显示（含 `from_source` 计数，一眼看出是不是同一个人刷的），每行给「跳到该条目」按钮进 `/admin/content/:id`，用已有的 `overrideFields` / `setVisibility` 处理；处理完把状态改成 `resolved` 并写 `note`（**公开页不显示读者的邮箱**，隐私声明 §3 已覆盖）。
@@ -1211,6 +1229,30 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - **短链只转发白名单里的 action**：`?action=delete` 这类值若原样透传到 manage 页，就等于给外部链接开了个「未知动作」入口，一律丢掉。
 - 带 `subjects=` 的页面仍然是 `public` 缓存（共享缓存按完整 URL 分键，不同关注列表各存一份、不会串；地址里只有公开的乐队 id），隐私只靠 `noindex` 挡住搜索引擎。
 
+**W13（2026-10-05 完成）：成员实体页**
+
+88 个角色页 `/member/<id>` + 总览 `/members`：真源 `industry/members.ts`（`forms` 与翻译词表逐条一致，双向漂移测试），发布时把「哪篇提到了谁」写进投影表 `member_mentions`（迁移 `0063_member_mentions.sql`，不建成员表）；出口是 `/api/site/members`、`/api/site/members/:id`、`/og/members/<id>.png`、sitemap（只收够 5 篇的）与 22 个实体页侧栏的「角色」栏。**v1 不接关注与邮件订阅**（站主拍板）。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（contracts / backend / api / worker / tests / web 六段） |
+| `tests/members.test.ts` | **6 通过 / 0 失败**（新文件：词表与名单漂移、提及边界、发布写投影、读取层、总览/侧栏/sitemap、出口与 OG） |
+| 全量 `npm test` | **686 通过 / 0 失败**（93.2s；W12 基线 680，新增 6 条） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **42 通过 / 0 失败**（基线 37，新增 `member.test.ts` 5 条） |
+| 端到端实拍（真 API + dev 库） | `/members` 200，页面里正好 **88** 个 `/member/` 链接；`/member/nina-iseri` 200 且无 robots meta；`/member/momono-asai`（0 篇报道）200 + `noindex, follow`；`/member/nina-iseri?page=99` 与未知 id → **404**；`/topics/togenashi-togeari` 200（侧栏「角色」栏在位）；`/api/site/members` 200（3 个企划 / 19 支乐队 / 88 人，其中 **8** 个 indexable）、`/api/site/members/nina-iseri` 200（17 篇 + 分类计数 + 4 位同队）、`/og/members/nina-iseri.png` **200 image/png**；`/sitemap.xml` 里 `/members` + 8 个够 5 篇的角色页 |
+| 存量回填 | `scripts/backfill-member-mentions.ts` 在 dev 库写出 **149 行提及 / 84 篇报道 / 35 个角色**（其中够 5 篇的 8 个） |
+| 模型花费 | 零（词表只增不减，翻译回执按新 `GLOSSARY_VERSION` 重跑是另一件事） |
+
+**W13 踩到的坑 / 遗留**
+- **`fold` 的空白归一让多词拉丁写法贴不上边界**：`"Nina Iseri announces"` 折成 `ninaiseriannounces`，`contains` 的贴边界规则反而不命中 ⇒ 多词拉丁写法改成按词序匹配的正则（词之间允许空白），单字与含汉字的写法仍走 `contains`（`Rina` 不会命中 `Marina`）。
+- **声优名一开始漏在匹配表外**：站主口径是「只提声优艺名也算这个角色的报道」，匹配写法要并上 `actor.forms`（一位声优配两个角色时两边都认，这是对的）。
+- **正文只在 `body_mode='full'` 时参与匹配**（与 `pool_search` 同一条规则）：测试里用普通信源造的文章，正文点了名也不算 —— 断言要按标题写。
+- **`originalTitle` 就是 `articles.title`**：「标题不再点名」的用例必须同时改 `articles.title` 与 `analyses.title_zh`，只改一个旧行不会消失。
+- **sitemap 断言别写死协议**：`SITE_URL` 在测试里不是 https，用 `xml.includes("/member/<id></loc>")` 这种子串断言。
+- **别名合并方向不能靠「同一人」判定**：Hello, Happy World! 的米歇尔备注写的是「奥沢美咲的演出用熊玩偶身份」，而本名页写「与米歇尔为同一人」，两行方向相反 ⇒ 生成器只认「舞台代号」前缀 + 显式的别名表。
+- **遗留：担当只有 15/88**。`role` 只有官方写明的才有（Mugendai Mewtype 5 位 + 新补的 Canna Lily / F-272 10 位），其余 73 行的 TSV 备注里没记担当 ⇒ 角色页不显示这一行。补齐要按 16 支乐队的官网逐条研究后重跑 `.data/build-glossary-tables.ts`（`.data/` 不进仓库，生成物进仓库）。
+- Canna Lily / F-272 的 10 位角色在现有语料里 **0 篇提及**（页面可达、不进 sitemap），等有报道提到自然长出内容。
+
 ---
 
 ## 七、待站主拍板汇总（动手前先看这里）
@@ -1230,7 +1272,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 | ~~**W9**~~ ✅ | ~~`deadlines` 与 `ticket_rounds` 哪个权威；`status` 要不要含**个人**当落；`platform` 要不要中文化~~ | **已拍板 2026-10-05**：轮次权威、`deadlines` 只是投影；不含个人当落（站不持有账号）；平台名**照原文**、不做中文显示名映射（`industry/glossary.ts` 一个字不改 —— 改任何 `forms` 都会让 `GLOSSARY_VERSION` 变、全站重译）。已落地：见上面「实现与验证（2026-10-05 完成）」 |
 | ~~**W10**~~ ✅ | ~~首页 horizon 取 14 还是 30 天；「即将开售」是否包含周边开订（`merch_start`）与 CD/BD 发售日（`release_start`）~~ | **已拍板 2026-10-05**：首页 **14 天**（30 天全量留在 `/deadlines`）；「即将开售」= `sale_start` + `release_start` + `merch_start`。已落地：见 §六「W10 · 行动中心」的「实现与验证（2026-10-05 完成）」 |
 | ~~**W11**~~ ✅ | ~~店铺特典真源（公告通常只写「対象店舗」）：开人工 `industry/releases/{slug}.json` 还是接受「模型只抽公告里写了的」；粒度是 1 个 `releases` + 3 个 editions 还是 3 行；存量 `other` 要不要花钱重抽~~ | **已拍板 2026-10-05**：只抽公告写了的（不开人工配置，公告只写「対象店舗」就显示这几个字）；粒度取 **1 个 `releases` + N 个 editions**；存量**重抽**。已落地：见 §六「W11 · 发售·版本·特典数据库」的「实现与验证（2026-10-05 完成）」（68 条候选 → 55 张碟 / 21 个版本 / 15 个店铺特典 / 3 个序列号；`processing_attempt_tag` 沿用上次评估的标签 ⇒ 只花 `release` 这一步的钱） |
-| **W13** | 索引门槛（建议 `total >= 5`，比主题页宽松）；成员页要不要显示「中之人」真名与所属乐队（真人隐私）；成员要不要进 `/starred` 与订阅 `bands[]` | 门槛 5；只显示角色 ↔ 声优关系；不进订阅 |
+| ~~**W13**~~ ✅ | ~~索引门槛（建议 `total >= 5`，比主题页宽松）；成员页要不要显示「中之人」真名与所属乐队（真人隐私）；成员要不要进 `/starred` 与订阅 `bands[]`~~ | **已拍板 2026-10-05**：门槛 `total >= 5`；只显示角色 ↔ 声优关系（页面写声优艺名，不查真名）；**不进 `/starred`、不进订阅 `bands[]`**（v1）。另外两条产品决定：**只做角色页、不建声优页**（声优只在角色页里出现，一位声优配多个角色就出现在多页）；**先补齐 Canna Lily / F-272 的 10 个角色再动工** ⇒ 88 页。其余（提及口径含声优艺名、别名并入本名页、不要「这位声优还配了谁」、要 `/members` 总览页）见 §六 W13 |
 | **W15** | 索引门槛（建议有 `officialUrl` 或有 `live_events` 记录才进 sitemap）；要不要做「东京 11 月」地区聚合页；三条未核实规范化名；闭馆场馆要不要收录 | 门槛按建议；聚合页做（远征信息的入口）；收闭馆馆并标 `closedOn` |
 | **W18** | 投稿链接要不要保留原始 URL（留在库里，涉及投稿人隐私）；后台聚合视图要不要按 `from_source` 去重计数排优先级；要不要给已处理的纠错发邮件回执（需 SMTP，当前只有飞书内部通知） | 保留但只给管理员看；去重计数；先不发邮件 |
 
@@ -1248,6 +1290,6 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 - **提示词一律新增文件、不改 `industry/prompts/structure.md`**：提示词版本是内容哈希，改它 = 全部回执失效 + 已入库条目重跑结构步 + `grouping_status` 置 `pending`（`packages/backend/src/events/group.ts:237-241`）导致条目**短暂下架**。所以 W8 的 `live-ticket.md`、W11 的 `release.md`、W16 的 `setlist.md` 都是新文件。
 - **公开出口只从 `packages/backend/src/publication/` 读**（`tests/architecture.test.ts:57-64` 会拦）；**日期一律走 `deadlineRange`/`deadlineMonths`**，任何包都不许在别处另算日期；`/api/site/*` 与 `/og/*` 已被 `packages/contracts/src/http-policy.ts:97`/`:106` 覆盖，**不用登记 `API_OWNED_PATTERNS`**。
 - **成员与场馆都不进 `ENTITIES`**：会连带 `assets/band-logos/manifest.json` 一一对应校验、`scripts/fetch-band-logos.ts` 抓 164 个不存在的字标、主题 slug 校验全红。
-- **迁移编号**（按包号顺延，谁先落地谁拿号）：W7 `0059_source_timezone.sql`、W8 `0060_live_events.sql`、W9 `0061_ticket_rounds.sql`、W11 `0062_releases.sql`、W12 `0063_subscriber_kinds.sql`、W13 `0064_member_mentions.sql`、W14 `0065_story_digest_facts.sql`、W16 `0066_setlist_entries.sql`、W17 `0067_rights_tiers.sql`、W18 `0068_feedback_targets.sql`（W10 与 W15 不建表、无迁移）。
+- **迁移编号**（按包号顺延，谁先落地谁拿号）：W7 `0059_source_timezone.sql`、W8 `0060_live_events.sql`、W9 `0061_ticket_rounds.sql`、W11 `0062_releases.sql`、**W12 无迁移**（原定的 `0063_subscriber_kinds.sql` 已取消）、**W13 `0063_member_mentions.sql`**（已落地）、W14 `0064_story_digest_facts.sql`、W16 `0065_setlist_entries.sql`、W17 `0066_rights_tiers.sql`、W18 `0067_feedback_targets.sql`（W10 与 W15 不建表、无迁移）。
 - **任何重跑都换 `attemptTag`**（`packages/backend/src/editorial/analyze.ts` 的回执按 prompt version + 输入哈希复用，不换 tag 会把条目翻回旧状态）。
 - **不做**：账号/注册/登录、审核队列、众包直接改库、信源覆盖率与覆盖率评分（§四）。

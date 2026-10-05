@@ -1,7 +1,7 @@
 // First-party site API (/api/site/*). Not public, not versioned, never called /api/v2.
 // Reads through the same public read layer as v1; no cookies are read or set.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { isCategoryKey, isChannelKey, type CategoryKey, type ChannelKey } from "@girlsbands/contracts/taxonomy";
+import { isCategoryKey, isChannelKey, parseSubjectIds, type CategoryKey, type ChannelKey } from "@girlsbands/contracts/taxonomy";
 import { DEADLINE_KINDS, type DeadlineKind } from "@girlsbands/contracts/site";
 import type { ReportIndexResponse, ReportLatestPage, ReportNavigationResponse, SiteContact, TopicScope } from "@girlsbands/contracts/site";
 import { InvalidCursorError } from "@girlsbands/backend/lib/cursor";
@@ -18,6 +18,7 @@ import { loadContact, loadMakerAvatar } from "@girlsbands/backend/site/contact";
 import { loadSiteStats } from "@girlsbands/backend/site/stats";
 import { itemAvailability } from "@girlsbands/backend/publication/availability";
 import { listTopicSummaries, loadTopicPage } from "@girlsbands/backend/publication/topics";
+import { listMembers, loadMemberPage } from "@girlsbands/backend/publication/members";
 import { calendarPage, calendarSubject } from "@girlsbands/backend/publication/calendar";
 import { registerFeedback } from "./feedback.ts";
 import { registerSubscribe } from "./subscribe.ts";
@@ -51,6 +52,8 @@ export interface FilterParams {
   channel: ChannelKey;
   category: CategoryKey | null;
   tag: string | null;
+  /** 「只看关注」勾选的主体 id（乐队或企划）；空数组就是不过滤。 */
+  subjects: string[];
 }
 
 export function parseFilters(q: Record<string, string>): FilterParams {
@@ -59,7 +62,7 @@ export function parseFilters(q: Record<string, string>): FilterParams {
   const category = q.category ?? null;
   if (category !== null && !isCategoryKey(category)) throw new BadRequest("invalid category");
   const tag = q.tag?.trim() ? q.tag.trim().slice(0, 60) : null;
-  return { channel, category: category as CategoryKey | null, tag };
+  return { channel, category: category as CategoryKey | null, tag, subjects: parseSubjectIds(q.subjects) };
 }
 
 /** `?kinds=sale_start,lottery_end` — unknown names are dropped; a value with none left matches nothing. */
@@ -79,7 +82,8 @@ export function registerSite(app: FastifyInstance) {
     const q = looseQuery(req);
     const filters = parseFilters(q);
     const limit = Math.min(Math.max(Number(q.limit) || 20, 1), 40);
-    const unfiltered = filters.channel === "all" && !filters.category && !filters.tag && !q.cursor;
+    // 只看关注是这位读者自己带来的筛选：热榜是全站的，不跟着一起切。
+    const unfiltered = filters.channel === "all" && !filters.category && !filters.tag && !filters.subjects.length && !q.cursor;
     const [data, hot] = await Promise.all([
       loadTimeline({ ...filters, cursor: q.cursor || null, limit }),
       unfiltered ? loadHotStrip() : null,
@@ -158,6 +162,17 @@ export function registerSite(app: FastifyInstance) {
     const data = await loadTopicPage(slug, Number(query.page ?? 1), undefined, scope);
     if (!data) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "topic page not found", cacheControl: "public, max-age=60" });
     return sendJsonWithEtag(req, reply, data, { etagPrefix: "topic", cacheControl: "public, max-age=60, s-maxage=60" });
+  }));
+
+  app.get("/api/site/members", siteHandler(async (req, reply) => {
+    return sendJsonWithEtag(req, reply, await listMembers(), { etagPrefix: "members", cacheControl: "public, max-age=300, s-maxage=300" });
+  }));
+
+  app.get("/api/site/members/:id", siteHandler(async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const data = await loadMemberPage(id, Number(looseQuery(req).page ?? 1));
+    if (!data) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "member page not found", cacheControl: "public, max-age=60" });
+    return sendJsonWithEtag(req, reply, data, { etagPrefix: "member", cacheControl: "public, max-age=60, s-maxage=60" });
   }));
 
   app.get("/api/site/calendar/:subject", siteHandler(async (req, reply) => {

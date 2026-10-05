@@ -15,6 +15,8 @@ import { ogImage } from "../og/cover.ts";
 import { renderHero } from "../og/hero.ts";
 import { parseDateFile, parseTitleFile, renderDate, renderTitle } from "../og/title.ts";
 import { decodeHero } from "@girlsbands/industry/email/hero";
+import { memberById } from "@girlsbands/industry/members";
+import { ENTITIES } from "@girlsbands/industry/taxonomy";
 import { SITE, subjectAfter, withSubject } from "@girlsbands/industry/site";
 import { config } from "@girlsbands/backend/config";
 import { Rejected, rateLimit, sourceFingerprint } from "@girlsbands/backend/operations/abuse";
@@ -211,6 +213,18 @@ export function registerOg(app: FastifyInstance) {
     const t = file.endsWith(".png") ? findPageTopic(file.slice(0, -4)) : null;
     if (!t) return notFound(reply);
     return send(req, reply, { kicker: `主题 · ${TOPIC_GROUPS.find((g) => g.key === t.group)?.name ?? ""}`, title: `${t.name} 最新动态`, subtitle: t.definition }, 86400);
+  });
+
+  // 角色页的分享图：名字、担当与声优；角色名＝本人的两支乐队里声优就是本人，那行照实写。
+  app.get("/og/members/:file", async (req, reply) => {
+    const file = (req.params as { file: string }).file;
+    const m = file.endsWith(".png") ? memberById(file.slice(0, -4)) : null;
+    if (!m) return notFound(reply);
+    return send(req, reply, {
+      kicker: `角色 · ${ENTITIES[m.band]?.name ?? m.band}`,
+      title: m.forms[0] ?? m.id,
+      subtitle: [m.role, m.actor.forms[0] ? `CV ${m.actor.forms[0]}` : null, m.aliases.flat()[0]].filter(Boolean).join(" · "),
+    }, 86400);
   });
 
   app.get("/og/stories/:file", async (req, reply) => {

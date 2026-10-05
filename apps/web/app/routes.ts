@@ -21,6 +21,8 @@ export default [
   route("monthly/:key", "routes/report-detail.tsx", { id: "monthly-detail" }),
   route("topics/:slug", "routes/topic.tsx", { id: "topic" }),
   route("topics/:slug/page/:page", "routes/topic.tsx", { id: "topic-page" }),
+  route("members", "routes/members.tsx"),
+  route("member/:id", "routes/member.tsx", { id: "member" }),
   route("about", "routes/about.tsx"),
   route("terms", "routes/terms.tsx"),
   route("privacy", "routes/privacy.tsx"),

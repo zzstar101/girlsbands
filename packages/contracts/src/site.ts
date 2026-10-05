@@ -759,6 +759,66 @@ export interface HomeResponse {
   deadlines: DeadlinesResponse;
 }
 
+// Members (角色页 /member/<id>、总览 /members)
+//
+// 成员不是抓取主体：他们不进 ENTITIES（没有抓取源、没有标签、没有字标），也不是 GlossaryEntry
+// （那是翻译用的写法白名单），只有 industry/members.ts 里那份人工整理的角色↔声优↔乐队关系。
+// 所以这里的形状比主题页窄：一个归属、一个声优、一份相关报道，没有编年史也没有主题分组。
+
+/** 别处提到一个成员时需要的几个字：名字与所属乐队。 */
+export interface MemberLink {
+  /** URL 用：/member/<id>。 */
+  id: string;
+  /** 本站倾向使用的写法（中文优先，第一个 forms）。 */
+  name: string;
+  /** 所属乐队：ENTITIES 的 id，它的页面是 /topics/<band>。 */
+  band: string;
+  bandName: string;
+}
+
+export interface MemberSummary extends MemberLink {
+  /** 官方写明的担当（Vo./Gt./Key./Ba./Dr./DJ&Mp.）；没写就是 null。 */
+  role: string | null;
+  /** 声优。角色名＝本人的两支 VTuber 乐队里，这里与成员同名。 */
+  actor: { name: string } | null;
+  /** 其它写法（假名、罗马字、官方日文写法），页面头部照实列出。 */
+  forms: string[];
+  /** 并进这一页的别名写法（Ave Mujica 的舞台代号、Hello, Happy World! 的米歇尔）。 */
+  aliases: string[];
+  /** 提到它的报道数（本名与别名一起算）。 */
+  total: number;
+  /** 其中最近 30 天的。 */
+  recent: number;
+  /** 够进 sitemap 的门槛（提到它的报道 >= 5 篇）。不够的页面照样能打开，只是不进 sitemap。 */
+  indexable: boolean;
+  /** 最新一篇提到它的报道。 */
+  latest: { title: string; at: string } | null;
+}
+
+/** 一个企划下的乐队与它名下的角色，/members 的分组单位。 */
+export interface MemberProjectGroup {
+  project: string;
+  projectName: string;
+  bands: Array<{ id: string; name: string; accent: string | null; members: MemberSummary[] }>;
+}
+
+export interface MembersResponse {
+  /** 按 ENTITIES 里的企划分组（企划页与乐队页读的是同一份成员表）。 */
+  groups: MemberProjectGroup[];
+}
+
+export interface MemberPage {
+  member: MemberSummary;
+  /** 同队的其他角色，页面底部的横排入口。 */
+  bandmates: MemberLink[];
+  /** 提到它的报道按分类各有多少篇：页面头部用来说明这一页有什么，本轮不做分类子页。 */
+  categories: Array<{ key: CategoryKey; count: number }>;
+  items: FeedItemSummary[];
+  page: number;
+  pageCount: number;
+  pageSize: number;
+}
+
 // Live events (一场演出的身份)
 //
 // A live is not a report and not a story: reports get merged and stories get redirected, while the

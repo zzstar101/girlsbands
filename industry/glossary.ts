@@ -94,7 +94,7 @@ const PLATFORMS: GlossaryEntry[] = [
  * 别的词），所以规则是：**含汉字的两个字起，纯假名或拉丁的三个字起**（拉丁另外还要贴边界，
  * 见 `contains`）。代价是丢掉 `e+` 与 `Ai` 这种过短的写法，它们各自的条目还有别的写法兜着。
  */
-function usable(form: string): boolean {
+export function usable(form: string): boolean {
   if (/[\u3400-\u9fff\uf900-\ufaff]/.test(form)) return form.length >= 2;
   return form.length >= 3;
 }
@@ -122,7 +122,7 @@ export const GLOSSARY_VERSION = `glossary-${GLOSSARY.length}-${fnv(JSON.stringif
  * NFKC + 小写 + 去掉所有空白 + 去掉撇号，让全角/半角、有空格/没空格、`Poppin'Party` 与
  * `Poppin Party` 都能对上。撇号在这些名字里只是装饰，去掉不会把两个名字混成一个。
  */
-const fold = (s: string) =>
+export const fold = (s: string) =>
   s
     .normalize("NFKC")
     .toLowerCase()
@@ -130,7 +130,7 @@ const fold = (s: string) =>
     .replace(/['\u2018\u2019\u02bc`\u00b4]/g, "");
 
 /** 纯 ASCII 的写法要贴边界，否则 `RAS`、`e+` 会命中别的词中间。含日文汉字的写法不必。 */
-function contains(hay: string, form: string): boolean {
+export function contains(hay: string, form: string): boolean {
   const needle = fold(form);
   if (!needle) return false;
   const ascii = /^[\x00-\x7f]+$/.test(needle);

@@ -11,6 +11,7 @@ import { escapeXml } from "../lib/text.ts";
 import { siteUrl } from "./links.ts";
 import { evidenceCondition, listedCondition, selectedCondition } from "./scope.ts";
 import { liveSitemapEntries } from "./lives.ts";
+import { memberSitemapEntries } from "./members.ts";
 import { releaseSitemapEntries } from "./releases.ts";
 import { topicPageCounts } from "./topics.ts";
 
@@ -54,6 +55,13 @@ async function build(): Promise<string> {
     if (!t.indexable) continue;
     entries.push({ loc: `/topics/${t.slug}`, lastmod: t.changedAt, changefreq: "daily", priority: 0.6 });
     for (let p = 2; p <= t.pages; p++) entries.push({ loc: `/topics/${t.slug}/page/${p}`, lastmod: t.changedAt, changefreq: "weekly", priority: 0.3 });
+  }
+  // 角色页（/members 目录 + 88 个角色页）：页面都在，但提到它的报道不够 5 篇的不提交给搜索引擎
+  // —— 薄页面能读就够了（站主 2026-10-05 拍板）。
+  entries.push({ loc: "/members", lastmod: now, changefreq: "weekly", priority: 0.4 });
+  for (const m of await memberSitemapEntries(new Date())) {
+    if (!m.indexable) continue;
+    entries.push({ loc: `/member/${m.id}`, lastmod: m.changedAt, changefreq: "weekly", priority: 0.4 });
   }
   // 演出页：和主题页一样，只有名下还有公开报告的那几场才进。
   for (const l of await liveSitemapEntries(new Date(), 500)) {
