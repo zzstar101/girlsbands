@@ -5,13 +5,13 @@ import { renderSVG } from "uqr";
 import { SITE } from "@girlsbands/industry/site";
 import { clamp, h, nameMark, renderPng, SITE_HOST, type Node, type OgImage } from "./render.ts";
 
-export const POSTER_TEMPLATE_VERSION = "poster-2026-10-05.4";
+export const POSTER_TEMPLATE_VERSION = "poster-2026-10-05.5";
 const WIDTH = 1080;
 const HEIGHT = 1440;
 /** The hero picture's box when the article has one (the poster's full content width). */
 const IMAGE_WIDTH = 904;
 const IMAGE_HEIGHT = 320;
-/** The same box, for callers that fetch the bytes (see og/cover.ts). */
+/** The box itself, for callers that fetch the bytes — the picture is fitted inside it, never cropped. */
 export const POSTER_IMAGE = { width: IMAGE_WIDTH, height: IMAGE_HEIGHT } as const;
 
 export interface Poster {
@@ -58,7 +58,8 @@ async function tree(p: Poster): Promise<Node> {
         h("div", { display: "flex", fontSize: 26, color: "#66757a" }, p.date),
       ]),
       image
-        ? h("img", { marginTop: 44, width: IMAGE_WIDTH, height: IMAGE_HEIGHT, objectFit: "cover", borderRadius: 32 }, undefined, { src: image.data, width: IMAGE_WIDTH, height: IMAGE_HEIGHT })
+        ? h("div", { display: "flex", alignItems: "center", justifyContent: "center", marginTop: 44, width: IMAGE_WIDTH, height: IMAGE_HEIGHT },
+            h("img", { width: image.width, height: image.height, objectFit: "contain", borderRadius: 32 }, undefined, { src: image.data, width: image.width, height: image.height }))
         : null,
       h("div", { display: "flex", alignItems: "center", marginTop: image ? 44 : 96 }, [
         h("div", { width: 12, height: 12, borderRadius: 999, backgroundColor: ACCENT, marginRight: 16 }),

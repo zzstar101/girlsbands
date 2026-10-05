@@ -8,17 +8,21 @@ import sharp from "sharp";
 import { config, REPO_ROOT } from "@girlsbands/backend/config";
 import { SITE } from "@girlsbands/industry/site";
 
-export const OG_TEMPLATE_VERSION = "og-2026-10-05.4";
+export const OG_TEMPLATE_VERSION = "og-2026-10-05.5";
 const WIDTH = 1200;
 const HEIGHT = 630;
 const CACHE_DIR = path.join(config.dataDir, "ogcache");
-/** The right-hand picture's box on a card (3:2, cropped by satori). */
+/** The right-hand picture's box on a card (3:2): the picture is fitted inside it, never cropped. */
 const IMAGE_WIDTH = 390;
 const IMAGE_HEIGHT = 260;
-/** The same box, for callers that fetch the bytes (see og/cover.ts). */
+/** The box itself, for callers that fetch the bytes (see og/cover.ts) — `OgImage.width`/`height` are the fitted size. */
 export const CARD_IMAGE = { width: IMAGE_WIDTH, height: IMAGE_HEIGHT } as const;
 
-/** A picture already inline as a data URL: satori never fetches, and the card renders with no network. */
+/**
+ * A picture already inline as a data URL: satori never fetches, and the card renders with no network.
+ * `width`/`height` are the size it is *drawn* at — already fitted into the box by the caller, so its own
+ * aspect ratio survives (see og/cover.ts).
+ */
 export interface OgImage {
   data: string;
   width: number;
@@ -148,7 +152,10 @@ async function tree(card: OgCard): Promise<Node> {
           subtitle ? h("div", { display: "flex", marginTop: image ? 18 : 22, fontSize: image ? 26 : 28, lineHeight: 1.5, color: "#b1bec0" }, subtitle) : null,
         ].filter(Boolean)),
         image
-          ? h("img", { width: IMAGE_WIDTH, height: IMAGE_HEIGHT, objectFit: "cover", borderRadius: 20, border: "1px solid rgba(230,237,237,0.12)" }, undefined, { src: image.data, width: IMAGE_WIDTH, height: IMAGE_HEIGHT })
+          ? h("div", { display: "flex", alignItems: "center", justifyContent: "center", width: IMAGE_WIDTH, height: IMAGE_HEIGHT },
+              // The picture is scaled to fit inside this box, never cropped, so a portrait announcement
+              // shows up whole with the box's background on either side.
+              h("img", { width: image.width, height: image.height, objectFit: "contain", borderRadius: 20, border: "1px solid rgba(230,237,237,0.12)" }, undefined, { src: image.data, width: image.width, height: image.height }))
           : card.badge
             ? h("div", { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: 170, height: 170, borderRadius: 999, border: `6px solid ${accent}` }, [
                 h("div", { display: "flex", fontSize: 58, fontWeight: 700, color: "#ffffff" }, card.badge.value),

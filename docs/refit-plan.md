@@ -1147,18 +1147,19 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 | 检查 | 结果 |
 |---|---|
 | `npm run typecheck` | 全绿（含 web） |
-| `tests/og-cards.test.ts` | **5 通过 / 0 失败**（新文件） |
+| `tests/og-cards.test.ts` | **9 通过 / 0 失败**（新文件） |
 | `tests/publication.test.ts` | **19 通过 / 0 失败** |
 | `tests/architecture.test.ts` | 8 通过 / 0 失败 |
-| 全量 `npm test` | **671 通过 / 0 失败**（列表页配图后基线 666） |
+| 全量 `npm test` | **675 通过 / 0 失败**（列表页配图后基线 666） |
 | web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **29 通过 / 0 失败**（本轮没动 web） |
-| dev 实测 | `/og/items/<id>.png` 200 image/png 84–89KB（0.9–2.5s，含取图）、`/og/posters/<id>.png` 200 204KB、`/og/stories/<uuid>.png` 200 46–88KB、`/og/releases/<id>.png` 200 44–48KB |
+| dev 实测 | `/og/items/<id>.png` 200 image/png 81–89KB（0.9–2.5s，含取图）、`/og/posters/<id>.png` 200 154KB、`/og/stories/<uuid>.png` 200 46–88KB、`/og/releases/<id>.png` 200 44–48KB；真实 1200×675 公告图在卡片里画成 390×219、海报里 569×320（整张可见） |
 | 模型花费 | 零 |
 
 - 新增的三个东西：`proxySource(path)`（`packages/backend/src/media/imgproxy.ts`）把签名代理地址里的 `u` 还原成上游地址 —— OG 手上是读者看的那个代理地址，取字节必须回到原图（直接抓代理等于自己抓自己）；`apps/api/src/og/cover.ts` 的 `ogImage(cover, size)` = `proxySource` → `produceImage(source, "image-720")` → `data:` URL，**5 秒上限**（`Promise.race`，输掉的那个 promise 自己 `.catch` 掉，否则未处理拒绝）与 4MiB 上限，任何异常/超时/过大一律返回 `null`；`OgCard.image` / `CARD_IMAGE`（390×260）与 `Poster.image` / `POSTER_IMAGE`（904×320）。
-- **有图的卡片**：标题与摘要缩在左栏（标题最多 30 字、20 字以上 44 号否则 52 号；摘要 34 字），右边 390×260 的图（`object-cover`、圆角 20、1px 描边）；原本的圆环评分改成页脚右侧的小药丸（有图时圆环的位置让给了图）。海报头图占满内容宽（904×320），标题/摘要的截断长度与字号同步收紧。**没图的卡片逐字节与之前一样**（同一棵树的另一支）。
-- ETag：图片内容先 sha256 成 32 字节再进指纹，否则每次算 ETag 都要哈希几百 KB base64。`OG_TEMPLATE_VERSION` → `og-2026-10-05.4`、`POSTER_TEMPLATE_VERSION` → `poster-2026-10-05.4`（模板变了，旧磁盘缓存键自然失效）。`packages/backend/src/publication/og.ts` 的 `loadItemShare` 也补上了 `JOIN articles a` 与 `a.media`（分享图的元数据一直是从 publications 出的，这次才带图）。
-- 视觉核对：项目里**没有能看图的通道** —— `read_image` 报 `model "deepseek-flash" does not declare image input`，换声明了视觉的模型（`workflow` 里指定 `gpt-5.6-luna`）也回「image input isn’t available」。所以版式改用**像素断言**核对：`tests/og-cards.test.ts` 拿纯色 data URL 当图，渲染后逐像素找包围盒 —— 卡片红区 388×258（390×260 的框减去 1px 描边），右、下都在内边距内，左栏没被盖住；海报蓝区 x 88..991、904×320，正文最靠下的深色像素 1256 < 1368（没被挤出底部内边距）。**最终版式还得站主亲眼看一下**渲染出的 PNG —— dev 里 `/og/items/<id>.png`、`/og/posters/<id>.png` 直接可开。
+- **有图的卡片**：标题与摘要缩在左栏（标题最多 30 字、20 字以上 44 号否则 52 号；摘要 34 字），右边 390×260 的图位（圆角 20、1px 描边）；原本的圆环评分改成页脚右侧的小药丸（有图时圆环的位置让给了图）。海报头图占 904×320，标题/摘要的截断长度与字号同步收紧。**没图的卡片逐字节与之前一样**（同一棵树的另一支）。
+- **图按自己的比例整张显示，不裁切**（站主第一版看到的就是裁的）：`fitInside(源尺寸, 框)` = `scale = min(框宽/源宽, 框高/源高, 1)`，尺寸由**图片自己的像素**决定（`sharp(body).metadata()`），不信公告里声明的 `width`/`height`；框本身尺寸固定，图在里面居中，所以文字栏不会被图的宽高比推来推去。上限 1 意味着小图不放大（336 档的封面就按 336×189 画）。实测三个真实条目：1200×675 的公告图 → 卡片 **390×219**、海报 **569×320**（原来是 `object-cover` 裁成 390×260 与 904×320 的一块）。
+- ETag：图片内容先 sha256 成 32 字节再进指纹，否则每次算 ETag 都要哈希几百 KB base64。`OG_TEMPLATE_VERSION` → `og-2026-10-05.5`、`POSTER_TEMPLATE_VERSION` → `poster-2026-10-05.5`（模板改一次就提一次，旧磁盘缓存键自然失效）。`packages/backend/src/publication/og.ts` 的 `loadItemShare` 也补上了 `JOIN articles a` 与 `a.media`（分享图的元数据一直是从 publications 出的，这次才带图）。
+- 视觉核对：项目里**没有能看图的通道** —— `read_image` 报 `model "deepseek-flash" does not declare image input`，换声明了视觉的模型（`workflow` 里指定 `gpt-5.6-luna`）也回「image input isn’t available」。所以版式改用**像素断言**核对：`tests/og-cards.test.ts` 用 sharp 造红底绿边的图（纯色块看不出裁切，**带边才看得出**），渲染后逐像素找包围盒 —— ① 3:2 的红块落在 388×258（390×260 减去 1px 描边），右、下都在内边距内，左栏没被盖住；② 400×400 的方图整张显示成 260×260、四条边条条都在、红心完整地待在绿边里；③ 1600×400 的宽图铺满 390 宽、高约 98、四条边也在；④ 海报的 1808×640 头图仍是 904×320、正文最靠下的深色像素 1256 < 1368，640×1808 的竖图缩成 113×320 并在内容宽里居中、四条边都在。**最终版式还得站主亲眼看一下**渲染出的 PNG —— dev 里 `/og/items/<id>.png`、`/og/posters/<id>.png` 直接可开。
 - `tests/publication.test.ts` 里那两条 `card` / `poster` 字面量补了 `image: null`：路由现在总会带上这个键，不补的话 ETag 对不上（304 那条断言会红）。
 
 ---

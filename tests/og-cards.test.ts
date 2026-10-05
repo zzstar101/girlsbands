@@ -8,7 +8,7 @@ import sharp from "sharp";
 import { proxiedImage, proxySource } from "@girlsbands/backend/media/imgproxy";
 import { CARD_IMAGE, ogEtag, renderOg } from "../apps/api/src/og/render.ts";
 import { POSTER_IMAGE, posterEtag, renderPoster } from "../apps/api/src/og/poster.ts";
-import { ogImage } from "../apps/api/src/og/cover.ts";
+import { fitInside, ogImage } from "../apps/api/src/og/cover.ts";
 
 const CARD = {
   kicker: "抽选",
@@ -47,6 +47,22 @@ async function box(png: Buffer, match: (r: number, g: number, b: number) => bool
 
 const isRed = (r: number, g: number, b: number) => r > 200 && g < 60 && b < 60;
 const isBlue = (r: number, g: number, b: number) => b > 200 && r < 60 && g < 60;
+const isGreen = (r: number, g: number, b: number) => g > 200 && r < 60 && b < 60;
+
+/** 红底绿边：整张图都显示出来时，四条边应该条条都在 —— 只断言一个纯色块是看不出裁切的。 */
+async function framed(width: number, height: number, frame: number): Promise<string> {
+  const inner = await sharp({ create: { width: width - 2 * frame, height: height - 2 * frame, channels: 3, background: { r: 255, g: 0, b: 0 } } }).png().toBuffer();
+  const png = await sharp({ create: { width, height, channels: 3, background: { r: 0, g: 255, b: 0 } } })
+    .composite([{ input: inner, top: frame, left: frame }]).png().toBuffer();
+  return `data:image/png;base64,${png.toString("base64")}`;
+}
+
+/** 四边中点（判断一张带边的图有没有被切掉一条边）。 */
+async function edges(png: Buffer, at: { minX: number; maxX: number; minY: number; maxY: number }) {
+  const midX = Math.round((at.minX + at.maxX) / 2);
+  const midY = Math.round((at.minY + at.maxY) / 2);
+  return [await pixel(png, midX, at.minY + 1), await pixel(png, midX, at.maxY - 1), await pixel(png, at.minX + 1, midY), await pixel(png, at.maxX - 1, midY)];
+}
 
 test("proxySource 把签名地址里的 u 还原成上游地址", () => {
   const signed = proxiedImage("https://pbs.twimg.com/media/abc.jpg", "image-336");
@@ -91,6 +107,27 @@ test("卡片有图时图落在右栏、不越出内边距，没图时那一栏�
   assert.ok(!isRed(same[0]!, same[1]!, same[2]!), `没图的卡片这里应该是底：${same}`);
 });
 
+test("方图整张显示：按自己的比例缩到框里，四条边一条不少", async () => {
+  const png = (await renderOg({ ...CARD, image: { data: await framed(400, 400, 12), ...CARD_IMAGE } })).png;
+  const green = await box(png, isGreen);
+  const red = await box(png, isRed);
+  // 400×400 放进 390×260 的框：受高度限制，画成 260×260 的正方形（曾经是裁成 390×260 的一块）。
+  assert.ok(Math.abs(green.width - green.height) <= 4, `方图不该被拉成长方形：${green.width}×${green.height}`);
+  assert.ok(green.height >= 250 && green.height <= 262, `图该占满框的高度：${green.height}`);
+  for (const edge of await edges(png, green)) assert.ok(isGreen(edge[0]!, edge[1]!, edge[2]!), `图的一条边被切掉了：${edge}`);
+  assert.ok(red.minX > green.minX && red.maxX < green.maxX && red.minY > green.minY && red.maxY < green.maxY, "红心该完整地待在绿边里");
+  assert.ok(green.maxX <= 1200 - 64 && green.maxY <= 630 - 64, "图不能伸进内边距");
+});
+
+test("宽图整张显示：横向铺满框、左右两条边都在", async () => {
+  const png = (await renderOg({ ...CARD, image: { data: await framed(1600, 400, 16), ...CARD_IMAGE } })).png;
+  const green = await box(png, isGreen);
+  assert.ok(Math.abs(green.width - 390) <= 4, `宽图该铺满框的宽：${green.width}`);
+  assert.ok(green.height >= 92 && green.height <= 102, `4:1 的图该比框矮：${green.height}`);
+  assert.ok(Math.abs(green.width / green.height - 4) < 0.3, `比例该保持 4:1：${green.width}×${green.height}`);
+  for (const edge of await edges(png, green)) assert.ok(isGreen(edge[0]!, edge[1]!, edge[2]!), `图的一条边被切掉了：${edge}`);
+});
+
 test("海报有图时头图占满内容宽度，且正文没有被挤出内边距", async () => {
   const blue = await solid(0, 0, 255, 1808, 640);
   const png = (await renderPoster({
@@ -117,6 +154,28 @@ test("海报有图时头图占满内容宽度，且正文没有被挤出内边�
   }
   assert.ok(lowest <= 1440 - 72, `正文不能越过底部内边距：${lowest}`);
   assert.ok(lowest > picture.maxY + 100, `正文确实在头图下面：${lowest} vs ${picture.maxY}`);
+});
+
+test("海报遇到竖图：整张显示，并在内容宽里居中", async () => {
+  const png = (await renderPoster({
+    url: "https://girlsbands.com/items/x", kicker: "抽选", title: "MyGO!!!!! 追加公演", summary: "公告写明受理窗口与缴款期限。",
+    source: "BanG Dream! 官方", date: "2026-10-05", score: 87, image: { data: await framed(640, 1808, 16), ...POSTER_IMAGE },
+  })).png;
+  const green = await box(png, isGreen);
+  assert.ok(Math.abs(green.height - 320) <= 2, `竖图该占满头图框的高：${green.height}`);
+  assert.ok(green.width >= 100 && green.width <= 128, `640×1808 的图该窄于内容宽：${green.width}`);
+  assert.ok(Math.abs(green.width / green.height - 640 / 1808) < 0.02, `比例该保持 640:1808：${green.width}×${green.height}`);
+  assert.ok(Math.abs((green.minX + green.maxX) / 2 - (88 + 904 / 2)) <= 4, "竖图该在内容宽里居中");
+  for (const edge of await edges(png, green)) assert.ok(isGreen(edge[0]!, edge[1]!, edge[2]!), `图的一条边被切掉了：${edge}`);
+});
+
+test("图按自己的比例缩进框里：不裁切、不拉伸、也不把小图放大", () => {
+  const box = CARD_IMAGE;
+  assert.deepEqual(fitInside({ width: 780, height: 520 }, box), { width: 390, height: 260 }, "正好 3:2 的图铺满框");
+  assert.deepEqual(fitInside({ width: 400, height: 400 }, box), { width: 260, height: 260 }, "方图受高度限制");
+  assert.deepEqual(fitInside({ width: 1600, height: 400 }, box), { width: 390, height: 98 }, "宽图受宽度限制");
+  assert.deepEqual(fitInside({ width: 336, height: 189 }, box), { width: 336, height: 189 }, "小图不放大（336 档就是原样）");
+  assert.deepEqual(fitInside({ width: 640, height: 1808 }, POSTER_IMAGE), { width: 113, height: 320 }, "海报的竖图受高度限制");
 });
 
 test("取不到图时 ogImage 回 null（分享图退回纯文字卡）", async () => {
