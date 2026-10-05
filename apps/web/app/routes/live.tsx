@@ -195,6 +195,19 @@ export default function LiveRoute() {
         </ol>
       </section>
 
+      {/* 开演当天来的人最多，也正是说「散场之后可以回来补曲目单」最有用的时候。 */}
+      {live.stage === "live_day" && (
+        <section className="card mt-5 p-4 lg:px-6">
+          <p className="text-[12.5px] leading-[1.75] text-ink-4">
+            今天开演 —— 散场之后欢迎回来
+            <Link to={`/feedback?from=${encodeURIComponent(`${siteUrl()}/live/${live.publicId}`)}`} className="mx-0.5 text-band hover:underline">
+              补一条曲目单
+            </Link>
+            ：一行一首，原文里没写的就靠去过现场的人。
+          </p>
+        </section>
+      )}
+
       {/* 散场之后才有的那一层：曲目单是从原文里找出来的，不是我们猜的；读者可以补，管理员采纳后进库。 */}
       {live.stage === "finished" && (
         <section className="card mt-5 p-5 lg:p-6">
@@ -229,11 +242,11 @@ export default function LiveRoute() {
             </ol>
           )}
           <p className="mt-4 text-[12.5px] leading-[1.75] text-ink-4">
-            {live.setlist.length > 0 ? "漏了或者写错了？" : "你要是在现场？"}
+            曲目单是一行一行补出来的 —— 漏了、写错了，或者原文压根没写，都欢迎
             <Link to={`/feedback?from=${encodeURIComponent(`${siteUrl()}/live/${live.publicId}`)}`} className="mx-0.5 text-band hover:underline">
               补一条曲目单
             </Link>
-            一行一首，本站核对之后收进这一页。
+            ；一行一首，本站核对之后收进这一页。
           </p>
         </section>
       )}

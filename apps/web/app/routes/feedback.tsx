@@ -53,6 +53,9 @@ function FeedbackAside() {
           ))}
         </ol>
       </AsideCard>
+      <AsideCard title="补曲目单">
+        <p className="text-[13px] leading-[1.75] text-ink-3">去了现场、手里有曲目单？一行一首写下来，再写明是哪一场演出 —— 从演出页的「补一条曲目单」进来会自动带上页面地址。</p>
+      </AsideCard>
       <AsideCard title="来源方">
         <p className="text-[13px] leading-[1.75] text-ink-3">如果你是来源方，希望更正、下架或调整展示方式，写明对应的文章链接和你的诉求即可。</p>
       </AsideCard>
