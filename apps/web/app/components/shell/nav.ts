@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { ENTITIES, FRANCHISES } from "@girlsbands/industry/taxonomy";
 import { subjectAfter, withSubject } from "@girlsbands/industry/site";
 import {
-  IconBell, IconBolt, IconBookmark, IconCalendar, IconClock, IconDisc, IconDoc, IconFlame, IconHeart, IconHistory, IconList, IconMail, IconMessage, IconPlug, IconTicket, IconUser,
+  IconBell, IconBolt, IconBookmark, IconCalendar, IconClock, IconDisc, IconDoc, IconFlame, IconHeart, IconHistory, IconList, IconMail, IconMessage, IconPin, IconPlug, IconTicket, IconUser,
 } from "../icons";
 
 export interface NavItem {
@@ -55,6 +55,7 @@ export const SIDEBAR: Array<{ title: string; items: NavItem[] }> = [
   {
     title: "更多",
     items: [
+      { to: "/guide", label: "远征攻略", icon: IconPin },
       { to: "/agent", label: "Agent 接入", icon: IconPlug },
       { to: "/about", label: "关于", icon: IconHeart },
       { to: "/changelog", label: "更新日志", icon: IconHistory, changelog: true },

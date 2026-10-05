@@ -14,6 +14,7 @@ import { liveSitemapEntries } from "./lives.ts";
 import { memberSitemapEntries } from "./members.ts";
 import { releaseSitemapEntries } from "./releases.ts";
 import { topicPageCounts } from "./topics.ts";
+import { GUIDE_PATH } from "@girlsbands/industry/guides";
 
 const MAX_URLS = 45_000;
 const TTL_MS = 5 * 60 * 1000;
@@ -48,6 +49,7 @@ async function build(): Promise<string> {
     { loc: "/privacy", changefreq: "monthly", priority: 0.4 },
     { loc: "/rights", changefreq: "monthly", priority: 0.4 },
     { loc: "/changelog", lastmod: now, changefreq: "weekly", priority: 0.5 },
+    { loc: GUIDE_PATH, changefreq: "monthly", priority: 0.5 },
   );
   const reports = await sql<{ kind: string; key: string; generated_at: Date }[]>`SELECT kind, key, generated_at FROM reports ORDER BY kind, key DESC`;
   for (const r of reports) entries.push({ loc: `/${r.kind}/${r.key}`, lastmod: r.generated_at, changefreq: r.kind === "daily" ? "never" : "monthly", priority: r.kind === "daily" ? 0.6 : 0.6 });

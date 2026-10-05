@@ -357,7 +357,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 | **P1** | W12 · 无账号关注 | 浏览器本地关注 + 随机 token 绑邮箱，**不引入账号** |
 | **P1** | W13 · 成员实体页 | `/member/<id>`，把 162 条成员词表从「只为翻译」升级成页面（角色 ↔ 声优 ↔ 乐队） |
 | **P1** | W14 · 情报变更 Diff | 「相比上一版：+ 新增当日券 / OPEN 17:00→16:30」，延期与中止标 ⚠️ |
-| **P2** | W15 · 场馆实体页 | `/venue/<id>`：地址 / 最近车站 / 过往与未来演出 |
+| **P2** | W15 · 远征参考页 | `/guide`：只做指路 —— 外链公开的《现代远征攻略》与 SeatView 座位视角，再给站内三个入口（截止雷达 / Live 与活动 / 日历订阅）。**不写正文**（原「场馆实体页」改成待办） |
 | **P2** | W16 · Setlist 与事后档案 | Live 结束后 Event 页从 upcoming 切 archive：Setlist / 现场 repo / 官方照片 / Archive 截止 / BD |
 | **P2** | W18 · 用户纠错与情报投稿 | 条目页「报告问题」+ `/submit` 投稿源，全部先落 `feedback` 表，人工确认后才入库 |
 | **风险** | W17 · 全文政策分层 | 官方全文 / 第三方摘要+链接 / 许可全文 —— **推翻站主旧决定，动手前必须重新点头** |
@@ -756,36 +756,34 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 
 ---
 
-### W15 · 场馆实体页与远征信息（P2）
+### W15 · 远征参考页（P2）
 
-**为什么**：135 个场馆今天只是一个「写法白名单」，用来让翻译不要把 `Zepp Haneda` 音译成别的。可读者真正要的是：这个场馆在哪、怎么去、能装多少人、最近车站、官方交通页、**这里办过什么、接下来要办什么**，再往后是「东京 11 月有哪些少女乐队 Live」。远征（外地/跨城看演出）是这类站的高频真实需求。
+**为什么**：远征（跨城 / 跨国去看一场 Live）是这门兴趣里最贵、也最没处查的一件事 —— 票在哪个轮次卖、当落与入金怎么走、当天几点到、现场什么能做什么不能做、行程怎么排。站上现在只有「情报」，没有「怎么做」。原设计是「135 个场馆实体页 + 远征信息」，场馆那一半今天撑不起来（见「现状」）；中间一度打算由站上自己写五篇专题攻略（站主 2026-10-05 先点头，随后改口：「算了不写这个了吧，看看在哪里引用那个知识库就行了」），**最终拍板：不写正文，只做指路页**。理由：远征知识与通用赴日事项都变得慢，社区里已经有人写得更全，自己重写只会多一份过期更快的副本；站上的强项是场次与截止。场馆实体页与那五篇正文一起记进待办（§七）。
 
 **现状（已核）**
-- `industry/glossary-venues.ts:21` 的 `export const VENUES` 实测 **135** 条 `{ kind: "venue", forms }` —— **没有地址、容量、最近车站、坐标**；文件头写明这是 2026-10-05 的研究产物、逐条带来源，场馆更名按新名收录、旧名留在 `forms`（例：TOKYO DOME CITY HALL → Kanadevia Hall 2025），有三条规范化名未核实，Zepp Tokyo 已闭馆未收录。
-- `industry/taxonomy.ts:84-91` 的 `ENTITY_TAGS` 里场馆只有 **7** 个；dev 库 `publications` 里命中这 7 个标签的只有 **3 行** ⇒ 今天没有任何「过往演出」可展示。
-- `packages/backend/src/publication/calendar.ts:37-41` 的 `calendarSubject(slug)` 要求 `findPageTopic(slug)` 且 `topic.entityId` 且 `tracksAsSubject(group)`；场馆不是主题 ⇒ **今天拿不到场馆日历**。
-- 代码里没有任何地方 import `VENUES`；没有 venue 路由，`packages/backend/src/publication/` 没有 venues 模块。
+- 场馆那一半撑不起来：`industry/glossary-venues.ts:21` 的 `VENUES` 135 条只有 `{ kind: "venue", forms }`（没有地址 / 容量 / 最近车站）；`industry/taxonomy.ts:84-91` 的场馆子集只有 **7** 个，dev 库 `publications` 命中它们只有 **3 行**，`live_events` 只有 **3 行**（其中 2 行 `venue` 为空）⇒ 场馆页今天只是个空壳；`packages/backend/src/publication/calendar.ts:37-41` 的 `calendarSubject(slug)` 要求场馆是主题 ⇒ 场馆日历也拿不到。
+- 外链的两份资料都是公开可读、不要求登录的：飞书公开社区版《现代远征攻略》（`https://www.feishu.cn/community/article/wiki?id=7382098129484513283`，通用赴日事项写得比站上全）与 SeatView `https://seat.genchi.top/`（众包座位实拍，CC BY-NC 4.0）。站内不用重写它们。
+- 入口的现状：首页没有页脚（`<footer>` 只在 `/about`），手机「我的」是 `/more`，桌面侧栏「更多」组在 `apps/web/app/components/shell/nav.ts`。
 
 **设计**
-1. **新真源 `industry/venues.ts`**（结构化）：`export const VENUE_ENTITIES: Record<string, VenueEntity>`，字段 `{ id(稳定 slug，更名不改), name, forms(顺序不变), kind(dome|arena|hall|livehouse|theater|outdoor|other), prefecture, city, address?, access?, capacity?, officialUrl?, mapUrl?, openedOn?, closedOn?, renamedFrom? }`；`industry/glossary-venues.ts` **降级成派生视图**（照 W13 的做法：`forms` 逐字节保持 ⇒ `GLOSSARY_VERSION` 不变 ⇒ 不重译）。地址 / 容量 / 最近车站是**人工整理**的（模型抽不出来，且错一个数字就是误导），**只存官方链接，不存坐标、不引地图 SDK、不加依赖**。
-2. **本包不建表**：「这个场馆办过什么 / 即将有什么」的真源是 W8 的 `live_events(venue, starts_on, starts_time, status)`，会场内的报道直接 JOIN `publications`（`hasItemPage` + `listedCondition`）。为 3 行数据建一张投影表不划算，而且 `tests/architecture.test.ts:106-118` 要求每张新表的每一列都被生产代码按名字引用。
-3. **读取** `packages/backend/src/publication/venues.ts`：`loadVenue(id)`、`listVenues()`、`venuesByPrefecture(prefecture)`、`venuesOfSubject(subject)`、`monthAtVenues(prefecture, month)`（「东京 11 月」聚合，返回形状照 `packages/contracts/src/site.ts:589-605` 的 `TopicEvent` / `TopicMonth`，**日期一律走 `deadlineRange`**）。
-4. **出口**：`apps/web/app/routes/venue.tsx`（`/venue/:id`）+ `apps/api/src/routes/site.ts` 的 `/api/site/venues`、`/api/site/venues/:id` + `apps/api/src/routes/og.ts` 的 `/og/venues/:file` + `packages/backend/src/publication/sitemap.ts`；页面给地址、官方交通链接、容量、过往与即将演出（过往按 `starts_on DESC`）。API/OG 已在 `packages/contracts/src/http-policy.ts:97`/`:106` 覆盖的模式里，**不用登记 `API_OWNED_PATTERNS`**。
-5. **会场名规范化是 W8 的副产品**：`live_events.venue` 取 `ENTITY_TAGS` 会场子集或 `VENUES` 的 `forms[0]`，所以本包排在 W8 之后；W8 落地前只能做「场馆静态信息页」，没有「过往 / 即将」两栏（照 W16 的降级路径写法）。
+1. **新真源 `industry/guides.ts`**：`GuideResource { id, title, summary, source, href }` + `GUIDE_RESOURCES`（两份：飞书知识库 / SeatView）+ `GUIDE_PATH = "/guide"`。**这是唯一的清单**：页面卡片与 sitemap 都读它 —— 链接挂了删一行，页面结构不用动。
+2. **页面 `apps/web/app/routes/guide.tsx`**：一段说明（为什么不自己写）+「外部资料」两张卡片（新窗口 + `rel="noopener noreferrer"`，写清作者与许可）+「本站能帮上的」三个入口（截止雷达 / Live 与活动 / 日历订阅，`.ics` 用原生 `<a>`）。**没有正文、没有第二份文案**：这一页只说「去哪里看」，不转述别人的内容。
+3. **不联动站内数据**（站主拍板）：不建表、不加 API、不查库（SSR 直出）⇒ **W15 无迁移**。
+4. **收录**：sitemap 加 `/guide` 一行；OG 走 `apps/api/src/routes/og.ts` 的 `PAGES.guide`（就一张卡）；入口放 `/more` 工具组与桌面侧栏「更多」组，**不加底栏 tab**。
 
 **验收标准**
 
 | 检查 | 通过标准 |
 |---|---|
-| 词表零漂移 | 改动前后 `GLOSSARY_VERSION` 完全相同；`tests/glossary.test.ts` 全绿 |
-| 结构完整度 | 135 个场馆全部有 `prefecture`/`city`；有官方页的场馆 ≥ 100 个填了 `officialUrl`；`address` 只填人工核实过的 |
-| 与 W8 接上 | 至少一个场馆页显示出真实的「即将」条目（来自 `live_events`），且日期与 `/calendar.ics` 一致 |
-| 更名与闭馆 | `renamedFrom` 能让旧名页面/搜索仍指向同一实体；`closedOn` 的场馆不出现在「即将」里 |
-| 出口 | `npm run typecheck` 全绿；`/og/venues/<id>.png` 200；sitemap 有 `/venue/` |
-| 测试 | 新增 `tests/venues.test.ts` 全绿 + 全量 `npm test` 0 失败 |
+| 清单 | 两份资料的 id / 标题 / 地址都不重复；`summary` 一句话说清用途；`href` 是 https 完整域名；`tests/guides.test.ts` 全绿 |
+| 页面 | `/guide` 200；两处外链带 `target="_blank" rel="noopener noreferrer"`，站内三个入口不新开标签；没有正文（这一页不转述别人的内容） |
+| 收录 | sitemap 有 `/guide` 且**没有** `/guide/<slug>` 残留；`/og/pages/guide.png` 200、旧篇目卡片（`guide-tickets.png` 之类）404 |
+| 入口 | `/more` 与桌面侧栏「更多」都有「远征攻略」 |
+| 出口 | `npm run typecheck` 六段全绿；全量 `npm test` 0 失败；`npm run build -w @girlsbands/web` 通过 |
 
-**待站主拍板**：索引门槛（建议有 `officialUrl` 或有 live_events 记录才进 sitemap）；要不要做「东京 11 月」这种地区聚合页（本设计先做，因为它是远征信息的入口）；三条未核实规范化名要不要人工复核；闭馆场馆（Zepp Tokyo 等）要不要收录（建议收，标 `closedOn`，页面给「已闭馆」）。
-**工作量**：2 天（135 条人工整理为主 + 读取与页面 0.5 天）。
+**记账**：曾按「自己写五篇专题」实现并整套验收过（`/guide/<slug>` + 五篇 md + 每篇一张 OG 卡），站主改口后**整套删除**，只留指路页；五篇草稿没进仓库。
+**场馆实体页（原设计）暂缓**：四条待拍板问题（索引门槛 / 地区聚合页 / 三条未核实规范化名 / 闭馆场馆）随它一起记在 §七。
+**工作量**：0.5 天（页面 + 入口 + 导出）。
 
 ---
 
@@ -1297,6 +1295,26 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - **角标要 `relative z-10`**：卡片标题链接带 `after:absolute after:inset-0` 覆盖整张卡片，角标不加 `relative z-10` 会被压住点不到。
 - **`composeStoryDigest` 会把 `stories.title` 改成综述模型给的标题**：端到端夹具里两个事件因此都变成「标题」——按标题找库里的行会找错，要按 `public_id` 找（测试里也一样，别拿标题当断言锚点）。
 
+**W15（2026-10-05 完成）：远征参考页**
+
+`/guide` 只做指路：外链公开的飞书社区版《现代远征攻略》与 SeatView 座位视角实拍（清单是 `industry/guides.ts` 的 `GuideResource { id, title, summary, source, href }` / `GUIDE_RESOURCES`，卡片上写清作者与许可），再给三个站内入口（截止雷达 / Live 与活动 / 日历订阅）。**本站不写攻略正文**（站主拍板：「算了不写这个了吧，看看在哪里引用那个知识库就行了」）—— 远征知识与通用赴日事项都变得慢、社区里已经有人写得更全，自己重写只会多一份过期更快的副本；站上的强项是场次与截止。**不建表、不加 API、不联动站内数据**；**原「场馆实体页」设计整体暂缓**（四条待拍板问题随它留在 §七）。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（contracts / backend / api / worker / tests / web 六段） |
+| `tests/guides.test.ts` | **4 通过 / 0 失败**（重写：清单约束 / 外链不指向本站 / sitemap 只有 `/guide` / OG 页面对得上且旧篇目卡片已下线） |
+| 全量 `npm test` | **696 通过 / 0 失败**（66.2s） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **42 通过 / 0 失败**（跟正文一起删掉了那份 web 测试，回到基线） |
+| 端到端实拍（真 API + 另建 `aniband_w15b_test` + `apps/web/server.ts`，web 端口 55373） | `/guide` **200**：飞书与 SeatView 各 1 处、2 个 `rel="noopener noreferrer"`、无 `noindex`、三个站内入口都在；`/guide/tickets` **404**（旧地址不再存在）；`/more` 有 `/guide`；`/sitemap.xml` 里 guide 只剩 **1** 行（`/guide`）；`/og/pages/guide.png` **200 `image/png`**，`guide-tickets.png` / `guide-nope.png` **404** |
+| 迁移 | 无（W15 不建表） |
+| 模型花费 | 零 |
+
+**W15 踩到的坑（多是自己写五篇那一版留下的，撤掉后仍值得记）**
+- **web 的 app 代码用无扩展名相对导入 ⇒ node 测试导不进去**：`apps/web/app/lib/site-copy.ts` 写的是 `import { parseCopyFile, renderMarkdown } from "./markdown";`，Node ESM 解析不了（只有 Vite 能），`node --test` 直接报 `ERR_MODULE_NOT_FOUND: .../apps/web/app/lib/markdown`。web 侧测试要 import 就走 `../app/lib/markdown.ts`（`apps/web/tests/markdown.test.ts` 的先例）；backend / industry 一律写显式 `.ts`，所以那边的测试可以直连。
+- **`?raw` 只有 Vite 认**：被删掉的 `apps/web/app/features/guide/content.ts` 在 node 测试里 import 不了 ⇒ 正文类断言要放在读磁盘的测试里。
+- **正文里不要写元数据表**：`parseCopyFile` 的 meta 正则抓**全文**两列表，正文里的普通表格也会被吸进 `doc.meta`；更新日期只放 `industry/guides.ts`（单一真源）。
+- **改口要清零**：五篇 md + 写作管线 + `guide/:slug` 路由 + `CopyPage` 的 `back` prop + 每篇一张 OG 卡都整套删了（`CopyPage.tsx` 用 `git checkout` 回到 W14 的样子），一个入口都不能留 —— 留下的每个 `/guide/<slug>` 地址都会 404，`tests/guides.test.ts` 里专门有一条断言盯着它。
+
 ---
 
 ## 七、待站主拍板汇总（动手前先看这里）
@@ -1317,7 +1335,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 | ~~**W10**~~ ✅ | ~~首页 horizon 取 14 还是 30 天；「即将开售」是否包含周边开订（`merch_start`）与 CD/BD 发售日（`release_start`）~~ | **已拍板 2026-10-05**：首页 **14 天**（30 天全量留在 `/deadlines`）；「即将开售」= `sale_start` + `release_start` + `merch_start`。已落地：见 §六「W10 · 行动中心」的「实现与验证（2026-10-05 完成）」 |
 | ~~**W11**~~ ✅ | ~~店铺特典真源（公告通常只写「対象店舗」）：开人工 `industry/releases/{slug}.json` 还是接受「模型只抽公告里写了的」；粒度是 1 个 `releases` + 3 个 editions 还是 3 行；存量 `other` 要不要花钱重抽~~ | **已拍板 2026-10-05**：只抽公告写了的（不开人工配置，公告只写「対象店舗」就显示这几个字）；粒度取 **1 个 `releases` + N 个 editions**；存量**重抽**。已落地：见 §六「W11 · 发售·版本·特典数据库」的「实现与验证（2026-10-05 完成）」（68 条候选 → 55 张碟 / 21 个版本 / 15 个店铺特典 / 3 个序列号；`processing_attempt_tag` 沿用上次评估的标签 ⇒ 只花 `release` 这一步的钱） |
 | ~~**W13**~~ ✅ | ~~索引门槛（建议 `total >= 5`，比主题页宽松）；成员页要不要显示「中之人」真名与所属乐队（真人隐私）；成员要不要进 `/starred` 与订阅 `bands[]`~~ | **已拍板 2026-10-05**：门槛 `total >= 5`；只显示角色 ↔ 声优关系（页面写声优艺名，不查真名）；**不进 `/starred`、不进订阅 `bands[]`**（v1）。另外两条产品决定：**只做角色页、不建声优页**（声优只在角色页里出现，一位声优配多个角色就出现在多页）；**先补齐 Canna Lily / F-272 的 10 个角色再动工** ⇒ 88 页。其余（提及口径含声优艺名、别名并入本名页、不要「这位声优还配了谁」、要 `/members` 总览页）见 §六 W13 |
-| **W15** | 索引门槛（建议有 `officialUrl` 或有 `live_events` 记录才进 sitemap）；要不要做「东京 11 月」地区聚合页；三条未核实规范化名；闭馆场馆要不要收录 | 门槛按建议；聚合页做（远征信息的入口）；收闭馆馆并标 `closedOn` |
+| ~~**W15**~~ ✅ | ~~索引门槛（建议有 `officialUrl` 或有 `live_events` 记录才进 sitemap）；要不要做「东京 11 月」地区聚合页；三条未核实规范化名；闭馆场馆要不要收录~~ | **已拍板 2026-10-05**：W15 **不做场馆实体页**，改成**远征参考页**（`/guide` 只做外链指路，**不写正文**，无迁移、无 API、不联动站内数据）。原场馆设计整体暂缓 —— 那四条问题留给以后单开的「场馆实体页」包（今天 dev 库只有 3 行 `live_events`、场馆标签只命中 3 行报道，做出来是空壳）。已落地：见 §六「W15（2026-10-05 完成）：远征参考页」 |
 | **W18** | 投稿链接要不要保留原始 URL（留在库里，涉及投稿人隐私）；后台聚合视图要不要按 `from_source` 去重计数排优先级；要不要给已处理的纠错发邮件回执（需 SMTP，当前只有飞书内部通知） | 保留但只给管理员看；去重计数；先不发邮件 |
 
 ### 可以边做边定

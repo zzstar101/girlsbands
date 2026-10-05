@@ -38,6 +38,7 @@ const PAGES: Record<string, OgCard> = {
   changelog: { kicker: "更新日志", title: `${SITE.name} 更新日志`, subtitle: "功能更新、优化、公告与下线记录。" },
   feedback: { kicker: "反馈", title: "告诉我们哪里可以更好", subtitle: "内容、功能、接入，或来源方的更正与下架请求。" },
   agent: { kicker: "Agent 接入", title: `把 ${SITE.name} 接进你的 Agent`, subtitle: "Markdown、MCP、RSS、API 四种方式，匿名只读，无需 API Key。" },
+  guide: { kicker: "远征攻略", title: "去看一场 Live，要用到的那几件事", subtitle: "本站不重写攻略：外部资料与站内入口都在这。" },
 };
 
 /**
