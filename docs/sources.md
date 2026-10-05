@@ -35,6 +35,11 @@
 
 可选：`summaryIsBody`（订阅里的摘要就是全文）、`allowCategories` / `denyCategories`（按订阅里的分类过滤）。
 
+镜像实例（Nitter 这类）：`feedUrl` 指向镜像，条目里的地址还要靠 `itemUrlPrefixRewrite`
+（`{ from, to }`）改回 `https://x.com/` —— 给读者看的「原文」和文章的 identity key 都用改写后的地址。
+换实例时 `feedUrl` 与 `from` 两处都要改，`handle` 也要按新实例的要求写（kareem.one 只认小写）；
+两边的 `http://` / `https://` 不一致没关系，比较时会忽略 scheme（`rewriteUrl`）。
+
 ### web_list
 
 支持普通 CSS 选择器，`div` 列表也能采集。关键是 `itemSelector` 要选中**每条新闻**，而不是包住所有新闻的容器。例如：
