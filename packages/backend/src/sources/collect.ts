@@ -36,9 +36,20 @@ export function noiseFiltered(c: Candidate, source: SourceRow): boolean {
   return has(title, f.dropMarkersTitleOnly) || has(hay, f.dropMarkers);
 }
 
-function rewriteUrl(c: Candidate, source: SourceRow): Candidate {
+/**
+ * Applies the mirror-domain rewrite. Mirrors disagree about the scheme: nitter.meowing.monster hands
+ * out `http://` links while the source is configured with `https://` (kareem.one is the other way
+ * round), and a strict prefix match then silently no-ops — the mirror URL ends up in the reader-facing
+ * original link and in the article's identity key. So compare without the leading scheme.
+ */
+export function rewriteUrl(c: Candidate, source: SourceRow): Candidate {
   const rw = source.config.itemUrlPrefixRewrite;
-  if (rw?.from && rw?.to && c.url.startsWith(rw.from)) return { ...c, url: rw.to + c.url.slice(rw.from.length) };
+  if (!rw?.from || !rw?.to) return c;
+  if (c.url.startsWith(rw.from)) return { ...c, url: rw.to + c.url.slice(rw.from.length) };
+  const bare = (u: string) => u.replace(/^https?:\/\//i, "");
+  const prefix = bare(rw.from);
+  const rest = bare(c.url);
+  if (prefix && rest.startsWith(prefix)) return { ...c, url: rw.to + rest.slice(prefix.length) };
   return c;
 }
 

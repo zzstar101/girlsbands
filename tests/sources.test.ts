@@ -12,7 +12,7 @@ import { sanitizeBody, trimTrailingChrome } from "@girlsbands/backend/content/sa
 import { fetchDetail, fetchWebList, fromHtml, fromMarkdown } from "@girlsbands/backend/sources/web-list";
 import { fetchRss } from "@girlsbands/backend/sources/rss";
 import { fetchJsonList, renderFields } from "@girlsbands/backend/sources/json-list";
-import { noiseFiltered } from "@girlsbands/backend/sources/collect";
+import { noiseFiltered, rewriteUrl } from "@girlsbands/backend/sources/collect";
 
 const source = (config: Record<string, unknown>) => ({ id: "test-list", config }) as never;
 
@@ -215,6 +215,21 @@ test("noise words match whatever their case", () => {
   assert.equal(noiseFiltered(c("8th ONE-MAN LIVE：正在筹备新曲", "与转卖渠道合作的 LIVE 企划"), source), false);
   assert.equal(noiseFiltered(c("演唱会门票转卖开售", "高价转卖 4999 元"), source), true);
   assert.equal(noiseFiltered(c("iPhone 18 开售", ""), source), true);
+});
+
+test("a mirror that serves the other scheme is still rewritten", () => {
+  // meowing.monster 的条目是 http://、配置里写的是 https://：严格前缀匹配会静默不改写，读者看到的
+  // 原文链接和文章的 identity key 就停在镜像域名上（kareem.one 恰好相反）。
+  const meowing = source({ itemUrlPrefixRewrite: { from: "https://nitter.meowing.monster/", to: "https://x.com/" } });
+  const at = (url: string) => rewriteUrl({ url } as never, meowing).url;
+  assert.equal(at("http://nitter.meowing.monster/BDP_AveMujica/status/123#m"), "https://x.com/BDP_AveMujica/status/123#m");
+  assert.equal(at("https://nitter.meowing.monster/BDP_AveMujica/status/123"), "https://x.com/BDP_AveMujica/status/123");
+  assert.equal(at("https://nitter.kareem.one/x/status/123"), "https://nitter.kareem.one/x/status/123", "别的实例不改");
+  const kareem = source({ itemUrlPrefixRewrite: { from: "http://nitter.kareem.one/", to: "https://x.com/" } });
+  assert.equal(rewriteUrl({ url: "https://nitter.kareem.one/x/status/9" } as never, kareem).url, "https://x.com/x/status/9");
+  // Jina 的 from 里本来就含一段 http://（它在路径里，不是 scheme），不能被切掉。
+  const jina = source({ itemUrlPrefixRewrite: { from: "https://r.jina.ai/http://example.org/", to: "https://example.org/" } });
+  assert.equal(rewriteUrl({ url: "https://r.jina.ai/http://example.org/blog/220.html" } as never, jina).url, "https://example.org/blog/220.html");
 });
 
 test("dates in yyyymmdd and in JSON-LD are read", async () => {
