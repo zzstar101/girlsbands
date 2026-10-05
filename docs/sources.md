@@ -218,7 +218,7 @@ http.createServer((req, res) => {
 - **发布方**（可选，写在 `config` 里）：
   - `publisherUrlPrefixes`：`T1` 信源自己文章网址的前缀，比如 `["https://example.com/blog/"]`。别的信源（聚合站、转帖）带来的这些网址的文章，只要能认定是唯一一个官方信源的，就改记到它名下。网页列表信源不写时，认它自己列表所在的路径（这篇也要在它的列表里出现过）。
   - `publisherRole`：`T1_5` 账号的身份，`organization`（机构官方账号）或 `person`（官方人员）。再填上信源的 `owner_entity_id`（`industry/taxonomy.ts` 的 `ENTITIES` id），这个账号发的、主体正是这家公司的新闻，就能当代表报道（排在 `T1` 之后）。
-- **全文**：`site_fulltext` 决定站内能不能显示全文，`syndicate_fulltext` 决定全文 RSS 能不能带正文。两者**默认都关**，只显示摘要和原文链接；来源明确允许时再打开。公众号、付费墙内容不会因为技术上抓得到就获得全文展示。
+- **全文**：`site_fulltext` 决定站内能不能显示全文，`syndicate_fulltext` 决定全文 RSS 能不能带正文。本站 `site_fulltext` 对 `editorial` 源**全开**（每条公开内容整篇搬进站内并译成中文），`syndicate_fulltext` 全站关闭；后台新建信源时两者默认都是关，打开 `site_fulltext` 前先确认来源允许整篇转载。公众号、付费墙内容不会因为技术上抓得到就获得全文展示。
 
 ## 抓取频率
 

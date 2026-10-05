@@ -30,7 +30,7 @@ flowchart LR
 - **安全阀**：`COLLECT_ENABLED`、`MODEL_CALLS_ENABLED`、`FEISHU_CONTENT_PUSH_ENABLED`、`FEISHU_INTERNAL_ENABLED`、`INDEXNOW_SUBMIT_ENABLED` 只决定“发不发出去”，不决定走哪套逻辑；只有设成 `true` 才打开。开发时关着；测试里推送一直关着，采集和模型调用只连本地假服务。
 - **公开内容匿名**：管理员和访客看到的一样；读者的收藏、已读存在浏览器里。后台只允许管理员。
 - **旧文不刷屏**：发现时已发布超过 48 小时的资料、新信源的存量、回灌的推送，按原文时间归档，不进“今天”、不推送。
-- **来源可追溯**：每条精选都链接原文；站内是否显示全文由信源的 `site_fulltext` 决定，默认只显示摘要。
+- **来源可追溯**：每条精选都链接原文；站内是否显示全文由信源的 `site_fulltext` 决定 —— 本站的 `editorial` 源**全开**（`database/migrations/0056_site_fulltext_editorial.sql` 把 `participation_mode = 'editorial'` 的源设成 `true`，正文整篇搬进站内并译成中文），`hot_signal` 源没有公开页面、保持关闭；`syndicate_fulltext`（再把全文分发出去）全站关闭。
 - **规则由所属模块维护**：后台调用内容、事件、通知与恢复模块，不直接改写它们的状态；业务模块不反过来依赖后台。人工修改、公开结果与恢复所需记录一起提交。
 - **跨进程接口共享类型**：后台接口以 `packages/contracts/src/admin.ts` 为准，任务载荷以 `jobs/queue.ts` 的 `JobData` 为准，发送方和接收方一起检查。前端仍只通过 HTTP 访问后端。
 

@@ -1162,6 +1162,24 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - 视觉核对：项目里**没有能看图的通道** —— `read_image` 报 `model "deepseek-flash" does not declare image input`，换声明了视觉的模型（`workflow` 里指定 `gpt-5.6-luna`）也回「image input isn’t available」。所以版式改用**像素断言**核对：`tests/og-cards.test.ts` 用 sharp 造红底绿边的图（纯色块看不出裁切，**带边才看得出**），渲染后逐像素找包围盒 —— ① 3:2 的红块落在 388×258（390×260 减去 1px 描边），右、下都在内边距内，左栏没被盖住；② 400×400 的方图整张显示成 260×260、四条边条条都在、红心完整地待在绿边里；③ 1600×400 的宽图铺满 390 宽、高约 98、四条边也在；④ 海报的 1808×640 头图仍是 904×320、正文最靠下的深色像素 1256 < 1368，640×1808 的竖图缩成 113×320 并在内容宽里居中、四条边都在。**最终版式还得站主亲眼看一下**渲染出的 PNG —— dev 里 `/og/items/<id>.png`、`/og/posters/<id>.png` 直接可开。
 - `tests/publication.test.ts` 里那两条 `card` / `poster` 字面量补了 `image: null`：路由现在总会带上这个键，不补的话 ETag 对不上（304 那条断言会红）。
 
+**文案与文档校正（2026-10-05，站主选「先收尾遗留项」）**
+
+先逐条核了挂着的四个遗留项，**三条早已完成**：docs 改名到 `RinneBeat/girlsbands` 在 W0 就做完了（`README.md:97,144`、`CONTRIBUTING.md:7`、`SECURITY.md:3,11`、三个 `.github/ISSUE_TEMPLATE/*`、`docs/deploy.md:8` 全是新地址，`AniBand` 只剩本文档记录改名的表格）；`NOTICE:13-15` 已经写的是「republishes each item in full together with a Chinese translation」，不矛盾；国内阈值标定在 W6 第二版就完成了（`industry/selection.ts:42` 的 `T2_EVENT = 54`，dev 库实测 15 条里 **14 条 `selected = t`**，样本集 acc 0.912 / P 0.97 / R 0.889）。真正没办的只有 `contactEmail`，站主选「先留着，以后再说」—— `docs/deploy.md:105` 已记「上线前必须确认这个邮箱真的能收信」。
+
+核的过程中翻出**五处「站点早已全文 + 中译，文案还写着只给摘要」**，一并改掉：
+
+| 位置 | 改前 | 改后 |
+|---|---|---|
+| `docs/architecture.md:33` | `site_fulltext`「默认只显示摘要」 | editorial 源全开（`database/migrations/0056_site_fulltext_editorial.sql`）、hot_signal 保持关闭、`syndicate_fulltext` 全站关闭 |
+| `docs/customize.md:84` | 「**默认关**：只展示摘要和原文链接」 | 本站 editorial 全开；后台新建信源的表单默认关，打开前先确认来源允许整篇转载 |
+| `docs/sources.md:221` | 两者「**默认都关**，只显示摘要和原文链接」 | `site_fulltext` 对 editorial 全开、`syndicate_fulltext` 全关、新建源两者默认都关 |
+| `industry/site.ts:71`（读者页脚真的会渲染） | 「本站是聚合摘要和阅读索引」 | 「本站把各来源的原文整篇收进站内并译成中文」 |
+| `packages/backend/src/publication/llms.ts:89`（喂 `llms.txt`） | 「内容为第三方原文的聚合摘要与编辑策展」 | 「站内把各来源的原文整篇收进来并译成中文（`site_fulltext` 对 editorial 源全开）」 |
+
+`tests/email-rules.ts:24` 的 `SAMPLE_SITE.footerNote` 还是旧措辞 —— 那是邮件版式的测试夹具（只为给模板一段页脚文字），不是站点声明，故意不动。
+
+验收：`npm run typecheck` 全绿；全量 `npm test` **675 通过 / 0 失败**；`node --test apps/web/tests/*.test.ts` **29 通过 / 0 失败**；`npm run build -w @girlsbands/web` 通过。零模型花费。
+
 ---
 
 ## 七、待站主拍板汇总（动手前先看这里）
@@ -1191,6 +1209,8 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 
 - **W14**：变更 Diff 是否进 v1 API；要不要做公开的「更正日志」出口；要不要顺手修「`facts` 三列永不更新」这个上游问题（改了会影响现有聚簇与 digest 输入，风险要单独评估）。
 - **W16**：Setlist 落库还是现算；歌名要不要进 `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍）；粉丝现场 repo 的版权边界（`site_fulltext` 只对 editorial 源全开）。
+
+- **联系邮箱**：`industry/site.ts:29` 现在填的是 `contact@girlsbands.com`。站主 2026-10-05 选「先留着，以后再说」；它同时喂 `/.well-known/security.txt`、`llms.txt` 的联系行与 RSS 的 author，**上线前必须确认这个邮箱真的能收信**（同 `docs/deploy.md:105`），否则改成一个能收的地址或置 `null`（`security.txt` 会回到 404）。
 
 ### 我已经替你定的小事（不同意就说）
 

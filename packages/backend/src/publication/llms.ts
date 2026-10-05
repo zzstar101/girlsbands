@@ -86,7 +86,7 @@ export function llmsTxt(opts: {
     for (const t of opts.topics) lines.push(`- [${t.name}](${u(`/topics/${t.slug}`)}): ${t.definition}`);
   }
   lines.push("", "## 使用说明", "");
-  lines.push("- 内容为第三方原文的聚合摘要与编辑策展，原文版权归各来源所有；重要事实请回原文核对。");
+  lines.push("- 站内把各来源的原文整篇收进来并译成中文（`site_fulltext` 对 editorial 源全开），原文版权归各来源所有；重要事实请回原文核对。");
   lines.push("- API 区分原文发布时间 publishedAt 与本站首次收到时间 discoveredAt；links.site 回到站内阅读页，links.original 指向第三方原文。RSS 默认使用摘要，明确的 full feed 也只对可再分发来源内联正文。");
   lines.push("- API 不提供按条目 ID 获取单篇正文的端点；不要猜测 /api/v1/items/{id} 或抓网页绕过正文授权门禁。");
   lines.push("- API 匿名只读，无需 API Key；浏览器、curl 与默认 HTTP SDK 均可调用，自定义 User-Agent 只是可选的诊断信息。");
