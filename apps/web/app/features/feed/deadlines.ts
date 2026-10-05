@@ -7,11 +7,13 @@ export const DEADLINE_KINDS: Record<DeadlineKind, { label: string; hint: string;
   lottery_end: { ...DEADLINE_LABELS.lottery_end, className: "text-hot" },
   lottery_start: { ...DEADLINE_LABELS.lottery_start, className: "text-ink-3" },
   sale_start: { ...DEADLINE_LABELS.sale_start, className: "text-accent" },
+  sale_end: { ...DEADLINE_LABELS.sale_end, className: "text-hot" },
   event: { ...DEADLINE_LABELS.event, className: "text-ink" },
   stream_end: { ...DEADLINE_LABELS.stream_end, className: "text-amber" },
   result: { ...DEADLINE_LABELS.result, className: "text-ink-3" },
   release_start: { ...DEADLINE_LABELS.release_start, className: "text-accent" },
   merch_start: { ...DEADLINE_LABELS.merch_start, className: "text-ink-3" },
+  payment_deadline: { ...DEADLINE_LABELS.payment_deadline, className: "text-hot" },
   other: { ...DEADLINE_LABELS.other, className: "text-ink-4" },
 };
 

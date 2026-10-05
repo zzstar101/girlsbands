@@ -490,25 +490,28 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 - `packages/backend/src/publication/deadlines.ts:1-12` 已把口径（listed 集合、JST、48 小时）定死在头注释里，是唯一日期算法；**轮次日期必须接进这里，不能在日历里另算一套**。
 - 票务分类在 `industry/taxonomy.ts` 里已经很细（FC/Official/CD 封入先行、抽选结果、一般贩售、追加席、当日券、转售），只是它们今天只是文章标签。
 
-**设计**
-1. **两张表**（迁移 `0061_ticket_rounds.sql`）：`ticket_rounds(id, public_id, live_event_id FK, kind, platform, apply_start_local_date, apply_start_local_time, apply_end_local_date, apply_end_local_time, result_on, payment_due_on, timezone, status, first_fact_id, quote)`，`kind ∈ fc | official | cd_serial | playguide | general | additional_seat | day_of | resale | streaming`，`status ∈ announced | open | closed | awaiting_result | result_out | payment_open | paid | unpaid | sold_out | cancelled`；外加 **append-only** `ticket_round_events(id, ticket_round_id, kind, observed_at, fact_id, quote)`（`kind ∈ opened | closed | result | payment_due | paid | sold_out | cancelled | updated`）。
-2. **`status` 是投影，真值是事件表**：轮次状态由 `ticket_round_events` 的时间线推出，便于 W14 的变更 Diff 与 W10 的行动中心读同一条时间线；不存「当前状态」的独立副本。
-3. **接进唯一日期算法**：`packages/backend/src/publication/deadlines.ts:61-112` 的 SQL 里 `UNION ALL` 一段 `ticket_rounds` 投影（轮次日期 → 统一的 `DeadlineTime`），`upcomingDeadlines` / `deadlineRange` / `deadlineMonths` **不改调用方**；`publication/calendar.ts` 一行不碰。
-4. **读取**：`packages/backend/src/lives/tickets.ts` 出 `roundsOf(liveEventId)`、`currentRound(liveEventId, now)`、`nextStage(...)`、`daysLeft(...)`，供 W8 的 Live 页与 W10 用。
-5. **不 backfill 老数据**：散点回填会造出错误批次（分不清哪些条目属于同一个轮次）。靠 W8 阶段 B 的灰度重跑生成（`category IN ('live','ticket')`，新 `attemptTag`，例如 `live-ticket-v1`），已跑过的条目在 Live 页上先显示「票务信息以原文为准」。
+**设计（落地版，2026-10-05 完成）**
+1. **两张表**（迁移 `0061_ticket_rounds.sql`）：`ticket_rounds(id, public_id, live_event_id → live_events ON DELETE CASCADE, kind, platform, timezone, apply_start_at, apply_end_at, result_on, payment_due_on, first_fact_id, first_article_id, quote, first_seen_at, updated_at)`，`kind ∈ fc | official | cd_serial | playguide | general | additional_seat | day_of | resale | streaming`。四个日期是 `text`，与 `analyses` 的 `at` 同形状（`YYYY-MM-DD` / `YYYY-MM-DDTHH:mm`），解析复用 `splitDeadlineAt` / `deadlineInstant`，**不另造一套**。唯一键是表达式索引 `(live_event_id, kind, COALESCE(substring(apply_start_at FROM 1 FOR 10), ''))` —— 取日期段，先只写到日、后来写明时刻的同一条受理归成同一条。外加 **append-only** `ticket_round_events(ticket_round_id → ticket_rounds ON DELETE CASCADE, kind ∈ opened | closed | result | payment_due, observed_at, fact_id, quote)` + 唯一索引 `(ticket_round_id, kind)`：某一种节点第一次出现时追加一行，重复同步撞索引什么也不写。
+2. **`status` 是投影，不落库**：按四个日期与此刻算出来（`roundStatus`），`ticket_round_events` 是留给 W14 读的时间线。实际只有 6 种：`announced | open | awaiting_result | result_out | payment_open | closed`；计划里的 `paid` / `unpaid` / `sold_out` / `cancelled` 没有数据来源（站里没有读者账号，公告也不写售罄），不做。只写日期的截止日**整天算数**（到那一地的 23:59），开始类节点从当天零点起 —— 读者最需要「截止日」这个状态的就是那一天。
+3. **接进唯一日期算法**：`packages/backend/src/publication/deadlines.ts` 的 `deadlineWindow` 与 `deadlineMonths` 各写成 `WITH … AS (公告分支 UNION ALL 轮次分支)`。轮次分支从 `ticket_rounds tr JOIN publications p ON p.article_id = tr.first_article_id` 出发，用 `CROSS JOIN LATERAL (VALUES ('applyStart', tr.apply_start_at), …)` 展开成四行；公告分支加 `LEFT JOIN facts f ON f.id = p.fact_id` 与「同一天已被轮次接管就不再列出」的 `NOT EXISTS`（**按日期逐天比**，不是「这条事实挂了有轮次的演出就把票务日期全砍掉」，否则会丢掉轮次没抽到的日期）。日期种类相应加 `sale_end` 与 `payment_deadline`（`packages/contracts/src/site.ts` 的 `DEADLINE_KINDS` 仍是唯一真源，web 的 `apps/web/app/features/feed/deadlines.ts` 跟着补齐）。`publication/calendar.ts` 一行没碰。
+4. **写入**：`packages/backend/src/lives/tickets.ts` 的 `syncFactTicketRounds` 由 `packages/backend/src/events/live.ts` 的 `linkLiveEvent` 在挂上演出之后**同一事务**里调用。每次同步都读一遍该条目的最新分析 —— 同一场演出的后续报告可能第一次写出截止日、当落日、缴款期限。只补空、不覆盖（`COALESCE`），只有「只写到日 → 写明时刻」这一种算精度变好。
+5. **读取**：`packages/backend/src/publication/tickets.ts` 出 `roundsOf` / `roundStatus` / `roundSlotKind` / `roundNote` / `ROUND_SLOTS`；`publication/lives.ts` 的 `loadLive` 带上 `rounds`，并把已被轮次接管的日期从 `dates` 里去掉（页面上同一件事只出现一次）。**没有** `currentRound` / `nextStage` / `daysLeft`：演出页把一轮的四个日期按槽位列全，选哪一轮是读者的动作。`itemId` 指向第一次说出这条轮次的那篇公告，那篇被下架时留 null（日期仍然算数，只是没有能点进去的原文）。
+6. **演出页**：`apps/web/app/routes/live.tsx` 的「票务与日程」先列轮次（`TICKET_ROUND_LABELS[kind]` + `platform` **照原文** + 状态徽标 + 四个日期 + 链到 `itemId`），其余日期收在「公告里的其它日期」下面；状态的说法与颜色在 `apps/web/app/features/feed/tickets.ts`。
+7. **不 backfill 老数据**：靠 W8 阶段 B 的灰度重跑生成（同一次重跑同时得到演出名与轮次，`live-ticket` 步骤一次调用答两件事）。
 
 **验收标准**
 
-| 检查 | 通过标准 |
-|---|---|
-| 日期唯一算法 | 从 `ticket_rounds` 加一条轮次后，`/deadlines`、企划日历、`.ics` **三处同时**出现该日期（不是各算一遍） |
-| 状态投影 | 给定一串 `ticket_round_events`（开 / 截止 / 当落 / 入金）能推出正确 `status`；乱序插入按 `observed_at` 排序 |
-| 幂等 | 同一条 article 重跑两次不产生重复轮次（按 `live_event_id + kind + apply_start_local_date` 归并） |
-| 公开出口 | 轮次日期能被 `deadlineRange` 取到；`.ics` 折行/CRLF 检查仍通过 |
-| 测试 | `tests/ticket-rounds.test.ts`：状态投影、跨时区截止时刻、`currentRound` 选轮规则 |
+| 检查 | 通过标准 | 实测 |
+|---|---|---|
+| 日期唯一算法 | 从 `ticket_rounds` 加一条轮次后，`/deadlines`、企划日历、`.ics` **三处同时**出现该日期（不是各算一遍） | 雷达 / `deadlineRange` / `deadlineMonths` 三处同时出现且带轮次行首（`FC 先行 · イープラス`）；`calendar.ts` 未改，`.ics` 走 `deadlineRange` |
+| 状态投影 | 六个阶段都能从日期算出；跨时区的截止时刻按该轮自己的钟比 | `tests/ticket-rounds.test.ts`「状态按轮次自己那一地的钟算」：六个阶段 + 同一句 `12:00` 在东京/上海的不同结论 |
+| 幂等 | 同一条 article 重跑两次不产生重复轮次（`live_event_id + kind + apply_start 日期段`） | 「同一条公告重跑两次只有一行」：重复挂 + 补截止日/当落日都只有一行，`ticket_round_events` 每多一种节点才多一行 |
+| 公开出口 | 轮次日期能被 `deadlineRange` 取到；`.ics` 折行/CRLF 检查仍通过 | `deadlineRange` 只出现一次（公告自己写的同一天日期被接管）；`.ics` 未受影响（同一函数） |
+| 测试 | `tests/ticket-rounds.test.ts` | 8 个测试全绿（键与幂等、状态六阶段、雷达去重、演出页、公开接口、槽位映射、信源时区） |
 
-**待站主拍板**：`status` 要不要包含**个人**当落（当选 / 落选 —— 站不持有账号，只能靠读者自己标）；`platform` 要不要中文化（`e+` → 「e+」还是「イープラス」）；`deadlines` 与 `ticket_rounds` 哪个权威（建议：轮次是权威，`deadlines` 只是投影）。
-**工作量**：3 天（含阶段 B 的提示词与灰度重跑安排；重跑本身花模型钱且条目会短暂下架）。
+**实现与验证（2026-10-05 完成）**：`npm run typecheck` 全绿；`npm run db:migrate` → `applied 0061_ticket_rounds.sql`；`tests/ticket-rounds.test.ts` 8/8；全量测试见 §六。dev 库里用合成轮次实测过三处出口（造完即删，库里现在 0 行轮次）。**已知缺口**：dev 库 438 条 publications 里只有 30 条有 `fact_id`/`story_id`，所以「同一天由另一篇文章写出的票务日期」既不是 `tr.first_article_id` 也连不到同一场演出，接管不到 —— 那是数据现状（老条目没有事实身份），不是规则漏洞。
+**待站主拍板**：已拍板三条 —— 轮次是票务日期的权威（`deadlines` 只是投影）、不记个人当落、平台名照原文（不做中文显示名映射，`industry/glossary.ts` 一个字不改，否则 `GLOSSARY_VERSION` 变会让全站重译）。**剩下一条**：W8 阶段 B 的灰度重跑什么时候跑（dev 库 28 条候选 × 约 6 次调用 ≈ 170 次；`MODEL_CALLS_ENABLED=false`；重跑期间条目因 `grouping_status = pending` 短暂下架）。
+**工作量**：3 天（实际约 1.5 天，含提示词扩写与页面；重跑本身花模型钱且条目会短暂下架）。
 
 ---
 
@@ -1048,6 +1051,30 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - **契约里新加的字段必须被 web 读掉**：`tests/architecture.test.ts:145-150` 要求 `packages/contracts/src/site.ts` 的每个字段都能在 `apps/web` 里找到引用，`firstSeenAt` / `updatedAt` 起初没人用而红 —— 在演出页页脚写了「本站 X 首次收录，Y 最近更新」。
 - **词表缺口不要顺手补**：`代官山SPACE ODD` 不在 `industry/glossary-venues.ts` 里，所以那一场的会场留空。补进去会改 `GLOSSARY_VERSION` → `TRANSLATE_PROMPT_VERSION` → 全站旧译文回执失效重译，要单独一次决定。
 
+**W9（2026-10-05 完成）：票务状态机 TicketRound**
+
+`database/migrations/0061_ticket_rounds.sql` 建两张表。`ticket_rounds` 的唯一键同样是表达式索引 `(live_event_id, kind, COALESCE(substring(apply_start_at FROM 1 FOR 10), ''))` —— 取日期段当键，先只写日期的公告与后来写明时刻的公告归成同一条（精度只允许「日期 → 日期+时刻」单向提升，`CASE WHEN 旧 LIKE '____-__-__' AND EXCLUDED LIKE '____-__-__T%'`）。`ticket_round_events` 记 `opened` / `closed` / `result` / `payment_due` 四种节点，第一次见到才写（`ON CONFLICT (ticket_round_id, kind) DO NOTHING`），重复同步什么也不写。日期全部存 text（与 `analyses` 的 `at` 同形状 `YYYY-MM-DD` / `YYYY-MM-DDTHH:mm`），读取时复用 `splitDeadlineAt` / `deadlineInstant`，不做第二套解析；**状态不落库**，读时按日期与此刻派生（与 `live_events` 的阶段同一条规矩）。写入在 `packages/backend/src/lives/tickets.ts`（`syncFactTicketRounds` 由 `packages/backend/src/events/live.ts` 的 `linkLiveEvent` 在同一事务里调用），读取在 `packages/backend/src/publication/tickets.ts`（`roundsOf` / `roundStatus` / `roundSlotKind` / `roundNote`）。提示词 `industry/prompts/live-ticket.md` 加了第六节 `rounds`（一轮 = 开始与截止都相同的一次受理；四个日期与 platform 都必须能在那一句 `quote` 里找到），结果写进 `analyses.output.live.rounds`。
+
+票务日期在雷达、日历与 `.ics` 上是**轮次说了算**：`publication/deadlines.ts` 的 `deadlineWindow` 与 `deadlineMonths` 都改成「公告 / 轮次」两分支 `UNION ALL`（轮次分支用 `INSERT` 时一模一样的表达式唯一键展开四个槽位），公告分支只在该日期已被同一场演出的轮次接管时让位 —— `NOT EXISTS (… substring(d.value->>'at' FROM 1 FOR 10) IN (substring(tr.apply_start_at FROM 1 FOR 10), …))`，逐天精确比对，不是「这条事实挂了有轮次的演出就把票务日期全砍掉」。`DEADLINE_KINDS` 9 → **11**（新增 `sale_end` 贩售截止、`payment_deadline` 缴款截止），所以 `editorial/analyze.ts` 的 zod enum、`apps/web/app/features/feed/deadlines.ts` 的 className、契约的 `DEADLINE_LABELS` 与测试里的清单一起跟着改。演出页 `/live/:publicId` 的「票务与日程」先列轮次（名字 + 平台照原文 + 状态徽标 + 倒计时 + 四个日期槽位 + 链到那篇公告），公告里**没被轮次接管**的其它日期列在下面的「公告里的其它日期」。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（含 `npm run typecheck -w @girlsbands/web`） |
+| `tests/ticket-rounds.test.ts` | **8 通过 / 0 失败**（键与幂等、精度提升、没日期不落库、状态六阶段 + 跨时区、轮次接管同一天的票务日期、演出页列轮次且 `dates` 不重复、下架后 `loadLive` 为 null 但 `roundsOf` 仍在、API 带 `rounds`、`Asia/Shanghai` 源） |
+| 全量 `npm test` | **648 通过 / 0 失败**（108.4s，0 cancelled；W8 后基线 639） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **29 通过 / 0 失败** |
+| 迁移 | 已应用到 dev 库 |
+| 模型花费 | 零（轮次与 W8 阶段 B 的演出名同属 `live-ticket` 步骤，**同一次重跑**；`scripts/reanalyze-live-tickets.ts --dry` → `candidates: 28`） |
+
+**W9 踩到的坑**
+- `CROSS JOIN LATERAL (VALUES tr.apply_start_at, tr.apply_end_at) AS e(slot_at)` 是**语法错误**（`syntax error at or near "tr"`）：`VALUES` 出现在 `FROM` 里时每一行都要单独加括号，写成 `(VALUES (tr.x), (tr.y))`。
+- **不要「这条事实挂了有轮次的演出就把票务日期全砍掉」**：轮次是从公告里抽的，抽漏的那一天就凭空消失了。只在同一天已被轮次接管时让位。
+- **只写日期的截止日必须整天算数**：`roundStatus` 里开始类槽位按当天零点、截止类按那一地的 `23:59` 比（`bound(at, timezone, edge)`），否则读者最需要「截止日」的那一天打开页面看到的是「已结束」。
+- **没有日期的轮次不落库**：只有平台名、一个受理日期都没有的轮次既给不了可行动的日期，也算不出状态。
+- **老的条目没有 `fact_id` / `story_id`**（dev 库 438 条里只有 30 条有），所以「同一天由另一篇文章写出的票务日期」既不是 `tr.first_article_id`、也连不到同一场演出，接管不到 —— 这是数据现状，不是规则漏洞。
+- **契约里对象字面量的键也算「接口字段」**：`tests/architecture.test.ts` 的正则会把 `TICKET_ROUND_LABELS` 的 9 个键当成待读字段，而 api 侧用 `TICKET_ROUND_LABELS[r.kind]` 并不产生这些标识符。照 `DEADLINE_KINDS` 的老写法在 `apps/web/app/features/feed/tickets.ts` 镜像一份 `ROUND_KINDS`（名字来自契约、颜色归网站）才算读掉。
+- **加了日期种类就要同步四处**：`tests/deadlines-time.test.ts` 写死 `DEADLINE_KINDS.length === 9`，加到 11 会红（那条测试的作用就是这个）。
+
 ---
 
 ## 七、待站主拍板汇总（动手前先看这里）
@@ -1064,7 +1091,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 | **W12** | 关注 → 邮件的 token 方案：**不做**读者端自生成 token（它同时是 `List-Unsubscribe` 凭据，自生成会把 `subscribers.token` 变成可猜面），改成 `/subscriptions/:token` 短链别名 | 按建议做 |
 | ~~**W7**~~ ✅ | ~~`.ics` 用当地时刻（日本 18:30 / 中国 15:30）还是统一北京时间；北京时间 21:00 之后的场次在「今天截止」里算哪天~~ | **已拍板 2026-10-05**：用当地时刻 + `TZID`、按当地日历（已完成） |
 | **W8** | Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留 | **代码按「一站一实体」落地了**（键 = 主体 + 会场 + 开演日 + 开演时刻，同一场取信息最全的那篇报告），要改粒度只需动唯一键与 `mergeKeys`；已完结页现在照常保留。**阶段 B 灰度重跑还没跑**：`candidates: 28`，换 tag 后每条约 6 次调用（≈170 次），要开窗口并接受短暂下架 |
-| **W9** | `deadlines` 与 `ticket_rounds` 哪个权威；`status` 要不要含**个人**当落；`platform` 要不要中文化 | 轮次权威、`deadlines` 只是投影；不含个人当落；平台名照官方原文 |
+| ~~**W9**~~ ✅ | ~~`deadlines` 与 `ticket_rounds` 哪个权威；`status` 要不要含**个人**当落；`platform` 要不要中文化~~ | **已拍板 2026-10-05**：轮次权威、`deadlines` 只是投影；不含个人当落（站不持有账号）；平台名**照原文**、不做中文显示名映射（`industry/glossary.ts` 一个字不改 —— 改任何 `forms` 都会让 `GLOSSARY_VERSION` 变、全站重译）。已落地：见上面「实现与验证（2026-10-05 完成）」 |
 | **W11** | 店铺特典真源（公告通常只写「対象店舗」）：开人工 `industry/releases/{slug}.json` 还是接受「模型只抽公告写了的」；粒度是 1 个 `releases` + 3 个 editions 还是 3 行；存量 21 条 `other` 要不要花钱重抽 | 先只抽公告、粒度取前者；重抽等 W7 落地后一起做 |
 | **W13** | 索引门槛（建议 `total >= 5`，比主题页宽松）；成员页要不要显示「中之人」真名与所属乐队（真人隐私）；成员要不要进 `/starred` 与订阅 `bands[]` | 门槛 5；只显示角色 ↔ 声优关系；不进订阅 |
 | **W15** | 索引门槛（建议有 `officialUrl` 或有 `live_events` 记录才进 sitemap）；要不要做「东京 11 月」地区聚合页；三条未核实规范化名；闭馆场馆要不要收录 | 门槛按建议；聚合页做（远征信息的入口）；收闭馆馆并标 `closedOn` |

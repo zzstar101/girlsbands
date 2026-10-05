@@ -9,8 +9,8 @@
 --
 -- 列：
 --   subject_entity  主体，industry/taxonomy.ts 的 ENTITIES id；没有主体的不成实体
---   venue           会场。阶段 A 只认 ENTITY_TAGS 里那 7 个日本会场，认不出就是 null（国内 livehouse
---                   等阶段 B 的模型结果来补）。null 不参与唯一键比较，见下面的 COALESCE
+--   venue           会场。照抄原文写法，经 industry/glossary-venues.ts 的会场词表归一（恰好命中一条才认，
+--                   多会场或认不出就是 null，宁缺勿错）。null 不参与唯一键比较，见下面的 COALESCE
 --   timezone        公告那一地的钟，与 sources.config.timezone 同一口径（W7），不换算不推算
 --   starts_on       开演那天，按公告自己的日历
 --   starts_time     开演时刻 HH:mm，公告只写日期时为 null

@@ -74,11 +74,12 @@ test("a source's clock comes from its config and defaults to Japan", () => {
 });
 
 test("the four places that name a kind of dated point read one list", () => {
-  assert.equal(DEADLINE_KINDS.length, 9, "nine kinds, no duplicates");
+  assert.equal(DEADLINE_KINDS.length, 11, "eleven kinds, no duplicates");
   assert.equal(new Set<string>(DEADLINE_KINDS).size, DEADLINE_KINDS.length);
   assert.deepEqual([...DEADLINE_KINDS].sort(), Object.keys(DEADLINE_LABELS).sort(), "every kind is worded, and nothing else is");
   // These two were missing from the extraction's list once, so both were silently filed under 「其他」.
-  for (const kind of ["release_start", "merch_start"] satisfies DeadlineKind[]) {
+  // The last two came with ticket rounds, whose windows close on a sale or a payment, not a lottery.
+  for (const kind of ["release_start", "merch_start", "sale_end", "payment_deadline"] satisfies DeadlineKind[]) {
     assert.ok(DEADLINE_KINDS.includes(kind), `${kind} must be extractable`);
   }
 });

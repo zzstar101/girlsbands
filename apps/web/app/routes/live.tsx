@@ -9,6 +9,7 @@ import { edgeTtl, loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
 import { monthDay, relativeTime, weekdayShort } from "../lib/format";
 import { DEADLINE_KINDS, clockText, dayName, md } from "../features/feed/deadlines";
+import { ROUND_KINDS, ROUND_STATUS, roundDates } from "../features/feed/tickets";
 import { Countdown, daysAway } from "../features/feed/Ticket";
 import { subjectOfId } from "../features/feed/bands";
 import { LIVE_STAGES, openStage } from "../features/feed/lives";
@@ -93,32 +94,73 @@ export default function LiveRoute() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-[17px] font-[650] leading-[1.5] text-ink">票务与日程</h2>
-            <p className="mt-0.5 text-[12.5px] text-ink-4">公告里写明的日期与时刻，按公告那一地的时间，不做换算</p>
+            <p className="mt-0.5 text-[12.5px] text-ink-4">
+              {live.rounds.length > 0
+                ? "每一轮受理的开放与截止，以及公告里写明的其它日期，都按公告那一地的时间，不做换算"
+                : "公告里写明的日期与时刻，按公告那一地的时间，不做换算"}
+            </p>
           </div>
           <a href={`/calendar/${live.subject}.ics`} title="订阅这支乐队的日历（.ics）" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-[12.5px] text-ink-3 transition-colors hover:border-band hover:text-band">
             <IconCalendar size={14} /> 订阅日历
           </a>
         </div>
-        {live.dates.length === 0 ? (
-          <EmptyState title="公告里还没有写出日期">这场演出的公告只说了要办，没说哪一天；等原文写明，这里就会出现。</EmptyState>
-        ) : (
-          <ol className="mt-3.5 divide-y divide-line-soft">
-            {live.dates.map((d) => {
-              const kind = DEADLINE_KINDS[d.kind];
+        {live.rounds.length > 0 && (
+          <ol className="mt-3.5 space-y-2.5">
+            {live.rounds.map((r) => {
+              const status = ROUND_STATUS[r.status];
+              const kind = ROUND_KINDS[r.kind];
+              const dates = roundDates(r);
+              const next = dates.find((d) => d.date.day >= today);
               return (
-                <li key={`${d.itemId}-${d.at}-${d.kind}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2.5">
-                  <span className="num w-[92px] shrink-0 text-[13px] text-ink-2">{md(d.day)}</span>
-                  <span className={`shrink-0 text-[12px] font-bold ${kind.className}`}>{kind.label}</span>
-                  <span className="num shrink-0 text-[12.5px] text-ink-3">{clockText(d.localTime, d.timezone)}</span>
-                  <Link to={`/items/${d.itemId}`} prefetch="intent" className="min-w-0 flex-1 truncate text-[13.5px] text-ink-3 transition-colors hover:text-accent">
-                    {d.note ? <span className="text-accent">{d.note} · </span> : null}
-                    {d.title}
-                  </Link>
+                <li key={r.publicId} className="rounded-lg border border-line-soft p-3">
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                    <span className={`text-[13.5px] font-bold ${kind.className}`}>{kind.label}</span>
+                    {r.platform && <span className="text-[12.5px] text-ink-3">{r.platform}</span>}
+                    <Badge tone={status.tone}>{status.label}</Badge>
+                    {next && <span className="num text-[12px] text-ink-4"><Countdown at={next.date.at} timezone={r.timezone} from={today} /></span>}
+                  </div>
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                    {dates.map((d) => (
+                      <li key={d.key} className="text-[12.5px] text-ink-3">
+                        <span className="text-ink-4">{d.label} </span>
+                        <span className={`num ${d.date.day < today ? "text-ink-4" : "text-ink-2"}`}>{md(d.date.day)}</span>{" "}
+                        <span className="num text-ink-4">{clockText(d.date.localTime, r.timezone)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {r.itemId && (
+                    <p className="mt-1.5 text-[13px]">
+                      <Link to={`/items/${r.itemId}`} prefetch="intent" className="text-ink-3 transition-colors hover:text-accent">{r.title}</Link>
+                    </p>
+                  )}
                 </li>
               );
             })}
           </ol>
         )}
+        {live.dates.length === 0 && live.rounds.length === 0 ? (
+          <EmptyState title="公告里还没有写出日期">这场演出的公告只说了要办，没说哪一天；等原文写明，这里就会出现。</EmptyState>
+        ) : live.dates.length > 0 ? (
+          <>
+            {live.rounds.length > 0 && <p className="mt-4 text-[12px] font-semibold tracking-[0.06em] text-ink-4">公告里的其它日期</p>}
+            <ol className="mt-3 divide-y divide-line-soft">
+              {live.dates.map((d) => {
+                const kind = DEADLINE_KINDS[d.kind];
+                return (
+                  <li key={`${d.itemId}-${d.at}-${d.kind}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2.5">
+                    <span className="num w-[92px] shrink-0 text-[13px] text-ink-2">{md(d.day)}</span>
+                    <span className={`shrink-0 text-[12px] font-bold ${kind.className}`}>{kind.label}</span>
+                    <span className="num shrink-0 text-[12.5px] text-ink-3">{clockText(d.localTime, d.timezone)}</span>
+                    <Link to={`/items/${d.itemId}`} prefetch="intent" className="min-w-0 flex-1 truncate text-[13.5px] text-ink-3 transition-colors hover:text-accent">
+                      {d.note ? <span className="text-accent">{d.note} · </span> : null}
+                      {d.title}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
+          </>
+        ) : null}
       </section>
 
       <section className="card mt-5 p-5 lg:p-6">

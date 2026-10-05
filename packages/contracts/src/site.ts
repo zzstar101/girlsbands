@@ -252,7 +252,8 @@ export const TIMEZONE_LABELS: Record<Timezone, string> = { "Asia/Tokyo": "日本
  * it, because the four drifted apart once and silently filed two kinds under 「其他」.
  */
 export const DEADLINE_KINDS = [
-  "lottery_start", "lottery_end", "sale_start", "event", "stream_end", "result", "release_start", "merch_start", "other",
+  "lottery_start", "lottery_end", "sale_start", "sale_end", "event", "stream_end", "result", "release_start", "merch_start",
+  "payment_deadline", "other",
 ] as const;
 
 export type DeadlineKind = (typeof DEADLINE_KINDS)[number];
@@ -266,11 +267,13 @@ export const DEADLINE_LABELS: Record<DeadlineKind, { label: string; hint: string
   lottery_end: { label: "受理截止", hint: "抽选 / 先行受理的最后一天" },
   lottery_start: { label: "受理开始", hint: "抽选 / 先行受理开始" },
   sale_start: { label: "一般发售", hint: "一般发售开卖" },
+  sale_end: { label: "贩售截止", hint: "一般发售或当日券卖完的那一天" },
   event: { label: "演出当天", hint: "Live / 活动当天" },
   stream_end: { label: "配信截止", hint: "配信或回看的观看期限" },
   result: { label: "结果公布", hint: "抽选结果或名单公布" },
   release_start: { label: "发售日", hint: "CD / Blu-ray / 数字发行的发行日" },
   merch_start: { label: "周边开订", hint: "周边开始接受订购或预约的日子" },
+  payment_deadline: { label: "缴款截止", hint: "当落发表后付款的最后一天" },
   other: { label: "其他", hint: "其他有明确日期的节点" },
 };
 
@@ -747,6 +750,71 @@ export interface LiveEventView extends LiveEventSummary {
   reports: StoryReportView[];
   /** The dated points its reports state, from today forward — the same rows the radar reads. */
   dates: DeadlineView[];
+  /** The acceptance windows its reports state, earliest first — where the ticket dates now come from. */
+  rounds: TicketRoundView[];
   /** The event page its reports are grouped under, when they are grouped under one. */
   story: { publicId: string; title: string } | null;
+}
+
+// Ticket rounds (一场演出的一条受理)
+//
+// A live is announced once and applied for several times: FC 先行, then 官方先行, then 一般贩售, maybe
+// 追加席 or 当日券. Each window is a round with its own dates, and `ticket_rounds` is the authority for
+// the ticket dates the radar, the calendar and the .ics export show: the structure step's own
+// `lottery_*` / `sale_*` / `result` rows step aside for a live that has rounds, so one deadline never
+// shows up twice. The status is derived at read time from the dates and the observed timeline, never
+// stored, so it cannot go stale. What the site deliberately does not know: whether *you* won or paid —
+// there are no accounts here, and the original only ever states the announcement's own dates.
+
+export const TICKET_ROUND_KINDS = [
+  "fc", "official", "cd_serial", "playguide", "general", "additional_seat", "day_of", "resale", "streaming",
+] as const;
+
+export type TicketRoundKind = (typeof TICKET_ROUND_KINDS)[number];
+
+/** How a round is named in the reader's language. The label says who may apply, not which platform. */
+export const TICKET_ROUND_LABELS: Record<TicketRoundKind, string> = {
+  fc: "FC 先行",
+  official: "官方先行",
+  cd_serial: "CD 序列号先行",
+  playguide: "售票平台先行",
+  general: "一般贩售",
+  additional_seat: "追加席",
+  day_of: "当日券",
+  resale: "转售",
+  streaming: "配信票",
+};
+
+/** A lottery to apply for, rather than a sale to buy: only these open with 受理 and close with 截止. */
+export const LOTTERY_ROUND_KINDS: ReadonlySet<TicketRoundKind> = new Set<TicketRoundKind>(["fc", "official", "cd_serial", "playguide"]);
+
+/**
+ * Where a round stands: `announced` before applications open, `open` while they do, `awaiting_result`
+ * between the deadline and the result, `result_out` once it is out, `payment_open` until the payment
+ * deadline, and `closed` once every date it knows has passed.
+ */
+export type TicketRoundStatus = "announced" | "open" | "awaiting_result" | "result_out" | "payment_open" | "closed";
+
+/** One dated point of a round. Both halves are on the announcement's own clock, like every other date. */
+export interface TicketRoundDate {
+  at: string;
+  day: string;
+  localTime: string | null;
+}
+
+export interface TicketRoundView {
+  publicId: string;
+  kind: TicketRoundKind;
+  /** The platform the original named, in the glossary's own writing; null when it named none. */
+  platform: string | null;
+  timezone: Timezone;
+  status: TicketRoundStatus;
+  applyStart: TicketRoundDate | null;
+  applyEnd: TicketRoundDate | null;
+  resultOn: TicketRoundDate | null;
+  paymentDueOn: TicketRoundDate | null;
+  /** The report that first stated this round, when it still has a public page: where the date came from. */
+  itemId: string | null;
+  title: string | null;
+  firstSeenAt: string;
 }

@@ -71,6 +71,7 @@ const OWNERS: Record<string, string> = {
   deliveries: "notify/",
   facts: "events/", fact_articles: "events/", stories: "events/", story_signals: "events/", story_aliases: "events/", story_links: "events/",
   story_digests: "events/", grouping_decisions: "events/", grouping_overrides: "events/",
+  live_events: "lives/", ticket_rounds: "lives/", ticket_round_events: "lives/",
   audit_log: "audit.ts",
 };
 

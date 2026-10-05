@@ -6,13 +6,15 @@
 //   3. structure: category, tags, subjects and the current news fact, beside scoring;
 //   4. writing, once the structure is in: the Chinese title, summary and reason by the content
 //      understanding for selected and near-selected items, by the cheaper title/summary prompts for the rest;
-//   5. live: what the show itself is (name, venue, start time, last day, announced status), only for
-//      Live or ticket material whose structure step found a start date — lives/link.ts turns it into a
-//      Live page, and without a date there is no identity to derive.
+//   5. live: what the show itself is (name, venue, start time, last day, announced status) and which
+//      ticket rounds it is taking applications for, only for Live or ticket material whose structure
+//      step found a start date — lives/link.ts turns it into a Live page and lives/tickets.ts into the
+//      ticket rounds the radar shows, and without a date there is no identity to derive.
 // Material with only a title or a feed summary has its article page fetched before it is judged.
 import { z } from "zod";
 import { CATEGORY_KEYS } from "@girlsbands/contracts/taxonomy";
-import { DEADLINE_KINDS, type LiveStatus } from "@girlsbands/contracts/site";
+import { DEADLINE_KINDS, TICKET_ROUND_KINDS, type LiveStatus, type TicketRoundKind } from "@girlsbands/contracts/site";
+import { glossaryHits } from "@girlsbands/industry/glossary";
 import { CATEGORIES, LIVE_CATEGORIES } from "@girlsbands/industry/taxonomy";
 import { SELECTION } from "@girlsbands/industry/selection";
 import { sql } from "../db.ts";
@@ -113,6 +115,9 @@ export function buildScoreInput(a: AnalyzeInputArticle): string {
  *  reaches a reader. */
 const DEADLINE_AT = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/;
 
+/** A value that is only a day, with no clock on it. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 const PrefilterSchema = z.object({
   label: z.preprocess((v) => String(v ?? "").trim().toUpperCase(), z.enum(["PASS", "BLOCK", "UNKNOWN"])),
   reason: z.string().max(200).catch(""),
@@ -158,6 +163,16 @@ const LiveSchema = z.object({
   startsTime: z.string().trim().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).nullable().catch(null),
   endsOn: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().catch(null),
   status: z.enum(["scheduled", "cancelled", "postponed"]).catch("scheduled"),
+  rounds: z.array(z.object({
+    kind: z.enum(TICKET_ROUND_KINDS).catch("general"),
+    platform: z.string().trim().max(60).nullable().catch(null),
+    applyStart: z.string().trim().regex(DEADLINE_AT).nullable().catch(null),
+    applyEnd: z.string().trim().regex(DEADLINE_AT).nullable().catch(null),
+    resultOn: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().catch(null),
+    paymentDueOn: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().catch(null),
+    // The sentence this round was read from: every other field has to be found inside it.
+    quote: z.string().trim().max(600).catch(""),
+  })).max(8).catch([]),
 });
 
 const UnderstandSchema = z.object({
@@ -220,6 +235,18 @@ export function normalizeStructure(data: z.infer<typeof StructureSchema>, a: Ana
   };
 }
 
+/** One acceptance window of a live: FC 先行 opens, 一般贩售 opens, each with its own dates. */
+export interface LiveRound {
+  kind: TicketRoundKind;
+  platform: string | null;
+  applyStart: string | null;
+  applyEnd: string | null;
+  resultOn: string | null;
+  paymentDueOn: string | null;
+  /** The sentence it was read from, already checked to be in the original. */
+  quote: string;
+}
+
 /** The show itself, as read from the announcement: `output.live` on the stored judgement. */
 export interface LiveRead {
   title: string | null;
@@ -227,13 +254,20 @@ export interface LiveRead {
   startsTime: string | null;
   endsOn: string | null;
   status: LiveStatus;
+  rounds: LiveRound[];
 }
 
-/** A clock time written out in the original: `18:30`, `18時30分` and `18時30` all count. */
+/** A clock time written out in the original: `18:30`, `18時30分` and `18時30` all count. A value that
+ *  carries a date too needs both halves in the text — the original writes `10月3日(金) 20:00`, not the
+ *  `2026-10-03T20:00` we store, so checking the joined form alone would drop every window. */
 function clockInText(text: string, value: string | null): string | null {
   if (!value) return null;
-  const [h, m] = value.split(":");
-  const forms = [value, `${Number(h)}:${m}`, `${Number(h)}時${Number(m)}分`, `${Number(h)}時${Number(m)}`];
+  const day = DATE_ONLY.test(value) ? value : value.includes("T") ? value.slice(0, 10) : null;
+  if (day !== null && dateInText(text, day) === null) return null;
+  const clock = value.includes("T") ? value.slice(11) : DATE_ONLY.test(value) ? null : value;
+  if (clock === null) return value;
+  const [h, m] = clock.split(":");
+  const forms = [clock, `${Number(h)}:${m}`, `${Number(h)}時${Number(m)}分`, `${Number(h)}時${Number(m)}`];
   return forms.some((f) => text.includes(f)) ? value : null;
 }
 
@@ -243,6 +277,44 @@ function dateInText(text: string, value: string | null): string | null {
   const [y, m, d] = value.split("-");
   const forms = [value, `${y}/${m}/${d}`, `${y}年${Number(m)}月${Number(d)}日`, `${Number(m)}月${Number(d)}日`];
   return forms.some((f) => text.includes(f)) ? value : null;
+}
+
+/** The platform named, in the glossary's own writing (`ローチケ` → `ローソンチケット`), else as stated. */
+function platformOf(stated: string | null, text: string): string | null {
+  if (stated) return glossaryHits(stated, ["platform"])[0]?.forms[0] ?? stated;
+  const hits = glossaryHits(text, ["platform"]);
+  return hits.length === 1 ? (hits[0]!.forms[0] ?? null) : null;
+}
+
+/**
+ * Keep the rounds the announcement really states. A round only exists when the sentence it was read
+ * from is in the original, and each date has to be found in that sentence — so a "通常是这样" date the
+ * model filled in is dropped rather than shown as something to plan around. A round with nothing left
+ * is no round at all.
+ */
+export function normalizeRounds(rounds: z.infer<typeof LiveSchema>["rounds"], text: string): LiveRound[] {
+  const seen = new Set<string>();
+  const out: LiveRound[] = [];
+  for (const r of rounds) {
+    const quote = collapseWhitespace(r.quote);
+    if (!quote || !text.includes(quote)) continue;
+    const key = `${r.kind}|${r.applyStart ?? ""}`;
+    if (seen.has(key)) continue;
+    const round: LiveRound = {
+      kind: r.kind,
+      platform: platformOf(r.platform, text),
+      applyStart: clockInText(quote, r.applyStart),
+      applyEnd: clockInText(quote, r.applyEnd),
+      resultOn: dateInText(quote, r.resultOn),
+      paymentDueOn: dateInText(quote, r.paymentDueOn),
+      quote,
+    };
+    if (!round.platform && !round.applyStart && !round.applyEnd && !round.resultOn && !round.paymentDueOn) continue;
+    seen.add(key);
+    out.push(round);
+    if (out.length === 6) break;
+  }
+  return out;
 }
 
 /**
@@ -259,7 +331,8 @@ export function normalizeLive(data: z.infer<typeof LiveSchema>, a: AnalyzeInputA
   const endsOn = dateInText(text, data.endsOn);
   // Only an announcement that says so can cancel or postpone a show.
   const status = data.status === "scheduled" || /中止|延期|振替|見送|キャンセル|cancel|取消|推迟/i.test(text) ? data.status : "scheduled";
-  return title || venue || startsTime || endsOn ? { title, venue, startsTime, endsOn, status } : null;
+  const rounds = normalizeRounds(data.rounds, text);
+  return title || venue || startsTime || endsOn || rounds.length > 0 ? { title, venue, startsTime, endsOn, status, rounds } : null;
 }
 
 /** The live step only has something to say about Live or ticket material with a start date to key on. */
@@ -645,9 +718,12 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
     ...(w?.identityGuard?.outcome === "fallback" ? { identityGuard: w.identityGuard } : {}),
     scope: out.scope, fact: out.fact,
     // What the show itself is (Live and ticket material only); lives/link.ts reads it back to name a
-    // Live, and falls back to the announcement text for whatever the model left out.
+    // Live, and lives/tickets.ts turns `rounds` into the acceptance windows the radar shows.
     ...(run.live ? {
-      live: { title: run.live.title, venue: run.live.venue, startsTime: run.live.startsTime, endsOn: run.live.endsOn, status: run.live.status },
+      live: {
+        title: run.live.title, venue: run.live.venue, startsTime: run.live.startsTime, endsOn: run.live.endsOn,
+        status: run.live.status, rounds: run.live.rounds,
+      },
     } : {}),
   };
   const committed = await sql.begin(async (tx) => {

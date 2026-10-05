@@ -9,7 +9,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { upsertMaterial } from "@girlsbands/backend/content/materials";
-import { analyzeArticle, buildMaterial, loadAnalyzeInput, normalizeStructure, NO_COPY_ERROR, StructureSchema, tierThreshold } from "@girlsbands/backend/editorial/analyze";
+import { analyzeArticle, buildMaterial, loadAnalyzeInput, normalizeRounds, normalizeStructure, NO_COPY_ERROR, StructureSchema, tierThreshold } from "@girlsbands/backend/editorial/analyze";
 import { queueProcessing, requeueFailed } from "@girlsbands/backend/jobs/content";
 import { QUEUES, stopBoss } from "@girlsbands/backend/jobs/queue";
 import { compactAnswerFirstSummary, enforceIdentity, MAX_BODY_CHARS, parseTranslateOutput, PREFILTER_SYSTEM } from "@girlsbands/backend/editorial/writing";
@@ -137,7 +137,7 @@ test("a Live or ticket announcement with a start date reads the show itself, and
   const res = await analyzeArticle(id);
   assert.deepEqual(calls("SHOWGOOD").sort(), ["live", "prefilter", "score", "score", "structure", "understand"]);
   const r = await row(id);
-  assert.deepEqual(r.output.live, { title: "演出名 SHOWGOOD", venue: "ぴあアリーナMM", startsTime: "18:30", endsOn: null, status: "scheduled" });
+  assert.deepEqual(r.output.live, { title: "演出名 SHOWGOOD", venue: "ぴあアリーナMM", startsTime: "18:30", endsOn: null, status: "scheduled", rounds: [] }, "一条没有票务的演出公告照样成页");
   assert.equal(r.receipt_ids.length, 6, "这一步的回执也记在这条分析上");
   assert.equal(res!.reused, false);
   const live = requests.find((q) => q.marker === "SHOWGOOD" && q.step === "live")!;
@@ -147,13 +147,38 @@ test("a Live or ticket announcement with a start date reads the show itself, and
   // A venue and a time the announcement never states are dropped, the name is not; 中止是原文说的才算。
   const bad = await article("SHOWBAD", { bodyText: `SHOWBAD: ${LONG} この公演は中止となりました (${T})` });
   await analyzeArticle(bad);
-  assert.deepEqual((await row(bad)).output.live, { title: "演出名 SHOWBAD", venue: null, startsTime: null, endsOn: null, status: "cancelled" });
+  assert.deepEqual((await row(bad)).output.live, { title: "演出名 SHOWBAD", venue: null, startsTime: null, endsOn: null, status: "cancelled", rounds: [] });
 
   // A stream is not a show: the start date alone does not earn the step.
   const stream = await article("STREAMSHOW", { bodyText: `STREAMSHOW: ${LONG} 会場：ぴあアリーナMM 18:30 開演 (${T})` });
   await analyzeArticle(stream);
   assert.deepEqual(calls("STREAMSHOW").sort(), ["prefilter", "score", "score", "structure", "understand"]);
   assert.equal((await row(stream)).output.live, undefined, "生放送没有演出这一节");
+});
+
+test("a round is kept only when the sentence the model quoted really states it, and never twice", () => {
+  const text = "チケット情報 FC先行 10月3日(金) 20:00 〜 10月10日(金) 23:59 受付 一般販売 10月20日(火) 10:00 発売 会場：ぴあアリーナMM";
+  const rounds = normalizeRounds([
+    { kind: "fc", platform: null, applyStart: "2026-10-03T20:00", applyEnd: "2026-10-10T23:59", resultOn: null, paymentDueOn: null, quote: "FC先行 10月3日(金) 20:00 〜 10月10日(金) 23:59 受付" },
+    { kind: "fc", platform: null, applyStart: "2026-10-03T20:00", applyEnd: null, resultOn: null, paymentDueOn: null, quote: "FC先行 10月3日(金) 20:00 〜 10月10日(金) 23:59 受付" },
+    { kind: "general", platform: null, applyStart: "2026-10-20T10:00", applyEnd: null, resultOn: null, paymentDueOn: null, quote: "一般販売 10月20日(火) 10:00 発売" },
+    { kind: "official", platform: null, applyStart: "2026-11-01", applyEnd: null, resultOn: null, paymentDueOn: null, quote: "公式先行 11月1日 受付" },
+    { kind: "general", platform: null, applyStart: "2026-10-20T10:00", applyEnd: null, resultOn: null, paymentDueOn: null, quote: "一般販売 10月20日(火) 10:00 発売" },
+    { kind: "day_of", platform: null, applyStart: null, applyEnd: null, resultOn: null, paymentDueOn: null, quote: "当日券" },
+  ], text);
+  // The repeated pair collapses, the sentence the text never wrote goes, and so does the round with no date at all.
+  assert.deepEqual(rounds.map((r) => [r.kind, r.applyStart, r.applyEnd]), [
+    ["fc", "2026-10-03T20:00", "2026-10-10T23:59"],
+    ["general", "2026-10-20T10:00", null],
+  ]);
+  assert.equal(rounds[0]!.platform, null, "一个没有写平台的轮次不猜平台");
+
+  // A date-only window survives a quote that writes the date the Japanese way; a clock the quote never wrote does not.
+  const plain = normalizeRounds([
+    { kind: "official", platform: null, applyStart: "2026-11-01", applyEnd: null, resultOn: null, paymentDueOn: null, quote: "公式先行 11月1日(日) 受付" },
+    { kind: "cd_serial", platform: null, applyStart: "2026-11-01T09:00", applyEnd: null, resultOn: null, paymentDueOn: null, quote: "シリアル先行 11月1日(日) 受付" },
+  ], "公式先行 11月1日(日) 受付 シリアル先行 11月1日(日) 受付");
+  assert.deepEqual(plain.map((r) => [r.kind, r.applyStart]), [["official", "2026-11-01"]], "原文只写日期就只记日期，引文里没有的时刻不认");
 });
 
 test("structure retains grounded conditions, rejects invented or unseen quotes, and does not infer missing scope", async () => {

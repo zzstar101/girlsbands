@@ -12,11 +12,12 @@
 // is something the reader cannot miss even when the announcement that carried it was not worth pushing as
 // news; the reports that did clear the bar carry `selected` and sort first within their day.
 import type { DeadlineKind, DeadlinesResponse, DeadlineView } from "@girlsbands/contracts/site";
-import { DEADLINE_KINDS } from "@girlsbands/contracts/site";
+import { DEADLINE_KINDS, TICKET_ROUND_KINDS, type TicketRoundKind } from "@girlsbands/contracts/site";
 import { sql } from "../db.ts";
-import { deadlineInstant, splitDeadlineAt, timezoneOf } from "../sources/timezone.ts";
+import { deadlineInstant, isTimezone, splitDeadlineAt, timezoneOf } from "../sources/timezone.ts";
 import { entityIds, entityTags, publicSourceName, hasItemPage } from "./rules.ts";
 import { listedCondition } from "./scope.ts";
+import { roundNote, roundSlotKind, type RoundSlot } from "./tickets.ts";
 
 const JST_OFFSET_MS = 9 * 3600 * 1000;
 const DAY_MS = 86_400_000;
@@ -24,6 +25,8 @@ const SOON_MS = 2 * DAY_MS;
 /** The most rows one window reads; the calendar's year and the radar's month both fit inside it. */
 const MAX_LIMIT = 2_000;
 const KINDS: ReadonlySet<string> = new Set<string>(DEADLINE_KINDS);
+const ROUND_KINDS: ReadonlySet<string> = new Set<string>(TICKET_ROUND_KINDS);
+const SLOTS: ReadonlySet<string> = new Set<string>(["applyStart", "applyEnd", "resultOn", "paymentDueOn"]);
 
 /** `YYYY-MM-DD` of the instant on the Japan calendar. */
 export function jstDate(instant: Date): string {
@@ -49,12 +52,22 @@ interface Row {
   kind: string | null;
   at: string | null;
   note: string | null;
+  /** 轮次那一支的列（公告那一支全是 null）：哪一种受理、是四个日期槽位里的哪一个。 */
+  round_kind: string | null;
+  round_slot: string | null;
+  round_timezone: string | null;
+  platform: string | null;
 }
 
 /**
  * The dated rows inside a JST window, bucketed by day, oldest first. `at` sorts as text because the
  * stored format is zero-padded ISO — `2026-10-04` < `2026-10-04T10:00` < `2026-10-05`. `storyId`
  * narrows it to one event's own reports; `subject` to one entity and everything in its series.
+ *
+ * Two sources of dates, unioned: what each report's own text states, and the ticket rounds of the
+ * shows it is about (ticket_rounds, written by lives/tickets.ts). A show that has rounds keeps its
+ * ticket dates from there and its report's own ticket-ish entries are dropped, so the same closing
+ * day cannot appear twice.
  */
 async function deadlineWindow(
   now: Date,
@@ -65,21 +78,52 @@ async function deadlineWindow(
   const storyFilter = opts.storyId === undefined ? sql`` : sql`AND p.story_id = ${opts.storyId}`;
   const subjectFilter = opts.subject === undefined ? sql`` : sql`AND p.tags && ${entityTags(opts.subject)}::text[]`;
   const rows = await sql<Row[]>`
-    SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at,
-           s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
-           d.value->>'kind' AS kind, d.value->>'at' AS at, d.value->>'note' AS note
-    FROM publications p
-    JOIN sources s ON s.id = p.source_id
-    JOIN analyses an ON an.id = p.analysis_id
-    CROSS JOIN LATERAL jsonb_array_elements(an.output->'fact'->'deadlines') AS d(value)
-    WHERE ${listedCondition(now)}
-      AND jsonb_typeof(an.output->'fact'->'deadlines') = 'array'
-      ${itemFilter}
-      ${storyFilter}
-      ${subjectFilter}
-      AND d.value->>'at' >= ${opts.from} AND d.value->>'at' < ${addDays(opts.to, 1)}
-    ORDER BY d.value->>'at', p.selected DESC, p.article_id
-    LIMIT ${opts.limit}`;
+    WITH dated AS (
+      SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at,
+             s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
+             d.value->>'kind' AS kind, d.value->>'at' AS at, d.value->>'note' AS note,
+             NULL::text AS round_kind, NULL::text AS round_slot, NULL::text AS round_timezone, NULL::text AS platform
+      FROM publications p
+      JOIN sources s ON s.id = p.source_id
+      JOIN analyses an ON an.id = p.analysis_id
+      LEFT JOIN facts f ON f.id = p.fact_id
+      CROSS JOIN LATERAL jsonb_array_elements(an.output->'fact'->'deadlines') AS d(value)
+      WHERE ${listedCondition(now)}
+        AND jsonb_typeof(an.output->'fact'->'deadlines') = 'array'
+        ${itemFilter}
+        ${storyFilter}
+        ${subjectFilter}
+        AND d.value->>'at' >= ${opts.from} AND d.value->>'at' < ${addDays(opts.to, 1)}
+        -- 这一天已经由轮次接管时不再重复列出：报告自己写出的票务日期与 ticket_rounds 说的是同一天。
+        AND NOT EXISTS (
+          SELECT 1 FROM ticket_rounds tr
+          WHERE d.value->>'kind' IN ('lottery_start', 'lottery_end', 'sale_start', 'sale_end', 'result', 'payment_deadline')
+            AND (tr.live_event_id = f.live_event_id OR tr.first_article_id = p.article_id)
+            AND substring(d.value->>'at' FROM 1 FOR 10) IN (
+              substring(tr.apply_start_at FROM 1 FOR 10), substring(tr.apply_end_at FROM 1 FOR 10),
+              substring(tr.result_on FROM 1 FOR 10), substring(tr.payment_due_on FROM 1 FOR 10)
+            )
+        )
+      UNION ALL
+      SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at,
+             s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
+             NULL::text AS kind, e.slot_at AS at, NULL::text AS note,
+             tr.kind AS round_kind, e.slot AS round_slot, tr.timezone AS round_timezone, tr.platform AS platform
+      FROM ticket_rounds tr
+      JOIN publications p ON p.article_id = tr.first_article_id
+      JOIN sources s ON s.id = p.source_id
+      CROSS JOIN LATERAL (VALUES
+        ('applyStart', tr.apply_start_at), ('applyEnd', tr.apply_end_at),
+        ('resultOn', tr.result_on), ('paymentDueOn', tr.payment_due_on)
+      ) AS e(slot, slot_at)
+      WHERE ${listedCondition(now)}
+        ${itemFilter}
+        ${storyFilter}
+        ${subjectFilter}
+        AND e.slot_at IS NOT NULL
+        AND e.slot_at >= ${opts.from} AND e.slot_at < ${addDays(opts.to, 1)}
+    )
+    SELECT * FROM dated ORDER BY at, selected DESC, item_id LIMIT ${opts.limit}`;
 
   const days = new Map<string, DeadlineView[]>();
   let total = 0;
@@ -90,15 +134,17 @@ async function deadlineWindow(
     // is the last gate before the page prints a date someone might plan around.
     const split = at === null ? null : splitDeadlineAt(at);
     if (!at || !split) continue;
-    const timezone = timezoneOf(r.source_config);
+    const timezone = r.round_timezone !== null && isTimezone(r.round_timezone) ? r.round_timezone : timezoneOf(r.source_config);
+    const roundKind = r.round_kind !== null && ROUND_KINDS.has(r.round_kind) ? (r.round_kind as TicketRoundKind) : null;
+    const slot = SLOTS.has(r.round_slot ?? "") ? (r.round_slot as RoundSlot) : null;
     const day = split.day;
     const view: DeadlineView = {
       at,
       day,
       localTime: split.localTime,
       timezone,
-      kind: KINDS.has(r.kind ?? "") ? (r.kind as DeadlineKind) : "other",
-      note: r.note?.trim() || null,
+      kind: roundKind && slot ? roundSlotKind(roundKind, slot) : KINDS.has(r.kind ?? "") ? (r.kind as DeadlineKind) : "other",
+      note: roundKind ? roundNote(roundKind, r.platform) : r.note?.trim() || null,
       itemId: r.item_id,
       title: r.title,
       url: r.url,
@@ -151,15 +197,38 @@ export async function deadlineRange(
 export async function deadlineMonths(now: Date, opts: { from: string; to: string; subject?: string }): Promise<string[]> {
   const subjectFilter = opts.subject === undefined ? sql`` : sql`AND p.tags && ${entityTags(opts.subject)}::text[]`;
   const rows = await sql<{ month: string }[]>`
-    SELECT DISTINCT substring(d.value->>'at' FROM 1 FOR 7) AS month
-    FROM publications p
-    JOIN analyses an ON an.id = p.analysis_id
-    CROSS JOIN LATERAL jsonb_array_elements(an.output->'fact'->'deadlines') AS d(value)
-    WHERE ${listedCondition(now)}
-      AND jsonb_typeof(an.output->'fact'->'deadlines') = 'array'
-      ${subjectFilter}
-      AND d.value->>'at' ~ '^\\d{4}-\\d{2}'
-      AND d.value->>'at' >= ${opts.from} AND d.value->>'at' < ${addDays(opts.to, 1)}
-    ORDER BY month`;
+    WITH months AS (
+      SELECT substring(d.value->>'at' FROM 1 FOR 7) AS month
+      FROM publications p
+      JOIN analyses an ON an.id = p.analysis_id
+      LEFT JOIN facts f ON f.id = p.fact_id
+      CROSS JOIN LATERAL jsonb_array_elements(an.output->'fact'->'deadlines') AS d(value)
+      WHERE ${listedCondition(now)}
+        AND jsonb_typeof(an.output->'fact'->'deadlines') = 'array'
+        ${subjectFilter}
+        AND d.value->>'at' >= ${opts.from} AND d.value->>'at' < ${addDays(opts.to, 1)}
+        -- 这一天已经由轮次接管时不再重复列出：报告自己写出的票务日期与 ticket_rounds 说的是同一天。
+        AND NOT EXISTS (
+          SELECT 1 FROM ticket_rounds tr
+          WHERE d.value->>'kind' IN ('lottery_start', 'lottery_end', 'sale_start', 'sale_end', 'result', 'payment_deadline')
+            AND (tr.live_event_id = f.live_event_id OR tr.first_article_id = p.article_id)
+            AND substring(d.value->>'at' FROM 1 FOR 10) IN (
+              substring(tr.apply_start_at FROM 1 FOR 10), substring(tr.apply_end_at FROM 1 FOR 10),
+              substring(tr.result_on FROM 1 FOR 10), substring(tr.payment_due_on FROM 1 FOR 10)
+            )
+        )
+      UNION ALL
+      SELECT substring(e.slot_at FROM 1 FOR 7) AS month
+      FROM ticket_rounds tr
+      JOIN publications p ON p.article_id = tr.first_article_id
+      CROSS JOIN LATERAL (VALUES
+        (tr.apply_start_at), (tr.apply_end_at), (tr.result_on), (tr.payment_due_on)
+      ) AS e(slot_at)
+      WHERE ${listedCondition(now)}
+        ${subjectFilter}
+        AND e.slot_at IS NOT NULL
+        AND e.slot_at >= ${opts.from} AND e.slot_at < ${addDays(opts.to, 1)}
+    )
+    SELECT DISTINCT month FROM months WHERE month ~ '^\\d{4}-\\d{2}' ORDER BY month`;
   return rows.map((r) => r.month);
 }

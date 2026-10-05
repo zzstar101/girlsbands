@@ -8,6 +8,7 @@ import { ENTITIES } from "@girlsbands/industry/taxonomy";
 import { sql } from "../db.ts";
 import { deadlineRange } from "./deadlines.ts";
 import { storyReportCondition } from "./scope.ts";
+import { ROUND_SLOTS, roundSlotKind, roundsOf } from "./tickets.ts";
 import { liveReports } from "./report-views.ts";
 
 /** The dates of a live's own reports, wide enough to hold a lottery that opened long before the show. */
@@ -154,13 +155,20 @@ export async function loadLive(publicId: string, now = new Date()): Promise<Live
   const rows = await sql<LiveRow[]>`SELECT ${LIVE_SELECT(now)} WHERE le.public_id = ${publicId}`;
   const [row] = rows;
   if (!row || row.report_count === 0) return null;
-  const [dates, facts] = await Promise.all([
+  const [dates, facts, rounds] = await Promise.all([
     datesOf(row.item_ids, now),
     sql<{ id: number }[]>`SELECT id FROM facts WHERE live_event_id = ${row.id}`,
+    roundsOf(row.id, now),
   ]);
   const reports: StoryReportView[] = await liveReports(facts.map((f) => f.id), now);
   const [seen] = await sql<{ first_seen_at: Date; updated_at: Date }[]>`
     SELECT first_seen_at, updated_at FROM live_events WHERE id = ${row.id}`;
+  // 页面上票务日期由轮次那一栏负责，雷达里那些同样的行就不再重复列一遍。
+  const covered = new Set(rounds.flatMap((r) => ROUND_SLOTS.flatMap((slot) => {
+    const date = r[slot];
+    return date ? [`${roundSlotKind(r.kind, slot)}|${date.day}`] : [];
+  })));
+  const today = timezoneDate(row.timezone, now);
   return {
     ...refOf(row, dates, now),
     endsOn: row.ends_on,
@@ -170,7 +178,8 @@ export async function loadLive(publicId: string, now = new Date()): Promise<Live
     firstSeenAt: (seen?.first_seen_at ?? now).toISOString(),
     updatedAt: (seen?.updated_at ?? now).toISOString(),
     reports,
-    dates: dates.filter((d) => d.day >= timezoneDate(row.timezone, now)),
+    rounds,
+    dates: dates.filter((d) => d.day >= today && !covered.has(`${d.kind}|${d.day}`)),
     story: row.story_public_id === null ? null : { publicId: row.story_public_id, title: row.story_title ?? row.title },
   };
 }
