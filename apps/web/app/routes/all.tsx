@@ -6,7 +6,7 @@ import { SITE, subjectAfter } from "@girlsbands/industry/site";
 import { beijingTime } from "@girlsbands/contracts/time";
 import { edgeTtl, loadOr404 } from "../lib/api.server";
 import { filterParams, itemListLd, listPath, pageMeta, readFilters } from "../lib/seo";
-import { ActiveFilters, CategoryTabs, FeedBar, SearchField } from "../features/feed/Filters";
+import { ActiveFilters, CategoryTabs, FeedBar, FollowToggle, SearchField } from "../features/feed/Filters";
 import { PillTabs } from "../components/ui/Tabs";
 import { DayList, Pagination } from "../features/feed/DayList";
 import { EmptyState } from "../components/ui/Page";
@@ -41,13 +41,15 @@ export function meta({ loaderData }: Route.MetaArgs) {
   const f = loaderData?.data.filters;
   const q = f?.q;
   const page = loaderData?.data.page ?? 1;
+  // 只看关注 is one reader's own list, and a search result page stays out of the index: both are noindex.
+  const followed = Boolean(f?.subjects.length);
   const path = listPath("/all", { ...(f && filterParams(f)), q, tab: f?.tab === "relevance" ? "relevance" : null, page: page > 1 ? page : null });
   return pageMeta({
     title: q ? `搜索：${q}` : ALL_TITLE,
     description: `${SITE.name} 收录的${subjectAfter("全部", "相关动态")}，可按频道、类别与标签筛选，支持中英文搜索。`,
     path,
-    noindex: !!q,
-    jsonLd: q ? undefined : itemListLd(path, ALL_TITLE, loaderData?.data.items.map((i) => i.title) ?? []),
+    noindex: !!q || followed,
+    jsonLd: q || followed ? undefined : itemListLd(path, ALL_TITLE, loaderData?.data.items.map((i) => i.title) ?? []),
   });
 }
 
@@ -72,8 +74,8 @@ export default function AllPage() {
   const navigation = useNavigation();
   const f = data.filters;
   const busy = navigation.state === "loading" && navigation.location?.pathname === "/all";
-  const { channel, category } = filterParams(f);
-  const keep = { channel, category };
+  const { channel, category, subjects } = filterParams(f);
+  const keep = { channel, category, subjects };
   const searchTabHref = (tab: "time" | "relevance") => {
     const sp = new URLSearchParams(params);
     sp.delete("page");
@@ -81,7 +83,7 @@ export default function AllPage() {
     else sp.delete("tab");
     return `/all?${sp}`;
   };
-  const title = f.q ? `搜索“${f.q}”` : f.tag ? `#${f.tag}` : null;
+  const title = f.q ? `搜索“${f.q}”` : f.tag ? `#${f.tag}` : f.subjects.length > 0 ? "只看关注" : null;
   const updated = beijingTime(data.freshness);
   // Searches are remembered in this browser for the phone search (listed in the privacy notice).
   useEffect(() => {
@@ -106,15 +108,16 @@ export default function AllPage() {
           }
         />
       ) : (
-        <FeedBar base="/all" category={f.category} channel={f.channel} />
+        <FeedBar base="/all" category={f.category} channel={f.channel} subjects={f.subjects} />
       )}
-      <ActiveFilters base="/all" category={f.category} channel={f.channel} tag={f.tag} />
+      <ActiveFilters base="/all" category={f.category} channel={f.channel} tag={f.tag} subjects={f.subjects} />
 
       {/* Desktop, as on 精选: the title, then one filter row with the search field aligned on the right. */}
       <div className="hidden lg:block">
         <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">{title ?? ALL_TITLE}</h1>
         <div className="mb-5 mt-4 flex items-center justify-between gap-4">
           <CategoryTabs base="/all" category={f.category} channel={f.channel} layoutId="all-cat-desk" className="min-w-0" />
+          <FollowToggle base="/all" subjects={f.subjects} />
           <SearchField defaultValue={f.q ?? ""} keep={keep} />
         </div>
       </div>
@@ -147,7 +150,7 @@ export default function AllPage() {
                 ) : undefined
               }
             >
-              {f.q ? "换个说法，或者去掉筛选再试。" : "这个筛选下暂时没有内容。"}
+              {f.q ? "换个说法，或者去掉筛选再试。" : f.subjects.length > 0 ? "关注的乐队暂时没有新内容，去掉筛选或稍后再看。" : "这个筛选下暂时没有内容。"}
             </EmptyState>
           </div>
         ) : (
@@ -161,7 +164,7 @@ export default function AllPage() {
 }
 
 const RETRY_AFTER_SECONDS = 5;
-const SEARCH_PARAMS = ["q", "tag", "channel", "category", "page", "tab"];
+const SEARCH_PARAMS = ["q", "tag", "channel", "category", "subjects", "page", "tab"];
 
 /** The busy page after an overloaded search: the same search can be tried again after a few seconds. */
 export function SearchBusy() {

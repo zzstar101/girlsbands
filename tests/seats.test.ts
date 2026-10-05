@@ -97,7 +97,7 @@ test("one fact holds one selected seat on v1, RSS and the sync ledger", async ()
 
   // A later evaluation of the same product is another news item in every selected outlet.
   // It must not replace the launch, inherit its copy, or lift its original timeline position.
-  const timelineQuery = { channel: "all" as const, category: null, tag: `t-${T}`, now: new Date() };
+  const timelineQuery = { channel: "all" as const, category: null, tag: `t-${T}`, subjects: [], now: new Date() };
   const before = await loadTimeline(timelineQuery);
   const [evaluation] = await sql<{ id: number }[]>`INSERT INTO facts (public_id, story_id, title)
     VALUES (${`evaluation-${T}`}, ${story!.id}, 'New evaluation') RETURNING id`;

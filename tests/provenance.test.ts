@@ -210,7 +210,7 @@ test("a non-T1 flag cannot enter the first-party channel, and source edits deriv
     VALUES (${articleId}, 1, 'rule', 'pass', ${id}, '公告摘要', false)`;
   await publishArticle(articleId);
   assert.equal((await sql`SELECT first_party FROM publications WHERE article_id = ${articleId}`)[0]!.first_party, false);
-  const pool = await loadPool({ channel: "firstParty", q: id, category: null, tag: null });
+  const pool = await loadPool({ channel: "firstParty", q: id, category: null, tag: null, subjects: [] });
   assert.equal(pool.items.length, 0);
   const [s] = await sql`SELECT updated_at FROM sources WHERE id = ${id}`;
   const updated = await updateSource(id, { version: s!.updated_at.toISOString(), patch: { tier: "T1", first_party: false } }, "test");

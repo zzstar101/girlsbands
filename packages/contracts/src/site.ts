@@ -138,6 +138,12 @@ export interface TimelineFilters {
   channel: ChannelKey;
   category: CategoryKey | null;
   tag: string | null;
+  /**
+   * 「只看关注」：读者勾选的主体 id（乐队或企划），空数组就是不过滤。企划按整个系列算。
+   * 它是这位读者自己带来的筛选：页面据此 noindex（地址里只有公开的主体 id，所以照旧可以共享缓存，
+   * 只是按完整地址分键，不同关注列表各存一份、不会互相串）。
+   */
+  subjects: string[];
 }
 
 export interface TimelineResponse {

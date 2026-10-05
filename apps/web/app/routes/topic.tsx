@@ -10,6 +10,7 @@ import { edgeTtl, loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled, topicLd } from "../lib/seo";
 import { DayList, Pagination } from "../features/feed/DayList";
 import { parentOf, subjectOfId } from "../features/feed/bands";
+import { FollowButton } from "../features/feed/FollowButton";
 import { BandLogo } from "../components/ui/BandTip";
 import { BrandMark } from "../components/ui/BrandMark";
 import { PillTabs } from "../components/ui/Tabs";
@@ -229,6 +230,7 @@ export default function TopicRoute() {
           </p>
         </div>
         <div className="flex items-center gap-4 text-[12px] text-ink-4">
+          {band && <FollowButton subject={band} />}
           {topic.latest && (
             <span>
               <time dateTime={topic.latest.at} className="num">{monthDayTime(topic.latest.at)}</time> 更新

@@ -623,24 +623,33 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 - **「只看我关注的」不需要新数据**：`ItemSummary.subjects` 由 `packages/backend/src/publication/items.ts:131` 的 `toItemSummary` 用 `entityIds(row.tags)` 产出，每张卡片都有；过滤接进 `apps/web/app/lib/seo.ts:48/59` 与 `packages/contracts/src/site.ts:114` 的 `TimelineFilters` URL 参数即可。
 - 提醒类别可以复用现成的 `CategoryKey`（`industry/taxonomy.ts:15` 的 `live/ticket/release/merch/media/member`），`DeadlineView` 已经同时带 `kind` 与 `category`。
 
-**设计**
-1. **本地关注**：`local-state.ts` 的 `KEYS` 加 `girlsbands-follows`（主体 id 数组）；主体页 / 乐队页加「关注」按钮；列表页支持 `?follows=1` 只看关注（纯 URL 参数 + 本地过滤）。
-2. **一键转邮件**：`/subscribe` 读本地关注预填 `BandPicker`，提交走现有 `subscribe` 流程。**不新造 token**：读者端自生成 token 会让 `subscribers.token` 变成可猜面，而它同时是 `List-Unsubscribe` 凭据；要短链就做 `/subscriptions/:token` 别名。
-3. **迁移**（`0063_subscriber_kinds.sql`：加 `subscribers.kinds text[]`，**不需要新表**）：`updatePreferences` 与 `subscriptions/notify.ts` 按类别过滤；`kinds` 为空表示「全部」，与现在的行为一致。
-4. **隐私**：带 `subjects=` / `follows=` 的列表 URL 必须 `noindex`（照 `apps/web/app/routes/all.tsx:47` 的写法）。
+**设计（2026-10-05 与站主逐条敲定）**
+1. **本地关注**：`local-state.ts` 的 `KEYS` 加 `girlsbands-follows`（主体 id 数组，上限 `FOLLOW_LIMIT = SUBJECT_LIMIT`，因为这份列表要塞进一个地址）；**只有 22 个乐队/企划页有「关注」按钮**（`subjectOfId(topic.slug)` 非空即渲染，9 个方向页没有）；关注企划 = 关注整个系列（与企划页的收录范围同一套 `entityTags` 展开）。
+2. **只看关注由服务器筛**（**改了原计划**）：原计划写的是 `?follows=1` 纯 URL 参数 + 浏览器本地过滤，**不成立** —— 时间线（游标 `tl2`）与池（固定页）都是服务端分页，本地过滤会让每一页只剩零星几条，每页条数还忽多忽少。改成把关注 id 当 `?subjects=a,b` 传给 `/api/site/timeline` 与 `/api/site/pool`；白名单与解析收在 `packages/contracts/src/taxonomy.ts` 的 `parseSubjectIds`（`Object.hasOwn(ENTITIES, …)` —— 用 `in` 的话 `?subjects=constructor` 会被原型链放行），`apps/web/app/lib/seo.ts` 的 `filterParams` 把列表排序后拼串，所以「勾选顺序不同」共用同一个地址、同一份后端缓存。
+3. **一键转邮件**：`/subscribe` 读本地关注预填 `BandPicker`（只预填一次，之后读者改的不会被本地回填覆盖），提交走现有 `subscribe` 流程，**单向**：不回写本地关注。**不新造 token**：读者端自生成 token 会让 `subscribers.token` 变成可猜面，而它同时是 `List-Unsubscribe` 凭据；短链做成 `/subscriptions/:token` 别名（`content.ts` 的 `manageUrl` 改印短链，早先发出去的长链接继续可用）。
+4. **不做按类别过滤邮件**（**站主拍板删掉**）：原计划的 `0063_subscriber_kinds.sql` 与 `subscribers.kinds` 列**全部不做** ⇒ **W12 不需要任何迁移**，0063 这个号让给 W13。关注只在两处起作用：列表页的「只看关注」、邮件订阅页的预填；截止雷达与日历不接。
+5. **隐私**：带 `subjects=` 的列表 URL 一律 `noindex`（照 `apps/web/app/routes/all.tsx:47` 的写法），`/all` 的忙页重试也把这个参数带上。
 
 **验收标准**
 
 | 检查 | 通过标准 |
 |---|---|
-| 本地关注 | 关注 / 取关在刷新后仍在；`exportBundle` 能带出关注列表 |
+| 本地关注 | 关注 / 取关在刷新后仍在；`exportBundle` 能带出关注列表，导入时读者自己的顺序在前 |
+| 只看关注 | `?subjects=a,b` 的列表只剩这些主体的内容（并集）；企划 = 整个系列；勾选顺序不同是同一个地址；换一份关注列表后旧游标失效 |
 | 一键转邮件 | 从 `/subscribe` 提交后，邮件里的偏好与本地关注一致；`wantsDeadlines` / `wantsDigest` 老行为不变 |
-| 类别过滤 | 只勾 `ticket` 的订阅者收不到 `release` 提醒；`kinds` 为空的订阅者行为与现在逐字一致 |
-| 隐私 | `?follows=1` / `?subjects=…` 的页面 `<meta name="robots" content="noindex">` |
-| 测试 | `tests/subscriptions.test.ts` 扩两个用例（类别过滤、空 kinds 兼容） |
+| 隐私 | `?subjects=…` 的页面 `<meta name="robots" content="noindex">` |
+| 测试 | `tests/subject-filter.test.ts`（白名单、系列展开、时间线/池过滤、游标绑定、API 取参）；`tests/subscriptions.test.ts` 改断言短链；`apps/web/tests/local-state.test.ts` 加关注用例 |
 
-**待站主拍板**：见 §七（自生成 token 不做，改成短链别名 —— 需点头）。
-**工作量**：2 天，无模型成本。
+**实现与验证（2026-10-05 完成）**
+1. **契约**（`packages/contracts/src/taxonomy.ts`）：`FOLLOWABLE_ENTITY_IDS`（`Object.keys(ENTITIES)`）、`isFollowableEntity(value)`（`Object.hasOwn` —— 用 `in` 的话 `?subjects=constructor` 会被原型链放行）、`SUBJECT_LIMIT = 30`、`parseSubjectIds(value)`（按逗号切、trim、白名单、去重、封顶 30 个）；`packages/contracts/src/site.ts` 的 `TimelineFilters` 加必填 `subjects: string[]`（空数组 = 不过滤）。网页与 API 共用这一套解析，不在两处各写一份。
+2. **读取层**：`publication/items.ts` 加 `subjectCondition(subjects)`（每个 id 过 `entityTags` 展开成 `entity:*` 标签，`p.tags && ARRAY` 取并集；空数组返回空片段）与 `subjectKey(subjects)`（排序去重，供缓存键与游标用）；接进 `timeline.ts`（`filterSql` 末尾 + `binding` 带 `s: subjectKey(q.subjects)` ⇒ 换一份关注列表后旧游标报 `cursor does not match this query`）、`pool.ts`（`listedCount`、`loadPool` 的过滤与 `poolTotal` 的缓存键）、`groups.ts`。`apps/api/src/routes/site.ts` 的 `parseFilters` 解析 `subjects`，热榜的 `unfiltered` 也要求 `!filters.subjects.length`（热榜是全站的，不跟着切）。
+3. **网页**：`apps/web/app/lib/seo.ts` 的 `readFilters` / `filterParams`（列表排序后拼串 ⇒ 勾选顺序不同共用同一个地址、同一份后端缓存）；`features/feed/Filters.tsx` 的「只看关注」开关（桌面按钮 + 手机筛选面板 + 可清除 chip；一次都没关注过时给去 `/#bands` 的引导，首页乐队区块因此加了 `id="bands"`）；`home.tsx` / `all.tsx` 传参与 `noindex`（`all.tsx` 忙页的 `SEARCH_PARAMS` 也带 `subjects`）；新建 `features/feed/FollowButton.tsx`（`IconHeart`）挂在 `topic.tsx` 的头部，`subjectOfId(topic.slug)` 非空才渲染 ⇒ 正好是那 22 个乐队/企划页；`/starred` 顶部一排关注标签（可进主体页、可一键取关），导入报告带上关注计数；`/subscribe` 用 `useFollows()` **只预填一次**（读者清空后不会被本地回填）。
+4. **短链**：`apps/web/app/lib/subscribe-link.ts` 的 `managePath(token, action)` 只认 16–64 位 base64url 形状的 token、只转发 `action=unsubscribe`（其它值一律丢掉，不原样透传）；`routes/subscriptions.tsx` 302 到 `/subscribe/manage?token=…`，形状不对就是 404；`packages/backend/src/subscriptions/content.ts` 的 `manageUrl` 改印短链，早先发出去的长链接继续可用。
+5. **无迁移**：按站主拍板砍掉 `0063_subscriber_kinds.sql`（0063 让给 W13）。
+6. **踩到的坑**：契约里加必填字段后，**网页测试里手写的 API 桩也要跟着改** —— `apps/web/tests/cache.test.ts:26` 的合成 `/api/site/timeline` 少了 `subjects`，`/` 直接 500（两条用例挂掉）；`apps/web/server.ts` 起的是 `build/server/index.js`，端到端实拍前必须先 `npm run build -w @girlsbands/web`。
+7. **验收数字**：见 §六「W12（2026-10-05 完成）：无账号关注」。
+
+**工作量**：实际约 1 天（契约与读取层半天、网页与短链半天，含测试与文档），无模型成本。
 
 ---
 
@@ -1180,6 +1189,28 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 
 验收：`npm run typecheck` 全绿；全量 `npm test` **675 通过 / 0 失败**；`node --test apps/web/tests/*.test.ts` **29 通过 / 0 失败**；`npm run build -w @girlsbands/web` 通过。零模型花费。
 
+**W12（2026-10-05 完成）：无账号关注**
+
+关注列表只存在浏览器（`girlsbands-follows`，不落库、无迁移），列表页的「只看关注」由**服务器**按 `?subjects=a,b` 过滤（`TimelineFilters.subjects`），`/subscribe` 拿本地关注预填一次，带该参数的页面一律 `noindex`；邮件里的管理链接改印 `/subscriptions/:token` 短链。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（含 `npm run typecheck -w @girlsbands/web`） |
+| `tests/subject-filter.test.ts` | **5 通过 / 0 失败**（新文件：白名单与原型链、企划展开成整个系列、时间线/池过滤、游标只属于一份关注列表、API 取参） |
+| `tests/subscriptions.test.ts` | 短链断言通过（`unsubscribeUrl` / `preferencesUrl` 的 pathname 是 `/subscriptions/<token>`，只有退订链接带 `action`） |
+| 全量 `npm test` | **680 通过 / 0 失败**（复跑两次都 0 失败；上一节基线 675，新增 5 条） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **37 通过 / 0 失败**（基线 29：新增 `local-state.test.ts` 关注的 5 条、`subscribe-link.test.ts` 3 条） |
+| 端到端实拍 | 起 `apps/web/server.ts` + 合成 API：`/subscriptions/<32 位 token>` → 302 `/subscribe/manage?token=…`；带 `?action=unsubscribe` 时该参数跟着走，`?action=delete` 丢掉；`/subscriptions/short`、`/subscriptions/0x8f%2F..%2Fetc` → 404。`/?subjects=mygo`、`/?subjects=mygo,roselia`、`/all?subjects=mygo` → 200 且 `<meta name="robots" content="noindex">`；`/`、`/all`、`/?subjects=not-a-band`（白名单外的 id 被丢掉）无该 meta。`?subjects=roselia,mygo` 与 `?subjects=mygo,roselia` 的 `<link rel="canonical">` 是同一个（`?subjects=mygo%2Croselia`） |
+| 迁移 | 无（按站主拍板取消 `0063_subscriber_kinds.sql`） |
+| 模型花费 | 零 |
+
+**W12 踩到的坑**
+- **契约里加必填字段 ⇒ 网页测试里手写的 API 桩必须同步改**：`apps/web/tests/cache.test.ts:26` 的合成 `/api/site/timeline` 少了 `subjects`，而 `home.tsx` 读 `filters.subjects.length` ⇒ `/` 直接 500，两条用例挂掉（其中一条报 `TypeError: Cannot read properties of null (reading '1')`，因为 500 响应没有 `max-age`）。全仓只有这一处 timeline 桩。
+- **`/all` 的 `PoolResponse.freshness` 是时间戳字符串**（页面用 `beijingTime` 渲染），端到端桩里写 `"fresh"` 会让整页 `RangeError: Invalid time value`。
+- **`Object.hasOwn` 而不是 `in`**：白名单用 `in` 的话 `?subjects=constructor`、`toString` 之类的原型链属性会被当成实体放行。
+- **短链只转发白名单里的 action**：`?action=delete` 这类值若原样透传到 manage 页，就等于给外部链接开了个「未知动作」入口，一律丢掉。
+- 带 `subjects=` 的页面仍然是 `public` 缓存（共享缓存按完整 URL 分键，不同关注列表各存一份、不会串；地址里只有公开的乐队 id），隐私只靠 `noindex` 挡住搜索引擎。
+
 ---
 
 ## 七、待站主拍板汇总（动手前先看这里）
@@ -1193,7 +1224,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 | **W17** | 全文政策分层**推翻旧决定**：官方全文 / 第三方摘要+链接 / 许可全文，是否切换、切到哪一层 | 先按现状不动，等这一包正式开工时单独讨论 |
 | **W17** | `T2_EVENT` 三个国内票务 / 展会源算哪层 | 归「官方全文」会误判，归 media 会让 W6 验过的 15 条从 `full` 掉到 `summary` —— 建议单列一层 |
 | **W17** | 官方判据用 `owner_entity_id IS NOT NULL`（12 个 T1_5 官方 X 也算官方，含 5 个成员个人 X）还是 `tier = 'T1'`（`first_party` 只认 T1，见 `packages/backend/src/publication/publish.ts:294`） | 前者更准，后者更保守 |
-| **W12** | 关注 → 邮件的 token 方案：**不做**读者端自生成 token（它同时是 `List-Unsubscribe` 凭据，自生成会把 `subscribers.token` 变成可猜面），改成 `/subscriptions/:token` 短链别名 | 按建议做 |
+| ~~**W12**~~ ✅ | ~~关注 → 邮件的 token 方案：**不做**读者端自生成 token（它同时是 `List-Unsubscribe` 凭据，自生成会把 `subscribers.token` 变成可猜面），改成 `/subscriptions/:token` 短链别名；「只看关注」本地过滤还是服务器筛；按类别过滤邮件（`0063_subscriber_kinds.sql` + `subscribers.kinds`）做不做~~ | **已拍板 2026-10-05**：短链别名照做；**服务器筛**（`?subjects=a,b`，本地过滤在服务端分页下每页只剩零星几条）；**不做按类别过滤** ⇒ W12 无迁移、0063 让给 W13。其余产品决定（关注只在列表页与订阅页起作用、企划 = 整个系列、开关默认关、关注列表放 `/starred` 顶部、没关注时也给引导）见 §六 W12 |
 | ~~**W7**~~ ✅ | ~~`.ics` 用当地时刻（日本 18:30 / 中国 15:30）还是统一北京时间；北京时间 21:00 之后的场次在「今天截止」里算哪天~~ | **已拍板 2026-10-05**：用当地时刻 + `TZID`、按当地日历（已完成） |
 | **W8** | Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留 | **代码按「一站一实体」落地了**（键 = 主体 + 会场 + 开演日 + 开演时刻，同一场取信息最全的那篇报告），要改粒度只需动唯一键与 `mergeKeys`；已完结页现在照常保留。**阶段 B 灰度重跑 2026-10-05 已跑完**（`candidates: 28`，`tag live-ticket-v1`，约 170 次调用）：24 条抽到 `output.live`，但**没有新建演出、也没有轮次** —— 重跑过的条目不会再归组（21 条是历史条目、不建事实；其余走提前返回），新轮次改由回填脚本补进 `ticket_rounds`（2 条）。详见 §六 W8 的「实现与验证」 |
 | ~~**W9**~~ ✅ | ~~`deadlines` 与 `ticket_rounds` 哪个权威；`status` 要不要含**个人**当落；`platform` 要不要中文化~~ | **已拍板 2026-10-05**：轮次权威、`deadlines` 只是投影；不含个人当落（站不持有账号）；平台名**照原文**、不做中文显示名映射（`industry/glossary.ts` 一个字不改 —— 改任何 `forms` 都会让 `GLOSSARY_VERSION` 变、全站重译）。已落地：见上面「实现与验证（2026-10-05 完成）」 |

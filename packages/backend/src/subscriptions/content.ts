@@ -40,8 +40,10 @@ export function emailSite(): EmailSite {
   };
 }
 
+// 信里的管理入口用短链 /subscriptions/<token>，由网页转发到 /subscribe/manage?token=…：邮件里那一行
+// 短一些，也少一个容易被截断的问号。早先发出去的 /subscribe/manage?token=… 仍然可用。
 const manageUrl = (token: string, action?: string) =>
-  `${siteUrl("/subscribe/manage")}?token=${encodeURIComponent(token)}${action ? `&action=${action}` : ""}`;
+  `${siteUrl("/subscriptions")}/${encodeURIComponent(token)}${action ? `?action=${action}` : ""}`;
 
 /**
  * 头图：每封邮件顶上那张通栏图（API 现画，见 industry/email/hero.ts）。

@@ -32,6 +32,7 @@ export default [
   route("subscribe", "routes/subscribe.tsx"),
   route("subscribe/confirmed", "routes/subscribe-confirmed.tsx"),
   route("subscribe/manage", "routes/subscribe-manage.tsx"),
+  route("subscriptions/:token", "routes/subscriptions.tsx"),
   route("agent", "routes/agent.tsx"),
   route("admin/login", "routes/admin-login.tsx"),
   layout("routes/admin/layout.tsx", { id: "admin-layout" }, [

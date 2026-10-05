@@ -5,7 +5,8 @@ import { SITE } from "@girlsbands/industry/site";
 import { Presence } from "../components/ui/Presence";
 import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
-import { exportBundle, importBundle, removeStar, useStarred, type ImportReport } from "../lib/local-state";
+import { exportBundle, importBundle, removeStar, toggleFollow, useFollows, useStarred, type ImportReport } from "../lib/local-state";
+import { subjectOfId } from "../features/feed/bands";
 import { fullDateTime } from "../lib/format";
 import { IconBookmark, IconDownload, IconClose } from "../components/icons";
 import { readSnapshot, restoreAnchor, useSaveOnLeave } from "../lib/restore";
@@ -19,19 +20,22 @@ export function headers() {
 }
 
 export function meta() {
-  return pageMeta({ title: "我的收藏", description: `保存在这台设备上的 ${SITE.name} 收藏。`, path: "/starred", noindex: true });
+  return pageMeta({ title: "我的收藏", description: `保存在这台设备上的 ${SITE.name} 收藏与关注。`, path: "/starred", noindex: true });
 }
 
 function reportText(r: ImportReport): string {
   const parts = [`新增收藏 ${r.starredAdded} 条`, `已读记录 ${r.readAdded} 条`];
-  if (r.starredSkipped || r.readSkipped) parts.push(`超出上限或格式不对而跳过 ${r.starredSkipped + r.readSkipped} 条`);
+  if (r.followsAdded) parts.push(`新增关注 ${r.followsAdded} 个`);
+  if (r.starredSkipped || r.readSkipped || r.followsSkipped) parts.push(`超出上限或格式不对而跳过 ${r.starredSkipped + r.readSkipped + r.followsSkipped} 条`);
   if (r.themeApplied) parts.push("已沿用导入的主题");
   if (r.readFailed) parts.push("已读记录没能保存（浏览器存储已满或不可用）");
+  if (r.followsFailed) parts.push("关注没能保存（浏览器存储已满或不可用）");
   return parts.join("，");
 }
 
 export default function StarredPage() {
   const starred = useStarred();
+  const follows = useFollows();
   const [mounted, setMounted] = useState(false);
   const [availability, setAvailability] = useState<Record<string, ItemAvailability>>({});
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -81,7 +85,7 @@ export default function StarredPage() {
     if (!file) return;
     try {
       const report = importBundle(await file.text());
-      setNotice({ kind: report.readFailed ? "error" : "ok", text: `导入完成：${reportText(report)}` });
+      setNotice({ kind: report.readFailed || report.followsFailed ? "error" : "ok", text: `导入完成：${reportText(report)}` });
     } catch (e) {
       setNotice({ kind: "error", text: e instanceof Error ? e.message : "导入失败" });
     }
@@ -94,13 +98,13 @@ export default function StarredPage() {
       <header className="flex flex-col gap-2 pb-4 pt-3 sm:flex-row sm:items-start sm:justify-between lg:pt-1">
         <div>
           <h1 data-page-title="" className="text-[24px] font-semibold leading-[1.3] text-ink">收藏</h1>
-          <p className="mt-1.5 text-[13px] text-ink-3">本机收藏的 {SITE.name} 内容，适合稍后阅读和回看。</p>
+          <p className="mt-1.5 text-[13px] text-ink-3">本机收藏的 {SITE.name} 内容，以及关注的乐队；适合稍后阅读和回看。</p>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:pt-1.5">
           <button type="button" onClick={() => fileRef.current?.click()} className={action}>
             导入文件
           </button>
-          {mounted && starred.length > 0 && (
+          {mounted && (starred.length > 0 || follows.length > 0) && (
             <button type="button" onClick={doExport} className={`${action} inline-flex items-center gap-1`}>
               <IconDownload size={13} /> 导出
             </button>
@@ -108,7 +112,44 @@ export default function StarredPage() {
           <input ref={fileRef} type="file" accept="application/json,.json" className="sr-only" onChange={(e) => doImport(e.target.files?.[0])} />
         </div>
       </header>
-      <p className="rounded-tile border border-line bg-surface px-4 py-2.5 text-[12.5px] text-ink-3">收藏只保存在当前浏览器；清除浏览器数据或换设备后不会同步。</p>
+      {/* 关注: the same browser-local list the 只看关注 switch filters by; each chip opens the band, the × drops it. */}
+      {mounted && (
+        <section aria-label="关注的乐队" className="mb-3 rounded-card border border-line bg-surface px-4 py-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-[13px] font-semibold text-ink-2">
+              关注的乐队 <span className="num text-ink-4">{follows.length}</span>
+            </h2>
+            {follows.length > 0 && (
+              <Link to={`/?subjects=${[...follows].sort().join(",")}`} className="text-[12.5px] text-ink-3 transition-colors hover:text-accent">
+                只看它们的内容 →
+              </Link>
+            )}
+          </div>
+          {follows.length === 0 ? (
+            <p className="mt-2 text-[12.5px] leading-relaxed text-ink-3">
+              还没关注任何乐队。去<Link to="/#bands" className="text-accent hover:underline">首页的乐队列表</Link>或企划页点「关注」，关注过的会列在这里，首页与全部动态也能只看它们。
+            </p>
+          ) : (
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {follows.map((id) => {
+                const subject = subjectOfId(id);
+                if (!subject) return null;
+                return (
+                  <li key={id} className="inline-flex items-center rounded-control bg-bg-sunk pr-1 dark:bg-bg-muted/60">
+                    <Link to={`/topics/${id}`} className="py-1.5 pl-3 text-[13px] font-medium text-ink transition-opacity hover:opacity-70">
+                      {subject.label}
+                    </Link>
+                    <button type="button" aria-label={`取消关注 ${subject.label}`} title="取消关注" onClick={() => toggleFollow(id)} className="grid size-7 place-items-center rounded-control text-ink-4 transition-colors hover:bg-surface hover:text-ink">
+                      <IconClose size={12} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+      <p className="rounded-tile border border-line bg-surface px-4 py-2.5 text-[12.5px] text-ink-3">收藏与关注只保存在当前浏览器；清除浏览器数据或换设备后不会同步。</p>
       <Presence show={!!notice} enter="anim-notice-in" exit="anim-fade-out" duration={160}>
         <div
           role="status"

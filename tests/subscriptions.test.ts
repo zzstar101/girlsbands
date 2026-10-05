@@ -293,7 +293,13 @@ test("the digest only carries what the reader asked for, and nothing at all when
   assert.equal(mine.items[0]!.selected, true);
   // 看板右栏直接印这一串，所以它必须是契约里写的 `10/04 12:00`，不是 ISO 原文。
   assert.match(mine.items[0]!.time, /^\d\d\/\d\d \d\d:\d\d$/);
-  assert.equal(mine.unsubscribeUrl.includes("/subscribe/manage"), true);
+  // 信里的管理入口是短链 /subscriptions/<token>，退订那一枚带 action；老的 /subscribe/manage 仍然能用。
+  const unsubscribe = new URL(mine.unsubscribeUrl);
+  assert.equal(unsubscribe.pathname, `/subscriptions/${out!.subscriber.token}`);
+  assert.equal(unsubscribe.searchParams.get("action"), "unsubscribe");
+  const preferences = new URL(mine.preferencesUrl);
+  assert.equal(preferences.pathname, `/subscriptions/${out!.subscriber.token}`);
+  assert.equal(preferences.searchParams.get("action"), null);
   // 头图的主角 = 本期出现最多的那支乐队。
   assert.equal(mine.hero?.caption, "MyGO!!!!!");
   assert.equal(mine.hero?.alt.includes("MyGO!!!!!"), true);

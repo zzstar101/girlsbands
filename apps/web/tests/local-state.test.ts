@@ -9,8 +9,9 @@ after(() => {
 });
 
 let instance = 0;
-async function reader(starred: unknown[] = []) {
+async function reader(starred: unknown[] = [], follows: unknown[] | null = null) {
   const values = new Map([["girlsbands-starred-items", JSON.stringify(starred)]]);
+  if (follows) values.set("girlsbands-follows", JSON.stringify(follows));
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: { localStorage: {
@@ -89,4 +90,53 @@ test("failed bookmark writes and damaged existing data do not report a successfu
   assert.equal(values.get(state.KEYS.starred), "damaged original data");
   window.localStorage.setItem = () => { throw new Error("quota"); };
   assert.equal(state.toggleStar(item), false);
+});
+
+// Follows are the second thing this browser keeps, and the only one an address carries: a list that is
+// unknown, damaged or too long must never reach the query.
+test("following a band is local, reversible and limited to real entities", async () => {
+  const { state, values } = await reader();
+  assert.deepEqual(state.getFollows(), []);
+  assert.equal(state.toggleFollow("mygo"), true);
+  assert.equal(state.toggleFollow("roselia"), true);
+  assert.equal(state.toggleFollow("mygo"), false, "再点一次是取消关注");
+  assert.deepEqual(state.getFollows(), ["roselia"]);
+  assert.deepEqual(JSON.parse(values.get(state.KEYS.follows)!), ["roselia"]);
+  // 没有页面的名字（拼错的、原型链上的）不进列表，也不会被写进存储。
+  for (const bad of ["nope", "constructor", "__proto__", "MyGO", ""]) assert.equal(state.toggleFollow(bad), false, bad);
+  assert.deepEqual(state.getFollows(), ["roselia"]);
+});
+
+test("a damaged follow list is repaired to the entities it still names", async () => {
+  const { state } = await reader([], ["mygo", "constructor", 42, "roselia", "mygo", null]);
+  assert.deepEqual(state.getFollows(), ["mygo", "roselia"]);
+  assert.strictEqual(state.getFollows(), state.getFollows(), "React snapshots stay stable between changes");
+});
+
+test("an unreadable follow list is rebuilt rather than refused", async () => {
+  const { state, values } = await reader();
+  values.set(state.KEYS.follows, "damaged original data");
+  assert.deepEqual(state.getFollows(), []);
+  assert.equal(state.toggleFollow("mygo"), true);
+  assert.deepEqual(JSON.parse(values.get(state.KEYS.follows)!), ["mygo"]);
+});
+
+test("a follow write that fails does not report success", async () => {
+  const { state } = await reader();
+  window.localStorage.setItem = () => { throw new Error("quota"); };
+  assert.equal(state.toggleFollow("mygo"), false);
+});
+
+test("export and import carry the follow list, the reader's own order first", async () => {
+  const { state } = await reader([], ["mygo"]);
+  assert.deepEqual(state.exportBundle().follows, ["mygo"]);
+  const report = state.importBundle(JSON.stringify({ version: 1, follows: ["roselia", "mygo", "nope", 42, "roselia"] }));
+  assert.equal(report.followsAdded, 1);
+  assert.equal(report.followsSkipped, 2, "不认识的名字；重复的和已经在列表里的不算新增");
+  assert.equal(report.followsFailed, false);
+  assert.deepEqual(state.getFollows(), ["mygo", "roselia"]);
+  // 老包没有 follows 字段，照样导入。
+  const older = await reader();
+  assert.equal(older.state.importBundle(JSON.stringify({ version: 1, starred: [] })).followsAdded, 0);
+  assert.deepEqual(older.state.getFollows(), []);
 });

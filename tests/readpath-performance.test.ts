@@ -14,7 +14,7 @@ const T = `readperf${tag()}`;
 const SOURCE = `test-${T}`;
 const now = new Date();
 const id = (n: number) => `${T}-${String(n).padStart(4, '0')}`;
-const filters = { channel: 'all' as const, category: null, tag: T, now };
+const filters = { channel: 'all' as const, category: null, tag: T, subjects: [], now };
 const app = await buildApp();
 
 before(async () => {

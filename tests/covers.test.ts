@@ -159,7 +159,7 @@ test("列表出口用 336 档，并按条目各归各的图", async () => {
     SELECT public_id, subject_entity FROM releases WHERE first_article_id = ${article}`;
   assert.ok(release, "这条公告建出了一行碟");
 
-  const feed = (await loadPool({ tag: T, now: NOW, category: null, channel: "all" })).items.find((i) => i.id === article);
+  const feed = (await loadPool({ tag: T, now: NOW, category: null, channel: "all", subjects: [] })).items.find((i) => i.id === article);
   assert.ok(feed, "条目出现在列表里");
   assert.match(feed.cover?.url ?? "", /mode=image-336/, "列表用 336 那一档");
   assert.equal(feed.cover?.srcSet?.split(", ").length, 2, "card 的两级 srcSet 都在");

@@ -40,15 +40,15 @@ test('selected news keeps each fact at its first appearance and hydrates only it
   const previous = sql.options.debug;
   sql.options.debug = (_c,q,p)=>{if(q.includes('a.x_post')&&q.includes('WHERE p.article_id IN'))hydrated+=p.filter((v)=>typeof v==='string'&&v.startsWith(key+'-')).length;};
   try {
-    const timeline = await loadTimeline({channel:'all',category:null,tag:key,now});
+    const timeline = await loadTimeline({channel:'all',category:null,tag:key,subjects:[],now});
     assert.deepEqual(timeline.cards.map(c=>c.item.id),[`${key}-1-2`,`${key}-0-2`]);
     assert.deepEqual(timeline.cards.map(c=>c.anchorAt),[new Date(+now-3600000).toISOString(),new Date(+now-10*86400000).toISOString()]);
     assert.deepEqual(timeline.cards.map(c=>c.group!.reportCount),[6,6]);
     assert.deepEqual(timeline.cards.map(c=>c.group!.additionalSourceCount),[1,1]);
     assert.ok(timeline.cards.every(c=>!('latestDevelopment' in c.group!)&&!('developmentCount' in c.group!)), 'news cards carry no event progress');
     assert.equal(hydrated,2,'the timeline hydrates two news representatives, not all twelve reports');
-    const firstNews=await loadTimeline({channel:'all',category:null,tag:key,now,limit:1});
-    const secondNews=await loadTimeline({channel:'all',category:null,tag:key,now,limit:1,cursor:firstNews.nextCursor});
+    const firstNews=await loadTimeline({channel:'all',category:null,tag:key,subjects:[],now,limit:1});
+    const secondNews=await loadTimeline({channel:'all',category:null,tag:key,subjects:[],now,limit:1,cursor:firstNews.nextCursor});
     assert.deepEqual([...firstNews.cards,...secondNews.cards].map(c=>c.item.id),timeline.cards.map(c=>c.item.id));
     hydrated=0;
     const followups=await loadStoryFollowups(storyPublicId,now);

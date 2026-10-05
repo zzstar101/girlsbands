@@ -3,6 +3,7 @@
 // failures degrade silently.
 import { useEffect, useSyncExternalStore } from "react";
 import { beijingDate } from "@girlsbands/contracts/time";
+import { isFollowableEntity, SUBJECT_LIMIT } from "@girlsbands/contracts/taxonomy";
 
 export const KEYS = {
   starred: "girlsbands-starred-items",
@@ -11,6 +12,7 @@ export const KEYS = {
   changelogSeen: "girlsbands-changelog-seen-version",
   feedbackDraft: "girlsbands-feedback-draft-v1",
   recentSearches: "girlsbands-recent-searches",
+  follows: "girlsbands-follows",
 } as const;
 
 const STARRED_LIMIT = 500;
@@ -114,6 +116,7 @@ const subscribeRead = subscribeKey(KEYS.read);
 const subscribeTheme = subscribeKey(KEYS.theme);
 const subscribeChangelog = subscribeKey(KEYS.changelogSeen);
 const subscribeRecentSearches = subscribeKey(KEYS.recentSearches);
+const subscribeFollows = subscribeKey(KEYS.follows);
 
 // Snapshot cache so useSyncExternalStore gets stable references between changes.
 const cache = new Map<string, unknown>();
@@ -198,6 +201,48 @@ export function removeStar(id: string) {
     if (starredUnreadable()) return;
     writeRaw(KEYS.starred, JSON.stringify(getStarred().filter((s) => s.id !== id)));
     invalidate(KEYS.starred);
+  });
+}
+
+// follows: the bands and projects this reader follows. Kept in this browser alone (no account, no token);
+// a project stands for its whole series, expanded by the api exactly as a topic page expands it.
+const FOLLOW_LIMIT = SUBJECT_LIMIT;
+
+export function getFollows(): string[] {
+  return cached(KEYS.follows, () => {
+    const parsed = readJson(KEYS.follows);
+    if (!Array.isArray(parsed)) return [];
+    const ids = new Set<string>();
+    for (const v of parsed) {
+      if (isFollowableEntity(v)) ids.add(v);
+      if (ids.size >= FOLLOW_LIMIT) break;
+    }
+    return [...ids];
+  });
+}
+
+const followsSetCache = { ids: null as string[] | null, set: new Set<string>() };
+function isFollowed(id: string): boolean {
+  const ids = getFollows();
+  if (followsSetCache.ids !== ids) {
+    followsSetCache.ids = ids;
+    followsSetCache.set = new Set(ids);
+  }
+  return followsSetCache.set.has(id);
+}
+
+// Unlike the stars, a list that cannot be read is rebuilt on the next toggle instead of refusing the
+// write: it holds nothing but ids the reader can pick again, and an empty list is what it already shows.
+/** Follows a subject, or stops following it; returns whether it is followed now. */
+export function toggleFollow(id: string): boolean {
+  return editLocalData(() => {
+    if (!isFollowableEntity(id)) return false;
+    const list = getFollows();
+    const exists = list.includes(id);
+    const next = exists ? list.filter((v) => v !== id) : [id, ...list].slice(0, FOLLOW_LIMIT);
+    const saved = writeRaw(KEYS.follows, JSON.stringify(next));
+    invalidate(KEYS.follows);
+    return saved && !exists;
   });
 }
 
@@ -324,25 +369,31 @@ export interface ExportBundle {
   version: 1;
   starred: LocalStarredItem[];
   read: string[];
+  /** The subjects this browser follows, in the reader's own order. */
+  follows: string[];
   theme: "light" | "dark" | "auto" | null;
 }
 
 export function exportBundle(): ExportBundle {
   const pref = getThemePreference();
-  return { version: 1, starred: getStarred(), read: getReadIds(), theme: pref ?? "auto" };
+  return { version: 1, starred: getStarred(), read: getReadIds(), follows: getFollows(), theme: pref ?? "auto" };
 }
 
 export interface ImportReport {
   starredAdded: number;
   starredSkipped: number;
+  followsAdded: number;
+  followsSkipped: number;
   readAdded: number;
   readSkipped: number;
   themeApplied: boolean;
   /** The stars were saved but the read marks could not be (storage full or unavailable). */
   readFailed: boolean;
+  /** The stars were saved but the follows could not be. */
+  followsFailed: boolean;
 }
 
-/** Merge: existing stars are not overwritten, read ids are unioned, theme only if unset. */
+/** Merge: existing stars are not overwritten, read ids are unioned, follows are unioned, theme only if unset. */
 export function importBundle(text: string): ImportReport {
   if (text.length > IMPORT_MAX_CHARS) throw new Error("文件过大（上限 2,000,000 字符）");
   let data: unknown;
@@ -356,6 +407,7 @@ export function importBundle(text: string): ImportReport {
   return mergeLocalData({
     starred: Array.isArray(d.starred) ? d.starred : [],
     read: Array.isArray(d.read) ? d.read : [],
+    follows: Array.isArray(d.follows) ? d.follows : [],
     theme: d.theme ?? null,
   });
 }
@@ -371,7 +423,7 @@ function starredUnreadable(): boolean {
   }
 }
 
-function mergeLocalData(incoming: { starred: unknown[]; read: unknown[]; theme: unknown }): ImportReport {
+function mergeLocalData(incoming: { starred: unknown[]; read: unknown[]; follows: unknown[]; theme: unknown }): ImportReport {
   return editLocalData(() => {
     // The reader's own data stays recoverable (export it, or fix it) rather than replaced by the import.
     if (starredUnreadable()) throw new Error("这台设备上已有的收藏数据无法读取，为避免覆盖，这次没有导入。");
@@ -391,6 +443,22 @@ function mergeLocalData(incoming: { starred: unknown[]; read: unknown[]; theme: 
     const mergedStarred = [...current, ...accepted].sort((a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt));
     // An import is reported only after it was written; a failure here leaves the browser as it was.
     if (!writeRaw(KEYS.starred, JSON.stringify(mergedStarred))) throw new Error("浏览器存储已满或不可用，这次没有导入任何内容。");
+
+    const follows = getFollows();
+    const followsHave = new Set(follows);
+    const followAdditions: string[] = [];
+    let followsSkipped = 0;
+    for (const id of incoming.follows) {
+      if (!isFollowableEntity(id)) { followsSkipped++; continue; }
+      if (followsHave.has(id)) continue;
+      followsHave.add(id);
+      followAdditions.push(id);
+    }
+    const followRoom = Math.max(0, FOLLOW_LIMIT - follows.length);
+    followsSkipped += Math.max(0, followAdditions.length - followRoom);
+    const followsAccepted = followAdditions.slice(0, followRoom);
+    // The reader's own order stays in front; the imported subjects are appended.
+    const followsFailed = followsAccepted.length > 0 && !writeRaw(KEYS.follows, JSON.stringify([...follows, ...followsAccepted]));
 
     const readIds = getReadIds();
     const readHave = new Set(readIds);
@@ -412,7 +480,7 @@ function mergeLocalData(incoming: { starred: unknown[]; read: unknown[]; theme: 
     }
     cache.clear();
     emit();
-    return { starredAdded: accepted.length, starredSkipped, readAdded: readFailed ? 0 : Math.min(readAdditions.length, readRoom), readSkipped, themeApplied, readFailed };
+    return { starredAdded: accepted.length, starredSkipped, followsAdded: followsFailed ? 0 : followsAccepted.length, followsSkipped, readAdded: readFailed ? 0 : Math.min(readAdditions.length, readRoom), readSkipped, themeApplied, readFailed, followsFailed };
   });
 }
 
@@ -430,6 +498,17 @@ export function useIsStarred(id: string): boolean {
 
 export function useReadSet(): Set<string> {
   return useSyncExternalStore(subscribeRead, getReadSet, () => EMPTY_SET);
+}
+
+const NO_FOLLOWS: string[] = [];
+
+/** The subjects this browser follows; empty on the server (follows live in the browser alone). */
+export function useFollows(): string[] {
+  return useSyncExternalStore(subscribeFollows, getFollows, () => NO_FOLLOWS);
+}
+
+export function useIsFollowed(id: string): boolean {
+  return useSyncExternalStore(subscribeFollows, () => isFollowed(id), () => false);
 }
 
 export function useThemePreference(): ThemePreference {

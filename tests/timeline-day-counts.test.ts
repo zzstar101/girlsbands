@@ -80,7 +80,7 @@ test("real grouped timeline pagination keeps whole-day counts across midnight", 
   const seen: string[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < 20; page++) {
-    const data = await loadTimeline({ channel: "all", category: null, tag: T, now, limit: 7, cursor });
+    const data = await loadTimeline({ channel: "all", category: null, tag: T, subjects: [], now, limit: 7, cursor });
     const pageGroups = groups.slice(seen.length, seen.length + 7);
     assert.deepEqual(data.cards.map(card => card.key), pageGroups.map(group => group.key));
     const days = new Set(pageGroups.map(group => beijingDate(group.anchor)));
@@ -90,6 +90,6 @@ test("real grouped timeline pagination keeps whole-day counts across midnight", 
     if (!cursor) break;
   }
   assert.deepEqual(seen, groups.map(group => group.key));
-  const empty = await loadTimeline({ channel: "all", category: null, tag: `${T}-empty`, now });
+  const empty = await loadTimeline({ channel: "all", category: null, tag: `${T}-empty`, subjects: [], now });
   assert.deepEqual([empty.cards, empty.dayCounts, empty.nextCursor], [[], {}, null]);
 });

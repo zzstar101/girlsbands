@@ -3,7 +3,7 @@
 // (industry/site.ts); its address from SITE_URL.
 import type { MetaDescriptor } from "react-router";
 import type { ReportDetail, TimelineFilters } from "@girlsbands/contracts/site";
-import { isCategoryKey, isChannelKey } from "@girlsbands/contracts/taxonomy";
+import { isCategoryKey, isChannelKey, parseSubjectIds } from "@girlsbands/contracts/taxonomy";
 import { SITE, subjectAfter, withSubject } from "@girlsbands/industry/site";
 
 /**
@@ -52,12 +52,20 @@ export function readFilters(params: URLSearchParams): TimelineFilters {
     channel: isChannelKey(channel) ? channel : "all",
     category: category && isCategoryKey(category) ? category : null,
     tag: params.get("tag")?.trim() || null,
+    // 只看关注：解析规则与 API 共用一个（contracts/taxonomy.ts），页面与接口不会认成两套。
+    subjects: parseSubjectIds(params.get("subjects")),
   };
 }
 
 /** Feed filters as list address parameters: the default channel and unset filters are left out. */
 export function filterParams(f: TimelineFilters) {
-  return { channel: f.channel === "all" ? null : f.channel, category: f.category, tag: f.tag };
+  return {
+    channel: f.channel === "all" ? null : f.channel,
+    category: f.category,
+    tag: f.tag,
+    // 勾选顺序不同不该是两个地址：排序后同一个关注列表只有一个规范地址，也共用一份缓存。
+    subjects: f.subjects.length ? [...f.subjects].sort().join(",") : null,
+  };
 }
 
 /** "Title · Site". */

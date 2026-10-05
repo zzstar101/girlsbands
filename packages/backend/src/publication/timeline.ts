@@ -8,7 +8,7 @@ import { cachedByKey } from "../lib/cache.ts";
 import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeRow } from "./representative.ts";
 import { decodeCursor, encodeCursor, InvalidCursorError, queryBinding } from "../lib/cursor.ts";
 import {
-  ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, tagCondition, toFeedItemSummary,
+  ITEM_COLUMNS, ITEM_FROM, categoryCondition, channelCondition, subjectCondition, subjectKey, tagCondition, toFeedItemSummary,
   type ItemRow,
 } from "./items.ts";
 import { evidenceCondition, listedCondition, ownFactEvidenceCondition, selectedCondition } from "./scope.ts";
@@ -25,11 +25,13 @@ interface GroupRow {
 }
 
 function filterSql(q: TimelineQuery) {
-  return sql`${channelCondition(q.channel)} ${categoryCondition(q.category)} ${tagCondition(q.tag)}`;
+  return sql`${channelCondition(q.channel)} ${categoryCondition(q.category)} ${tagCondition(q.tag)} ${subjectCondition(q.subjects)}`;
 }
 
+// The cursor belongs to one filter set: a page opened under 只看关注 must not resume as the unfiltered
+// feed (or as somebody else's subjects), so the binding carries them too — and with it the cache key.
 function binding(q: TimelineQuery): string {
-  return queryBinding({ c: q.channel, k: q.category, t: q.tag });
+  return queryBinding({ c: q.channel, k: q.category, t: q.tag, s: subjectKey(q.subjects) });
 }
 
 /**
@@ -190,5 +192,5 @@ export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineRespo
 
   const last = page[page.length - 1];
   const nextCursor = hasMore && last ? encodeCursor("tl2", { a: last.anchor_at.getTime(), g: last.gk, b: bind }) : null;
-  return { filters: { channel: q.channel, category: q.category, tag: q.tag }, cards, nextCursor, dayCounts };
+  return { filters: { channel: q.channel, category: q.category, tag: q.tag, subjects: [...(q.subjects ?? [])] }, cards, nextCursor, dayCounts };
 }

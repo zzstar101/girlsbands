@@ -95,7 +95,7 @@ test("mentions cannot choose a timeline origin, anchor, representative, or a lat
   const earlyMention = await report(t1, g, { title: "EARLY ROUNDUP", hours: 90, role: "mention" });
   const lateMention = await report(t1, g, { title: "LATEST ROUNDUP", hours: 1, role: "mention" });
   await report(t1, g, { title: "未入选官网稿", hours: 4, selected: false, score: 30 });
-  const q = { channel: "all" as const, category: null, tag: key, now };
+  const q = { channel: "all" as const, category: null, tag: key, subjects: [], now };
   const timeline = await loadTimeline(q);
   const card = timeline.cards.find(c => c.key === `f${g.factId}`)!;
   assert.equal(card.item.id, official);
@@ -219,7 +219,7 @@ test("an editor moves a report into the fact it repeats: no false development re
   const repost = await report(s, { ...g, factId: Number(dup!.id) }, { title: "官方线程里的重复发布", hours: 1 });
   await sql`INSERT INTO story_signals (story_id,article_id,source_id,participant_key,kind,observed_at) VALUES (${g.storyId},${repost},${s},${`source:${s}`},'editorial',${at(1)})`;
   // Moving re-derives the publication from its analysis, which carries no test tag: read the unfiltered timeline.
-  const cards = async () => (await loadTimeline({ channel: "all", category: null, tag: null, limit: 40, now: new Date() })).cards.filter(c => [launch, repost].includes(c.item.id));
+  const cards = async () => (await loadTimeline({ channel: "all", category: null, tag: null, subjects: [], limit: 40, now: new Date() })).cards.filter(c => [launch, repost].includes(c.item.id));
   assert.equal((await cards()).length, 2);
   assert.deepEqual(await moveToFact(repost, g.factPublicId, "同一次发布的官方重复帖", "test"), { fact: g.factId, story: g.storyId, left: 1 });
   const after = await cards();

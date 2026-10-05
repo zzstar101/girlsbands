@@ -19,7 +19,7 @@ import { Timeline } from "../features/feed/Timeline";
 import { HotTopics } from "../features/feed/HotTopics";
 import { TrackRail } from "../features/feed/TrackRail";
 import { ProjectRail } from "../features/feed/ProjectRail";
-import { ActiveFilters, CategoryTabs, FeedBar, SearchField } from "../features/feed/Filters";
+import { ActiveFilters, CategoryTabs, FeedBar, FollowToggle, SearchField } from "../features/feed/Filters";
 
 export const handle: Screen = { tab: "featured", name: "首页" };
 
@@ -42,7 +42,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 export function meta({ loaderData }: Route.MetaArgs) {
   const path = listPath("/", loaderData ? filterParams(loaderData.filters) : {});
   const titles = loaderData?.data.cards.map((c) => c.item.title) ?? [];
-  return pageMeta({ path, jsonLd: path === "/" ? [...siteLd(), itemListLd("/", "精选", titles)] : undefined });
+  // A 只看关注 address is one reader's own list: keep it out of the index.
+  const followed = Boolean(loaderData?.filters.subjects.length);
+  return pageMeta({ path, noindex: followed, jsonLd: path === "/" ? [...siteLd(), itemListLd("/", "精选", titles)] : undefined });
 }
 
 export function headers({ loaderHeaders }: Route.HeadersArgs) {
@@ -67,17 +69,18 @@ function HomeHero({ home }: { home: HomeResponse }) {
 export default function Home() {
   const { data, filters, actions } = useLoaderData<typeof loader>();
   const home = useRouteLoaderData<typeof rootLoader>('root')?.home;
-  const sliced = Boolean(filters.tag || filters.category || filters.channel !== "all");
+  const following = filters.subjects.length > 0;
+  const sliced = Boolean(filters.tag || filters.category || filters.channel !== "all" || following);
   return <div className="pb-6 flyer-home">
-    <FeedBar base="/" category={filters.category} channel={filters.channel} />
-    <ActiveFilters base="/" category={filters.category} channel={filters.channel} tag={filters.tag} />
+    <FeedBar base="/" category={filters.category} channel={filters.channel} subjects={filters.subjects} />
+    <ActiveFilters base="/" category={filters.category} channel={filters.channel} tag={filters.tag} subjects={filters.subjects} />
     {home && !sliced && <><Ticker items={home.deadlines.days.flatMap((d) => d.items)} /><HomeHero home={home} />
-      <SectionHeader title="乐队" kicker="BANDS" aside={<span className="text-[12px] text-ink-4">近 7 天</span>} />
+      <SectionHeader id="bands" title="乐队" kicker="BANDS" aside={<span className="text-[12px] text-ink-4">近 7 天</span>} />
       <BandEqualizer counts={home.bandWeek} /><ProjectRail projects={home.projects} /><TrackRail counts={home.trackCounts} />
     </>}
     <div className={`body-grid ${sliced ? 'sliced' : ''}`}>
-      <section className="min-w-0"><SectionHeader title={filters.tag ? `#${filters.tag}` : '最新消息'} kicker="LATEST" />
-        <div className="feed-filters"><CategoryTabs base="/" category={filters.category} channel={filters.channel} layoutId="home-cat-desk" className="min-w-0" /><SearchField keep={{ category: filters.category }} /></div>
+      <section className="min-w-0"><SectionHeader title={filters.tag ? `#${filters.tag}` : following ? '只看关注' : '最新消息'} kicker={following ? 'FOLLOWING' : 'LATEST'} />
+        <div className="feed-filters"><CategoryTabs base="/" category={filters.category} channel={filters.channel} layoutId="home-cat-desk" className="min-w-0" /><FollowToggle base="/" subjects={filters.subjects} /><SearchField keep={{ category: filters.category, subjects: filterParams(filters).subjects }} /></div>
         <Timeline initial={data} filters={data.filters} dates={home?.deadlines} />
       </section>
       <aside className="feed-aside"><ActionCenter data={actions} />{data.hot && <HotTopics entries={data.hot} />}<SubscribeBlock /></aside>

@@ -6,7 +6,7 @@ import { sql, type Db } from "../db.ts";
 import { looksChinese } from "../lib/text.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 import { coverOfMedia } from "./covers.ts";
-import { displayTags, entityIds, publicSourceName } from "./rules.ts";
+import { displayTags, entityIds, entityTags, publicSourceName } from "./rules.ts";
 import { seatedCondition } from "./scope.ts";
 
 export interface ItemRow {
@@ -85,6 +85,22 @@ export function categoryCondition(category: CategoryKey | null | undefined) {
 export function tagCondition(tag: string | null | undefined) {
   if (!tag) return sql``;
   return sql`AND p.tags @> ${[tag]}::text[]`;
+}
+
+/**
+ * 「只看关注」：每个主体展开成自己加上同系列的主体（企划＝整个系列，rules.ts entityTags），
+ * 命中任意一个就算 —— 和主题页、截止雷达读同一批标签，语义不会两处不一样。
+ * 一个都不剩（读者没关注任何主体）时不加条件：宁可显示全站，也不给出一页空白。
+ */
+export function subjectCondition(subjects: readonly string[] | null | undefined) {
+  const tags = [...new Set((subjects ?? []).flatMap((id) => entityTags(id)))];
+  if (tags.length === 0) return sql``;
+  return sql`AND p.tags && ${tags}::text[]`;
+}
+
+/** 缓存键与游标绑定里的主体集合：去重排序，勾选顺序不同的地址共用同一份结果。 */
+export function subjectKey(subjects: readonly string[] | null | undefined): string {
+  return [...new Set(subjects ?? [])].sort().join(",");
 }
 
 function mediaView(m: Record<string, any>, mode: "card" | "thumb" | "full" = "thumb", responsive = false): MediaView | null {

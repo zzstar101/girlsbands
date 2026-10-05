@@ -1,15 +1,16 @@
 // Feed filters: the channel and category choice (a row of tabs on desktop, a sheet behind the bar's filter
-// button on phones), the phone bar of 精选 and 全部, and search.
+// button on phones), the phone bar of 精选 and 全部, the 只看关注 scope, and search.
 import { useEffect, useRef, useState } from "react";
-import { Form, Link, useNavigation, useSearchParams } from "react-router";
+import { Form, Link, useNavigate, useNavigation, useSearchParams } from "react-router";
 import { CATEGORY_KEYS, CATEGORY_LABELS, CHANNEL_LABELS, type CategoryKey, type ChannelKey } from "@girlsbands/contracts/taxonomy";
 import { SITE } from "@girlsbands/industry/site";
-import { IconCheck, IconClose, IconFilter, IconSearch } from "../../components/icons";
+import { IconCheck, IconClose, IconFilter, IconHeart, IconSearch } from "../../components/icons";
 import { PillTabs } from "../../components/ui/Tabs";
 import { Sheet } from "../../components/ui/Sheet";
 import { ThemeSwitch } from "../../components/shell/ThemeSwitch";
 import { Wordmark } from "../../components/Logo";
 import { BarButton, PhoneBar } from "../../components/shell/PhoneBar";
+import { useFollows } from "../../lib/local-state";
 import { openSearch } from "../search/SearchOverlay";
 
 /** Same page with some query parameters changed (paging state dropped). */
@@ -42,6 +43,61 @@ function filterKey(category: CategoryKey | null, channel: ChannelKey): string {
   return channel === "firstParty" ? "firstParty" : (category ?? "all");
 }
 
+/**
+ * 只看关注: the follow list lives in this browser alone, so switching it on carries its ids into the
+ * address and the server filters by them. Switching it off drops the parameter. Following nothing yet
+ * means no filtering at all — the switch then explains itself instead of serving an empty page.
+ * Returns whether the address changed (so a sheet can close itself).
+ */
+function useFollowToggle(base: string, subjects: string[]) {
+  const follows = useFollows();
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const [hint, setHint] = useState(false);
+  const on = subjects.length > 0;
+  const toggle = (): boolean => {
+    if (on) {
+      setHint(false);
+      void navigate(hrefWith(base, params, { subjects: null }));
+      return true;
+    }
+    if (!follows.length) {
+      setHint(true);
+      return false;
+    }
+    void navigate(hrefWith(base, params, { subjects: [...follows].sort().join(",") }));
+    return true;
+  };
+  return { on, toggle, hint };
+}
+
+/** The nudge shown when 只看关注 is switched on before anything is followed. */
+function FollowHint({ className = "" }: { className?: string }) {
+  return <p className={`text-[12.5px] leading-relaxed text-ink-3 ${className}`}>
+    还没有关注任何乐队。去<Link to="/#bands" className="text-accent hover:underline">首页的乐队列表</Link>或企划页点「关注」，这里就只显示它们的内容。
+  </p>;
+}
+
+/** Desktop: 只看关注 as a button beside the filter tabs. */
+export function FollowToggle({ base, subjects, className = "" }: { base: string; subjects: string[]; className?: string }) {
+  const { on, toggle, hint } = useFollowToggle(base, subjects);
+  return <div className={`relative shrink-0 ${className}`}>
+    <button
+      type="button"
+      onClick={toggle}
+      aria-pressed={on}
+      title={on ? "取消只看关注" : "只看关注的乐队"}
+      className={`inline-flex h-[42px] items-center gap-1.5 rounded-control px-3.5 text-[13.5px] font-medium transition-colors ${on ? "bg-accent-soft text-accent" : "bg-bg-sunk text-ink-2 hover:text-ink dark:bg-bg-muted/60"}`}
+    >
+      <IconHeart size={15} />
+      只看关注
+    </button>
+    {hint && <div className="absolute left-0 top-[46px] z-30 w-72 rounded-tile border border-line-soft bg-surface p-3 shadow-lg">
+      <FollowHint />
+    </div>}
+  </div>;
+}
+
 /** Desktop: the filter as a row of tabs beside the search field. */
 export function CategoryTabs({ base, category, channel = "all", layoutId, className = "" }: { base: string; category: CategoryKey | null; channel?: ChannelKey; layoutId: string; className?: string }) {
   const [params] = useSearchParams();
@@ -52,11 +108,11 @@ export function CategoryTabs({ base, category, channel = "all", layoutId, classN
  * The phone bar of 精选 and 全部: the brand, the 精选 | 全部 switch (a filter in use carries over), and
  * buttons for the filter sheet and search.
  */
-export function FeedBar({ base, category, channel }: { base: "/" | "/all"; category: CategoryKey | null; channel: ChannelKey }) {
+export function FeedBar({ base, category, channel, subjects }: { base: "/" | "/all"; category: CategoryKey | null; channel: ChannelKey; subjects: string[] }) {
   const [params] = useSearchParams();
   const [sheet, setSheet] = useState(false);
   const scope = (to: string) => hrefWith(to, params, { q: null, tab: null, search: null });
-  const filtered = filterKey(category, channel) !== "all";
+  const filtered = filterKey(category, channel) !== "all" || subjects.length > 0;
   return (
     <>
       <PhoneBar
@@ -76,46 +132,67 @@ export function FeedBar({ base, category, channel }: { base: "/" | "/all"; categ
           </>
         }
       />
-      <FilterSheet open={sheet} onClose={() => setSheet(false)} base={base} active={filterKey(category, channel)} />
+      <FilterSheet open={sheet} onClose={() => setSheet(false)} base={base} active={filterKey(category, channel)} subjects={subjects} />
     </>
   );
 }
 
 /** Phones: the filter as a sheet of options, the one in use ticked; choosing one applies it. */
-function FilterSheet({ open, onClose, base, active }: { open: boolean; onClose: () => void; base: string; active: string }) {
+function FilterSheet({ open, onClose, base, active, subjects }: { open: boolean; onClose: () => void; base: string; active: string; subjects: string[] }) {
   const [params] = useSearchParams();
+  const { on, toggle, hint } = useFollowToggle(base, subjects);
   return (
     <Sheet open={open} onClose={onClose} title="筛选">
       <ul className="mx-4 divide-y divide-line-soft">
         {filterOptions(base, params, "不限").map((o) => {
-          const on = o.key === active;
+          const chosen = o.key === active;
           return (
             <li key={o.key}>
               <Link
                 to={o.to}
                 onClick={onClose}
-                aria-current={on ? "true" : undefined}
-                className={`-mx-2 flex h-12 items-center justify-between rounded-tile px-2 text-[16px] transition-colors active:bg-bg-sunk ${on ? "font-semibold text-accent" : "text-ink"}`}
+                aria-current={chosen ? "true" : undefined}
+                className={`-mx-2 flex h-12 items-center justify-between rounded-tile px-2 text-[16px] transition-colors active:bg-bg-sunk ${chosen ? "font-semibold text-accent" : "text-ink"}`}
               >
                 {o.label}
-                {on && <IconCheck size={19} strokeWidth={2.2} />}
+                {chosen && <IconCheck size={19} strokeWidth={2.2} />}
               </Link>
             </li>
           );
         })}
       </ul>
+      <div className="mx-4 mt-3 border-t border-line-soft pt-1">
+        <button
+          type="button"
+          aria-pressed={on}
+          onClick={() => {
+            if (toggle()) onClose();
+          }}
+          className={`-mx-2 flex h-12 w-[calc(100%+1rem)] items-center justify-between rounded-tile px-2 text-left text-[16px] transition-colors active:bg-bg-sunk ${on ? "font-semibold text-accent" : "text-ink"}`}
+        >
+          只看关注
+          {on && <IconCheck size={19} strokeWidth={2.2} />}
+        </button>
+        {hint && <FollowHint className="pb-3" />}
+      </div>
     </Sheet>
   );
 }
 
-/** Phones: the filter and tag in use as chips under the bar; each one clears itself when tapped. */
-export function ActiveFilters({ base, category, channel, tag }: { base: string; category: CategoryKey | null; channel: ChannelKey; tag: string | null }) {
+/** Phones: the filter, the 只看关注 scope and tag in use as chips under the bar; each one clears itself when tapped. */
+export function ActiveFilters({ base, category, channel, tag, subjects }: { base: string; category: CategoryKey | null; channel: ChannelKey; tag: string | null; subjects: string[] }) {
   const [params] = useSearchParams();
   const label = channel === "firstParty" ? CHANNEL_LABELS.firstParty : category ? CATEGORY_LABELS[category] : null;
-  if (!label && !tag) return null;
+  if (!label && !tag && !subjects.length) return null;
   const chip = "inline-flex min-h-11 max-w-full items-center gap-1 rounded-control bg-accent-soft pl-3 pr-2 text-[13px] font-medium text-accent transition-opacity active:opacity-60";
   return (
     <div className="flex flex-wrap gap-2 pb-3 pt-1 lg:hidden">
+      {subjects.length > 0 && (
+        <Link to={hrefWith(base, params, { subjects: null })} aria-label="取消筛选：只看关注" className={chip}>
+          只看关注
+          <IconClose size={14} strokeWidth={2} />
+        </Link>
+      )}
       {label && (
         <Link to={hrefWith(base, params, { category: null, channel: null })} aria-label={`取消筛选：${label}`} className={chip}>
           只看{label}

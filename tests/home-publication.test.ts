@@ -60,7 +60,7 @@ test('one full-day headliner survives cursor paging; withdrawal removes its date
   const low = await report();
   await sql`UPDATE publications SET score = 95, category = 'ticket' WHERE article_id = ${high}`;
   await sql`UPDATE publications SET score = 60 WHERE article_id = ${low}`;
-  const query = { channel: 'all' as const, category: null, tag: null, now: NOW, limit: 1 };
+  const query = { channel: 'all' as const, category: null, tag: null, subjects: [], now: NOW, limit: 1 };
   const all: Array<Awaited<ReturnType<typeof loadTimeline>>['cards'][number]> = [];
   let cursor: string | null = null;
   do {

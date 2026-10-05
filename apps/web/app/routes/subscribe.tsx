@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { SITE } from "@girlsbands/industry/site";
 import type { SubscribeResponse } from "@girlsbands/contracts/site";
@@ -9,6 +9,7 @@ import { PhoneBar } from "../components/shell/PhoneBar";
 import { BandPicker, FIELD, LABEL, SubscribeShell, Toggle } from "../features/subscribe/ui";
 import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
+import { useFollows } from "../lib/local-state";
 import type { Screen } from "../components/shell/screens";
 
 export const handle: Screen = { tab: "me", name: "邮件订阅" };
@@ -59,6 +60,14 @@ export default function SubscribePage() {
   const [wantsDeadlines, setWantsDeadlines] = useState(true);
   const [wantsDigest, setWantsDigest] = useState(true);
   const [state, setState] = useState<{ kind: "idle" | "sending" | "sent" | "error"; message?: string }>({ kind: "idle" });
+  // 关注过的乐队先勾上，一次就好：订阅成功也不回写浏览器的关注列表（预填是单向的）。
+  const follows = useFollows();
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || !follows.length) return;
+    prefilled.current = true;
+    setBands(follows);
+  }, [follows]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,7 +141,9 @@ export default function SubscribePage() {
 
               <div>
                 <span className={LABEL}>追哪些乐队</span>
-                <p className="mb-3 text-[12.5px] leading-relaxed text-ink-4">不选就是全部。只收你关心的那几支也可以，之后随时能改。</p>
+                <p className="mb-3 text-[12.5px] leading-relaxed text-ink-4">
+                  {follows.length ? "已按你在本机关注的乐队预选，可以随时改。" : "不选就是全部。只收你关心的那几支也可以，之后随时能改。"}
+                </p>
                 <BandPicker value={bands} onChange={setBands} disabled={sending} />
               </div>
 
