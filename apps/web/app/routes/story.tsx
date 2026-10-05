@@ -9,12 +9,13 @@ import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
 import { monthDay, monthDayTime, relativeTime } from "../lib/format";
 import { HeatChart } from "../features/story/HeatChart";
 import { DEADLINE_KINDS, clockText, md } from "../features/feed/deadlines";
+import { LIVE_STAGES } from "../features/feed/lives";
 import { sessionCache } from "../lib/session-cache";
 import { isReload } from "../lib/restore";
 import { Badge, SelectedBadge } from "../components/ui/Badge";
 import { PillTabs } from "../components/ui/Tabs";
 import { Select } from "../components/ui/Controls";
-import { IconArrowLeft, IconChevronRight, IconClock, IconDoc, IconUsers } from "../components/icons";
+import { IconArrowLeft, IconChevronRight, IconClock, IconDoc, IconTicket, IconUsers } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import type { Screen } from "../components/shell/screens";
 
@@ -241,6 +242,16 @@ export default function StoryPage() {
             </span>
           )}
         </div>
+        {story.live && (
+          <Link viewTransition to={`/live/${story.live.publicId}`} prefetch="intent" className="mt-3.5 inline-flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 rounded-full border border-line px-3.5 py-1.5 text-[12.5px] text-ink-2 transition-colors hover:border-band hover:text-band">
+            <IconTicket size={14} className="shrink-0 text-ink-4" />
+            <span className="font-semibold">这场演出</span>
+            <span className="num">{monthDay(story.live.startsOn)}{story.live.startsTime ? ` ${story.live.startsTime}` : ""}</span>
+            {story.live.venue && <span className="truncate text-ink-4">{story.live.venue}</span>}
+            <span className="text-ink-4">{LIVE_STAGES[story.live.stage].label}</span>
+            <IconChevronRight size={14} className="shrink-0 text-ink-4" />
+          </Link>
+        )}
       </header>
 
       <div className="bleed sticky top-[var(--bar-h)] z-20 mt-5 bg-bg/90 py-2 backdrop-blur-md lg:mx-0 lg:px-0">

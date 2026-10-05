@@ -1,6 +1,21 @@
 // Beijing (Asia/Shanghai, fixed UTC+8, no DST) calendar helpers shared by web and backend.
 
+import { TIMEZONE_OFFSETS, type Timezone } from "./site.ts";
+
 const OFFSET_MS = 8 * 3600 * 1000;
+
+/**
+ * YYYY-MM-DD of the instant on the given zone's own calendar. Both zones are fixed offsets with no DST,
+ * and neither is converted into the other: a show in Tokyo belongs to Tokyo's day even when a reader in
+ * Beijing is already past midnight.
+ */
+export function timezoneDate(timezone: Timezone, instant: Date | string | number): string {
+  const offset = TIMEZONE_OFFSETS[timezone];
+  const sign = offset.startsWith("-") ? -1 : 1;
+  const [hours, minutes] = offset.slice(1).split(":").map(Number);
+  const ms = sign * ((hours ?? 0) * 60 + (minutes ?? 0)) * 60_000;
+  return new Date(new Date(instant).getTime() + ms).toISOString().slice(0, 10);
+}
 
 /** YYYY-MM-DD of the instant in Beijing time. */
 export function beijingDate(instant: Date | string | number): string {

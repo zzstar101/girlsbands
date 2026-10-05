@@ -10,6 +10,7 @@ import { cached } from "../lib/cache.ts";
 import { escapeXml } from "../lib/text.ts";
 import { siteUrl } from "./links.ts";
 import { evidenceCondition, listedCondition, selectedCondition } from "./scope.ts";
+import { liveSitemapEntries } from "./lives.ts";
 import { topicPageCounts } from "./topics.ts";
 
 const MAX_URLS = 45_000;
@@ -52,6 +53,10 @@ async function build(): Promise<string> {
     if (!t.indexable) continue;
     entries.push({ loc: `/topics/${t.slug}`, lastmod: t.changedAt, changefreq: "daily", priority: 0.6 });
     for (let p = 2; p <= t.pages; p++) entries.push({ loc: `/topics/${t.slug}/page/${p}`, lastmod: t.changedAt, changefreq: "weekly", priority: 0.3 });
+  }
+  // 演出页：和主题页一样，只有名下还有公开报告的那几场才进。
+  for (const l of await liveSitemapEntries(new Date(), 500)) {
+    entries.push({ loc: `/live/${l.publicId}`, lastmod: l.lastmod, changefreq: "daily", priority: 0.6 });
   }
   // Stories with listed evidence of their own; pages that only gather reports grouped elsewhere (imported
   // story levels, regrouped history) or only mention facts are reachable but not listed.

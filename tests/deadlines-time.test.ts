@@ -13,6 +13,7 @@ import {
   TIMEZONES,
   type DeadlineKind,
 } from "@girlsbands/contracts/site";
+import { timezoneDate } from "@girlsbands/contracts/time";
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { config } from "@girlsbands/backend/config";
 import { calendarIcs } from "@girlsbands/backend/publication/calendar";
@@ -45,6 +46,18 @@ test("the same wall clock is a different instant in Japan and on the mainland", 
   // A day with no stated time is that zone's midnight — what the 48-hour flag measures from.
   assert.equal(deadlineInstant("2026-10-11", null, "Asia/Tokyo"), Date.parse("2026-10-11T00:00:00+09:00"));
   assert.equal(deadlineInstant("2026-10-11", null, "Asia/Shanghai"), Date.parse("2026-10-11T00:00:00+08:00"));
+});
+
+test("a show belongs to the day its own clock says", () => {
+  // 23:30 in Beijing is already the next day in Tokyo: the day a live is filed under is its own, so a
+  // reader in Shanghai sees 「10月11日 23:30 北京时间」 and a Tokyo show at the same instant is the 12th.
+  const late = new Date("2026-10-11T15:30:00Z");
+  assert.equal(timezoneDate("Asia/Shanghai", late), "2026-10-11");
+  assert.equal(timezoneDate("Asia/Tokyo", late), "2026-10-12");
+  // 23:59 and 00:01 in Tokyo: one minute decides which day the live belongs to.
+  assert.equal(timezoneDate("Asia/Tokyo", new Date("2026-10-11T14:59:00Z")), "2026-10-11");
+  assert.equal(timezoneDate("Asia/Tokyo", new Date("2026-10-11T15:01:00Z")), "2026-10-12");
+  assert.equal(timezoneDate("Asia/Shanghai", "2026-12-31T16:00:00Z"), "2027-01-01", "and the year turns with it");
 });
 
 test("a source's clock comes from its config and defaults to Japan", () => {

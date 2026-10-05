@@ -1,16 +1,18 @@
 // Stories (events) and the hot ranking through the public read layer. The website sees heat values;
 // v1 and MCP only see ranks and counts.
-import type { HeatPoint, HotResponse, StoryDetail, StoryReportView } from "@girlsbands/contracts/site";
+import type { HeatPoint, HotResponse, StoryDetail } from "@girlsbands/contracts/site";
 import { SITE } from "@girlsbands/industry/site";
 import { sql } from "../db.ts";
 import { cachedByKey, SHARED_ONLY } from "../lib/cache.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 import { behindSources, currentSignals, heatSeries, sourceClocks, type HotRanking } from "../events/hot.ts";
-import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "./representative.ts";
-import { compositeCondition, evidenceCondition, listedCondition, storyReportCondition } from "./scope.ts";
+import { pickRepresentative } from "./representative.ts";
+import { evidenceCondition, listedCondition, storyReportCondition } from "./scope.ts";
+import { reportView, storyReports, type ReportRow } from "./report-views.ts";
 import { publicSourceName } from "./rules.ts";
 import { latestHotRanking, rankingExtras } from "./hot.ts";
 import { upcomingDeadlines } from "./deadlines.ts";
+import { liveRefForStory } from "./lives.ts";
 import { storyTexts } from "./story-text.ts";
 import { topicsOfStory } from "./topics.ts";
 import { itemUrl, storyApiUrl, storyUrl } from "./links.ts";
@@ -46,52 +48,6 @@ export async function resolveStory(publicId: string): Promise<StoryLookup> {
     return { kind: "not_found" };
   }
   return { kind: "found", storyId: s!.id, publicId };
-}
-
-interface ReportRow extends RepresentativeIdentity {
-  role: string;
-  body_mode: "full" | "summary";
-  score: number | null;
-  timeline_at: Date;
-  id: string;
-  title: string;
-  summary: string | null;
-  url: string;
-  selected: boolean;
-  at: Date;
-  source_id: string;
-  source_name: string;
-  first_party: boolean;
-  fact_id: number;
-}
-
-/**
- * Every report linked to the story's facts that has a public page (rules.hasItemPage: editorial source,
- * summarised or not), mentions included (an article's other events). New grouping only links
- * pool-eligible articles; imported hot stories also carry reports the pool leaves out. hot_signal
- * material only adds heat and is not listed.
- */
-async function storyReports(storyId: number, now: Date): Promise<ReportRow[]> {
-  return sql<ReportRow[]>`
-    SELECT DISTINCT ON (p.article_id) p.article_id AS id, p.title, p.summary, p.url, p.selected,
-      coalesce(p.published_at, p.discovered_at) AS at, s.id AS source_id, s.name AS source_name,
-      (s.tier = 'T1') AS first_party, f.id AS fact_id,
-      CASE WHEN ${compositeCondition()} THEN 'mention' ELSE fa.role END AS role, p.body_mode, p.score, p.timeline_at, ${REPRESENTATIVE_COLUMNS}
-    FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
-    JOIN sources s ON s.id = p.source_id
-    WHERE f.story_id = ${storyId} AND ${storyReportCondition(now)}
-    ORDER BY p.article_id, (fa.role = 'primary') DESC, (fa.role <> 'mention') DESC, f.id`;
-}
-
-function reportView(r: ReportRow): StoryReportView {
-  return {
-    id: r.id,
-    title: r.title,
-    summary: r.summary,
-    source: { name: publicSourceName(r.source_name), firstParty: r.first_party },
-    publishedAt: r.at.toISOString(),
-    selected: r.selected,
-  };
 }
 
 /** The story's reports newest first, its developments, and its latest and first non-mention reports. */
@@ -155,9 +111,10 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
     ? await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM ${currentSignals()} cs WHERE story_id = ${storyId} AND source_id = ANY(${behind}::text[])
                                   AND observed_at > ${now}::timestamptz - interval '48 hours' AND observed_at <= ${now}`
     : [{ n: 0 }];
-  const [related, topics, texts, dates] = await Promise.all([
+  const [related, topics, texts, dates, live] = await Promise.all([
     relatedStories(storyId, now), topicsOfStory(storyId, now), storyTexts([storyId], now),
     upcomingDeadlines(now, { storyId, horizonDays: 365, limit: 60 }),
+    liveRefForStory(storyId, now),
   ]);
   const text = texts.get(storyId)!;
   // Shown beside the latest development, so its time; without one, the timeline's newest report.
@@ -192,6 +149,7 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
     heat: heat.map((h): HeatPoint => ({ hour: h.hour.toISOString(), heat: Number(h.heat), participants: h.participants })),
     related: related.map((r) => ({ publicId: r.public_id, title: r.title, relation: r.relation })),
     topics,
+    live,
   };
 }
 

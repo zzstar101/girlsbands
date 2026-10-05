@@ -349,7 +349,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 
 | 优先级 | 工作包 | 一句话 |
 |---|---|---|
-| **P0** | W7 · 时间模型带时区 | 裸 datetime 换成 `{localDate, localTime?, timezone, precision, sourceQuote}`；这是 W8/W9/W10/W14/W16 的地基 |
+| **P0** | W7 · 时间模型带时区 | 时区写在信源配置里（`sources.config.timezone`），`deadlines[].at` 仍是 `YYYY-MM-DD` / `YYYY-MM-DDTHH:mm`，`.ics` 用 `TZID`；这是 W8/W9/W10/W14/W16 的地基 |
 | **P0** | W8 · LiveEvent 一等实体 | 一场 Live 一个稳定实体 + 生命周期阶段，几十条情报挂在它下面 |
 | **P0** | W9 · 票务状态机 TicketRound | FC先行 / Official先行 / CD封入 / 当落 / 入金 / 一般贩售 / 追加席 / 当日券 / resale，各带状态与时间点 |
 | **P0** | W10 · 行动中心 | 首页回答「**我现在该干什么**」：今天截止 / 还有 N 天 / 即将开售 / 今日 Live |
@@ -441,22 +441,40 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 - `apps/web/app/routes.ts` 里没有 live 路由。
 
 **设计**
-1. **表**（迁移 `0060_live_events.sql`）：`live_events(id, public_id, title, subject_entity, venue, timezone, starts_on, ends_on, starts_time, status, story_id, first_seen_at, updated_at)`，`status ∈ scheduled | cancelled | postponed`，唯一键 `(subject_entity, venue, starts_on, starts_time)`（`venue` 可为 null，见下）；`facts` 加一列 `live_event_id`（可空，回填式）＋索引。
-2. **阶段 A（零模型成本，先做）**：`packages/backend/src/lives/link.ts` 的 `linkLiveEvent(tx, factId)` 在 `createFact` 同一个事务里调用（`events/group.ts:111` 之后），键的推法：主体 = 该 article 的 `analyses.subjects ∩ ENTITIES`；会场 = `ENTITY_TAGS` 命中（7 个会场）；日期 = 该 fact 的 `deadlines` 里 `kind='event'` 的 `localDate`（W7 之后是结构化的）。推不出日期就不建实体（宁缺勿错）。这一步能把「已经在库里的日文一手情报」直接挂上实体，Live 页当场就有内容。
-   - **已知弱点**：国内 livehouse 的会场不在 `ENTITY_TAGS` 里。阶段 A 允许 `venue = null`，键退化成 `(subject_entity, starts_on)`；同一天同一主体两场（昼/夜、巡演两站）会被并成一个实体 —— 这正是 §七 要拍板的「Live 粒度」。
-3. **阶段 B（花模型钱，独立排窗口）**：新提示词 `industry/prompts/live-ticket.md` + `packages/backend/src/editorial/analyze.ts` 新步骤 `runLiveTicket`，结果写 `analyses.output.live`（additive，不动 `output.fact`）。**新提示词文件不会让旧回执失效**，所以只有被显式重跑的条目才花这笔钱（`category IN ('live','ticket')`，新 `attemptTag`，例如 `live-ticket-v1`）。重跑期间条目会短暂下架（`grouping_status = pending`），要单独安排窗口。
-4. **读取**：`packages/backend/src/lives/read.ts` 出 `loadLiveEvent(publicId)`、`liveEventsForSubject(entityId, { from, to })`、`liveEventOfStory(storyId)`；生命周期阶段**不存表**，由 `(now, starts_on/ends_on, 票务轮次, facts 标签)` 现场派生 `announced → ticketing → on_sale → sold_out → live_day → finished`；所有日期一律走 W7 的 `deadlineRange` / `upcomingDeadlines`，报道列表必须过 `listedCondition` + `hasItemPage`（公开出口只从 `packages/backend/src/publication/` 读）。
-5. **界面**：`apps/web/app/routes/live.tsx`（`/live/:publicId`：标题 / 主体 / 会场 / 日期 / 当前阶段 / 时间线 / 相关文章 / 票务轮次占位）+ 主体页的「Live」区块；`apps/api/src/routes/site.ts` 加 `/api/site/live/:publicId`（在 `/^\/api\//` 下，**不用改** `packages/contracts/src/http-policy.ts`，但**新页面路径不能匹配** `API_OWNED_PATTERNS`，否则 `apps/web/server.ts:139` 的 `isApiOwned` 会把它代理去 api）；`packages/backend/src/publication/sitemap.ts` 收录 Live 页（有内容才收，照 topic 页的 `isIndexable` 思路）；`apps/web/app/routes/story.tsx:293` 的日期面板上方加入口。
+1. **表**（迁移 `0060_live_events.sql`）：`live_events(id, public_id, title, subject_entity, venue, timezone, starts_on, ends_on, starts_time, status, story_id, first_seen_at, updated_at)`，`status ∈ scheduled | cancelled | postponed`；唯一键写成**表达式索引** `live_events_identity ON (subject_entity, COALESCE(venue, ''), starts_on, COALESCE(starts_time, ''))` —— `venue` 与 `starts_time` 都可为 null，普通唯一索引会把 null 当成彼此不同，同一场会被插两次；`facts` 加一列 `live_event_id`（可空，回填式）＋索引。
+2. **阶段 A（零模型成本，先做）**：`packages/backend/src/lives/link.ts` 的 `linkFactLiveEvent(db, factId, articleId)` 推导并 upsert 实体，`packages/backend/src/events/live.ts` 的 `linkLiveEvent(factId, articleId)` 在 `sql.begin` 里调它并写 `facts.live_event_id`（`facts` 的属主是 `events/`），调用点是 `events/group.ts` 写事务**提交之后**（`:460` 的 `const result: GroupResult` 之后）—— 失败只记 `result.liveLinkError`，绝不因为挂不上演出而让归组失败。键的推法：
+   - **主体** = 该 fact 的全部条目里第一篇能推出身份的 `analyses.subjects ∩ ENTITIES`（`subject_entity`，不在词表里就不建）；
+   - **会场** = `glossaryHits(text, ["venue"])` **恰好命中一条**才写（`ENTITY_TAGS` 里那 7 个会场不够用；命中 0 条或 2 条以上留 null，键退化成 `(主体, 开演日, 时刻)`）；模型阶段 B 给的会场先过词表归一，再退回正文；
+   - **开演日** = 该 fact **全部条目**（`fact_articles` 展开）里 `kind='event'` 且能 `splitDeadlineAt` 的 deadline，按 `publications.analysis_id` 那条分析读 —— 与日历同一个真源（`publication/deadlines.ts:73`）；**最新一条分析不一定带日期**，所以不能图省事取最新；
+   - **类别门** = 该 fact 至少有一个 `publications.category ∈ LIVE_CATEGORIES`（`live` / `ticket`，定义在 `industry/taxonomy.ts`）。**这条门是实测逼出来的**：dev 库第一批 6 条候选里 3 条是生放送（`stream`）、展览与快闪店（`collab`），有日期不等于有演出。
+   - 同一场的多条报告合并成一条键：`keysOf` 逐行推导，`mergeKeys` 取「最富」的一篇（有会场 > 有时刻 > 有结束日），`status` 取第一篇非 `scheduled` 的；标题只取第一次写下的，阶段 B 的模型演出名可以后来换掉它（`COALESCE(模型名, 原标题)`）。
+   - 回填用 `scripts/backfill-live-events.ts`（`--limit N`、`--dry`），把已经在库里的日文一手情报直接挂上实体。
+3. **阶段 B（花模型钱，独立排窗口）**：新提示词 `industry/prompts/live-ticket.md` + `packages/backend/src/editorial/analyze.ts` 新步骤 `runLiveTicket`，结果写 `analyses.output.live`（additive，不动 `output.fact`），键名 `{title, venue, startsTime, endsOn, status}` 与 `lives/link.ts` 读的一致。**新提示词文件不会让旧回执失效**，所以只有被显式重跑的条目才花这笔钱；门是 `readsLive(category, fact)` = 类别 ∈ `LIVE_CATEGORIES` **且** 结构步骤抽到了 `kind='event'` 的日期（没有日期推不出演出身份，这步的钱不值得花）。重跑用 `scripts/reanalyze-live-tickets.ts`（默认 tag `live-ticket-<日期>`）；**换 attemptTag 会让该条目所有步骤的回执一起失效**，每条约 6 次调用，重跑期间条目会短暂下架（`grouping_status = pending`），要单独安排窗口。
+4. **读取**：`packages/backend/src/publication/lives.ts` 出 `loadLive(publicId)`、`livesForSubject(subject, now, limit)`、`liveRefForStory(storyId, now)`、`liveSitemapEntries(now, limit)`；报告投影抽到 `packages/backend/src/publication/report-views.ts`（`reportView` / `storyReports` / `liveReports`），为了打断 `lives.ts ⇄ stories.ts` 的循环依赖。生命周期阶段**不存表**，由 `(now, starts_on/ends_on, 票务轮次)` 现场派生 `announced → ticketing → on_sale → live_day → finished`，`cancelled` / `postponed` 优先（**没有 `sold_out`**：售罄是票务轮次的状态，属于 W9）；所有日期一律走 W7 的 `deadlineRange`，报道列表过 `storyReportCondition`（`listedCondition` + `hasItemPage`）。演出自己日历的「今天」用 `packages/contracts/src/time.ts` 新增的 `timezoneDate(timezone, instant)` 算（**别用 `Date.parse("1970-01-01T00:00:00+09:00")` 那种写法，偏移符号会反，东京的今天会早一天**）。
+5. **界面**：`apps/web/app/routes/live.tsx`（`/live/:publicId`：标题 / 阶段徽标 / 主体 / 会场 / 日期时刻 / 倒计时 / 票务与日程 / 相关公告 / 订阅日历）+ 主体页的 Live 区块（`apps/web/app/routes/topic.tsx` 的 `LiveSection`，与 live 页共用 `apps/web/app/features/feed/lives.ts` 的 `LIVE_STAGES` / `openStage`）+ story 页的「这场演出」入口；`apps/api/src/routes/site.ts` 加 `/api/site/lives/:publicId`（复数；在 `/^\/api\//` 下，**不用改** `packages/contracts/src/http-policy.ts`，但**新页面路径不能匹配** `API_OWNED_PATTERNS`，否则 `apps/web/server.ts:139` 的 `isApiOwned` 会把它代理去 api）；`packages/backend/src/publication/sitemap.ts` 收录有公开报道的 Live 页。
 
 **验收标准**
 
-| 检查 | 通过标准 |
+| 检查 | 通过标准 | 实测 |
+|---|---|---|
+| 阶段 A 回填 | 抽 20 个已入库的 Live 类条目：能建实体的比例，以及**误并/误分**各几例；库里有实体后 `/live/<id>` 200 | 见下 |
+| 幂等 | 同一条 article 重复 `linkLiveEvent` 不产生第二个实体；同事务，`createFact` 失败不留孤儿 | ✅ `tests/live-events.test.ts`「同一场只有一行」 |
+| 阶段 B | 新提示词不改旧回执（跑一次 `npm test` 确认 `prompt_version` 相关断言不变）；重跑只影响指定 `attemptTag` | ✅ `tests/analyze.test.ts`「analysing the same revision again reuses every paid answer」仍绿 |
+| 公开出口 | Live 页只显示 `listedCondition` 的报道；`.ics` / 日历读数与 W7 后一致（不新增日期算法） | ✅ 下架后 `loadLive` / `liveRefForStory` 为 null 且不再列在主体页 |
+| 测试 | `tests/live-events.test.ts`：键推导、阶段派生（含 cancelled / postponed）、页面 200 与 404 | ✅ 8 个；`tests/analyze.test.ts` 12 个、`tests/deadlines-time.test.ts` 8 个 |
+
+**实现与验证（2026-10-05 完成）**
+
+| 项 | 结果 |
 |---|---|
-| 阶段 A 回填 | 抽 20 个已入库的 Live 类条目：能建实体的比例，以及**误并/误分**各几例；库里有实体后 `/live/<id>` 200 |
-| 幂等 | 同一条 article 重复 `linkLiveEvent` 不产生第二个实体；同事务，`createFact` 失败不留孤儿 |
-| 阶段 B | 新提示词不改旧回执（跑一次 `npm test` 确认 `prompt_version` 相关断言不变）；重跑只影响指定 `attemptTag` |
-| 公开出口 | Live 页只显示 `listedCondition` 的报道；`.ics` / 日历读数与 W7 后一致（不新增日期算法） |
-| 测试 | `tests/live-events.test.ts`：键推导、阶段派生（含 cancelled / postponed）、页面 200 与 404 |
+| 迁移 | `0060_live_events.sql` 已应用（dev 库） |
+| 阶段 A 回填 | `scripts/backfill-live-events.ts` → `candidates: 6, linked: 3, no identity: 3`；被拒的 3 条正是生放送 / 展览 / 快闪店，类别门挡住；**误并 0、误分 0** |
+| 样本不足（照实记） | 计划要求「抽 20 个 Live 类条目」，dev 库拿不到：`publications` 438 行里只有 30 行有 fact，`category ∈ live/ticket` 的 37 条里 31 条还没进 facts，能挂实体的 fact 一共 3 条，3 条全建出来了 |
+| 库里的三场 | `kuzumimizuku 2026-10-18`（会场留空：`代官山SPACE ODD` 不在场馆词表里，宁缺勿错的降级）、`girls-band-cry ぴあアリーナMM 2026-11-03`、`mygo 2026-11-14` |
+| 出口 | 三个 public_id 的 `/api/site/lives/<id>` 全 200（阶段 ticketing、`reportCount` 2/2/3）；`/live/<id>` 200 / 未知 id 404；`/topics/girls-band-cry` 的 Live 区块链到演出页；`/story/<id>` 有「这场演出」胶囊；`/sitemap.xml` 含 3 条 `/live/<id>` |
+| 检查 | `npm run typecheck` 全绿；`tests/live-events.test.ts` 8/8、`tests/analyze.test.ts` 12/12、`tests/deadlines-time.test.ts` 8/8；全量 `npm test` 见「六、验证记录」 |
+| 阶段 B 重跑 | **还没跑**：`scripts/reanalyze-live-tickets.ts --dry` → `candidates: 28`（Live/票务、有开演日期、还没有 `output.live`）。换 tag 会让每条约 6 次调用（≈170 次）失效重问，等站主开窗口、打开 `MODEL_CALLS_ENABLED` |
+| 已知缺口 | `publications.category='live'/'ticket'` 的条目大多还没进 facts，所以「一场 Live 一条时间线」目前只在少数条目上成立；`代官山SPACE ODD` 等会场补进词表会改 `GLOSSARY_VERSION` → 全站重译，**要单独一次决定** |
 
 **待站主拍板**：Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结的 Live 页要不要长期保留；阶段 B 灰度重跑愿意花多少模型钱 / 接受多长的短暂下架。
 **工作量**：2.5 天（阶段 A 约 1 天，阶段 B 与页面 1.5 天），阶段 A 零模型成本。
@@ -468,7 +486,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 **为什么**：`apply_start` 与 `apply_end` 现在是两条互不相识的 `deadlines`（`kind` 分别为 `lottery_start` / `lottery_end`），`result` / `payment_deadline` / `platform` / 轮次类型（FC 先行 / Official 先行 / CD 封入 / 一般贩售 / 追加席 / 当日券 / resale）**无处可放**。用户打开 Live 页要看到的是「**当前：CD 封入先行受理中，10/12 23:59 JST 截止，还有 7 天**」，而不是「10 月 4 日官方公布了新的先行信息」。
 
 **现状（已核）**
-- `packages/backend/src/editorial/analyze.ts:108` 的 `DEADLINE_KINDS`（7 种）与 `industry/prompts/structure.md:35-37`（9 种）不同步 —— 见 W7 第 5 条，W9 依赖它补齐。
+- `packages/backend/src/editorial/analyze.ts` 的 `DEADLINE_KINDS`（原来只有 7 种，与 `industry/prompts/structure.md` 的 9 种不同步）**已在 W7 补齐**：现在九种都从 `packages/contracts/src/site.ts` 的 `DEADLINE_KINDS` 派生，别再在别处抄一份。
 - `packages/backend/src/publication/deadlines.ts:1-12` 已把口径（listed 集合、JST、48 小时）定死在头注释里，是唯一日期算法；**轮次日期必须接进这里，不能在日历里另算一套**。
 - 票务分类在 `industry/taxonomy.ts` 里已经很细（FC/Official/CD 封入先行、抽选结果、一般贩售、追加席、当日券、转售），只是它们今天只是文章标签。
 
@@ -1006,6 +1024,30 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 
 **这一轮的坑：机器负载会让全量测试假红。** 这台机器上另有一个虚拟机（`Virtualization.framework` 125% CPU）、DSH/ChatGPT 的渲染进程和一个 Codex 会话，`load average` 一度到 **181（10 核）**。全量 `npm test` 因此跑成 1057s（基线 122s），5 条报 `test timed out after 120000ms` 或 `spawnSync … ETIMEDOUT`（`tests/analyze-kill.test.ts`、`tests/backup-files.test.ts`、`tests/collection-tail.test.ts` ×2、`tests/collection.test.ts`、`tests/mcp-host.test.ts` ×2、`tests/rss-conditional.test.ts`、`tests/selection-eval-runtime.test.ts`）。同一批文件用 `--test-concurrency=1` 单独跑是 **55 通过 / 0 失败**，负载回落到 60 后全量 **629 通过 / 0 失败**。结论：那批红全是饿死，与改动无关；**报全量结果前先看 `uptime`**。
 
+**W8（2026-10-05 完成）：LiveEvent 一等实体**
+
+`database/migrations/0060_live_events.sql` 建 `live_events`（唯一键是表达式索引 `(subject_entity, COALESCE(venue,''), starts_on, COALESCE(starts_time,''))` —— 两个可空列用普通唯一索引会被当成彼此不同）+ `facts.live_event_id`。阶段 A：`packages/backend/src/lives/link.ts` 推导键并 upsert，`packages/backend/src/events/live.ts` 的 `linkLiveEvent` 在归组写事务**提交之后**被调用（失败只记 `liveLinkError`）；**类别门** `LIVE_CATEGORIES = {live, ticket}`（`industry/taxonomy.ts`）是实测逼出来的 —— 第一批 6 条候选里 3 条是生放送 / 展览 / 快闪店。会场用 `glossaryHits(text, ["venue"])` 恰好命中一条才写。阶段 B：新提示词 `industry/prompts/live-ticket.md`（新文件 ⇒ 旧回执不失效）+ `editorial/analyze.ts` 的 `runLiveTicket`，写 `analyses.output.live`，门是「类别 ∈ live/ticket 且结构步抽到 `kind='event'` 日期」，模型复用 `structure` 档位（不新开环境变量），`purpose` 是 `live_ticket_article`（已加进 `jobs/content.ts` 的 `ARTICLE_STEPS`）。读取在 `packages/backend/src/publication/lives.ts`（`loadLive` / `livesForSubject` / `liveRefForStory` / `liveSitemapEntries`），报告投影抽到 `publication/report-views.ts` 以打断循环依赖；阶段读时派生，`cancelled` / `postponed` 优先，没有 `sold_out`（那是 W9）。出口 `/api/site/lives/:publicId`（复数）+ `/live/:publicId` 页面 + 主体页 Live 区块 + story 页胶囊 + sitemap。`packages/contracts/src/time.ts` 新增 `timezoneDate(timezone, instant)`。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（含 `npm run typecheck -w @girlsbands/web`） |
+| `tests/live-events.test.ts` | **8 通过 / 0 失败**（键推导、类别门、同一场只一行、日期取 `publications.analysis_id` 那条、标题取演出类报告、七种阶段、下架后 404、API 200/404） |
+| `tests/analyze.test.ts` | **12 通过 / 0 失败**（新增「Live 与票务公告读演出本身，只读原文说了的」；重放回执那条仍绿） |
+| `tests/deadlines-time.test.ts` | **8 通过 / 0 失败**（新增「一场演出属于它自己那口钟的那一天」） |
+| 全量 `npm test` | **639 通过 / 0 失败**（112.6s，0 cancelled） |
+| 迁移 | 已应用到 dev 库 |
+| 阶段 A 回填 | `candidates: 6, linked: 3, no identity: 3`（被拒的 3 条是 `stream` / `collab`）；**误并 0、误分 0**；库里的三场：`kuzumimizuku 2026-10-18`、`girls-band-cry ぴあアリーナMM 2026-11-03`、`mygo 2026-11-14` |
+| 出口实测 | 三个 `/api/site/lives/<id>` 全 200（阶段 `ticketing`，报道 2/2/3）；`/live/<id>` 200、未知 id 404；主体页 Live 区块与 story 胶囊都链到演出页；`/sitemap.xml` 含 3 条 `/live/<id>` |
+| 模型花费 | 阶段 A 零；阶段 B 只写了代码与脚本，**重跑还没跑**（`scripts/reanalyze-live-tickets.ts --dry` → `candidates: 28`，换 tag 后每条约 6 次调用 ≈170 次，等站主开窗口） |
+
+**W8 踩到的坑**
+- **「有日期的活动」不等于演出**：`stream`（生放送）、`collab`（展览、快闪店）都会被 structure 抽成 `kind='event'`。第一批 6 条候选里 3 条就是这么误建的，必须按 `publications.category` 设门。
+- **日期要取 `publications.analysis_id` 那条分析，不是最新一条**：同一文章可能有多条 `analyses`（`input_revision` 不同），写日期的往往是 `analysis_id` 指的那条 —— 日历（`publication/deadlines.ts:73`）就是这么读的，演出页的日期必须和日历同源，否则「日历上有、演出页没有」。
+- **时区偏移的符号会反**：`Date.parse("1970-01-01T00:00:00+09:00")` 得到的是 `-9h`，拿它当「东京的今天」会让日期早一天（测试里表现成阶段判成 `announced`）。统一改成 `packages/contracts/src/time.ts` 的 `timezoneDate`。
+- **`analyses.output` 里没有 `category` / `tags` / `subjects`**：分类在 `publications.category`，主体在 `analyses.subjects` 列。
+- **契约里新加的字段必须被 web 读掉**：`tests/architecture.test.ts:145-150` 要求 `packages/contracts/src/site.ts` 的每个字段都能在 `apps/web` 里找到引用，`firstSeenAt` / `updatedAt` 起初没人用而红 —— 在演出页页脚写了「本站 X 首次收录，Y 最近更新」。
+- **词表缺口不要顺手补**：`代官山SPACE ODD` 不在 `industry/glossary-venues.ts` 里，所以那一场的会场留空。补进去会改 `GLOSSARY_VERSION` → `TRANSLATE_PROMPT_VERSION` → 全站旧译文回执失效重译，要单独一次决定。
+
 ---
 
 ## 七、待站主拍板汇总（动手前先看这里）
@@ -1021,7 +1063,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 | **W17** | 官方判据用 `owner_entity_id IS NOT NULL`（12 个 T1_5 官方 X 也算官方，含 5 个成员个人 X）还是 `tier = 'T1'`（`first_party` 只认 T1，见 `packages/backend/src/publication/publish.ts:294`） | 前者更准，后者更保守 |
 | **W12** | 关注 → 邮件的 token 方案：**不做**读者端自生成 token（它同时是 `List-Unsubscribe` 凭据，自生成会把 `subscribers.token` 变成可猜面），改成 `/subscriptions/:token` 短链别名 | 按建议做 |
 | ~~**W7**~~ ✅ | ~~`.ics` 用当地时刻（日本 18:30 / 中国 15:30）还是统一北京时间；北京时间 21:00 之后的场次在「今天截止」里算哪天~~ | **已拍板 2026-10-05**：用当地时刻 + `TZID`、按当地日历（已完成） |
-| **W8** | Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留；阶段 B 灰度重跑愿意花多少模型钱、接受多长的短暂下架 | 一站一实体；已完结页保留（那是事后档案的落点） |
+| **W8** | Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留 | **代码按「一站一实体」落地了**（键 = 主体 + 会场 + 开演日 + 开演时刻，同一场取信息最全的那篇报告），要改粒度只需动唯一键与 `mergeKeys`；已完结页现在照常保留。**阶段 B 灰度重跑还没跑**：`candidates: 28`，换 tag 后每条约 6 次调用（≈170 次），要开窗口并接受短暂下架 |
 | **W9** | `deadlines` 与 `ticket_rounds` 哪个权威；`status` 要不要含**个人**当落；`platform` 要不要中文化 | 轮次权威、`deadlines` 只是投影；不含个人当落；平台名照官方原文 |
 | **W11** | 店铺特典真源（公告通常只写「対象店舗」）：开人工 `industry/releases/{slug}.json` 还是接受「模型只抽公告写了的」；粒度是 1 个 `releases` + 3 个 editions 还是 3 行；存量 21 条 `other` 要不要花钱重抽 | 先只抽公告、粒度取前者；重抽等 W7 落地后一起做 |
 | **W13** | 索引门槛（建议 `total >= 5`，比主题页宽松）；成员页要不要显示「中之人」真名与所属乐队（真人隐私）；成员要不要进 `/starred` 与订阅 `bands[]` | 门槛 5；只显示角色 ↔ 声优关系；不进订阅 |

@@ -5,12 +5,15 @@
 //   2. score: two independent scores against the source tier's threshold (industry/selection.ts) decide 精选;
 //   3. structure: category, tags, subjects and the current news fact, beside scoring;
 //   4. writing, once the structure is in: the Chinese title, summary and reason by the content
-//      understanding for selected and near-selected items, by the cheaper title/summary prompts for the rest.
+//      understanding for selected and near-selected items, by the cheaper title/summary prompts for the rest;
+//   5. live: what the show itself is (name, venue, start time, last day, announced status), only for
+//      Live or ticket material whose structure step found a start date — lives/link.ts turns it into a
+//      Live page, and without a date there is no identity to derive.
 // Material with only a title or a feed summary has its article page fetched before it is judged.
 import { z } from "zod";
 import { CATEGORY_KEYS } from "@girlsbands/contracts/taxonomy";
-import { DEADLINE_KINDS } from "@girlsbands/contracts/site";
-import { CATEGORIES } from "@girlsbands/industry/taxonomy";
+import { DEADLINE_KINDS, type LiveStatus } from "@girlsbands/contracts/site";
+import { CATEGORIES, LIVE_CATEGORIES } from "@girlsbands/industry/taxonomy";
 import { SELECTION } from "@girlsbands/industry/selection";
 import { sql } from "../db.ts";
 import { chatJson, MODELS, ModelOutputError, type ContentPart } from "../providers/llm.ts";
@@ -36,6 +39,7 @@ export const PROMPT_VERSIONS = {
   understand: promptVersion("understand"),
   summarize: promptVersion("summarize-article", "summarize-article-empty", "summarize-short-post", "summarize-short-post-quoted", "summarize-long-post", "summarize-long-post-quoted", "identity-context"),
   structure: promptVersion("structure"),
+  live: promptVersion("live-ticket"),
 } as const;
 /** Every step's prompt, as stored on each judgement. */
 export const SELECTION_PROMPT_VERSION = [PROMPT_VERSIONS.prefilter, PROMPT_VERSIONS.score].join("+");
@@ -146,6 +150,16 @@ export const StructureSchema = z.object({
   fact: FactSchema,
 });
 
+/** What the show itself is (prompts/live-ticket.md). Everything but the name has to be found in the
+ *  original text; a field the announcement does not state stays null. */
+const LiveSchema = z.object({
+  title: z.string().trim().max(80).nullable().catch(null),
+  venue: z.string().trim().max(80).nullable().catch(null),
+  startsTime: z.string().trim().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).nullable().catch(null),
+  endsOn: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().catch(null),
+  status: z.enum(["scheduled", "cancelled", "postponed"]).catch("scheduled"),
+});
+
 const UnderstandSchema = z.object({
   itemType: z.enum(ITEM_TYPES),
   authorRole: z.enum(["principal", "observer", "relayer"]).catch("relayer"),
@@ -169,6 +183,9 @@ export const STRUCTURE_SYSTEM = promptText("structure", {
   entityTags: ENTITY_TAGS.join("、"),
   entities: Object.entries(ENTITIES).map(([id, e]) => `${id}（${e.aliases.slice(0, 3).join("/")}）`).join("，"),
 });
+
+/** What the show itself is, for Live and ticket material (industry/prompts/live-ticket.md). */
+export const LIVE_SYSTEM = promptText("live-ticket");
 
 /** Keep only quotes present both in the original material and in the text the structure model saw. */
 export function normalizeStructure(data: z.infer<typeof StructureSchema>, a: AnalyzeInputArticle) {
@@ -203,6 +220,53 @@ export function normalizeStructure(data: z.infer<typeof StructureSchema>, a: Ana
   };
 }
 
+/** The show itself, as read from the announcement: `output.live` on the stored judgement. */
+export interface LiveRead {
+  title: string | null;
+  venue: string | null;
+  startsTime: string | null;
+  endsOn: string | null;
+  status: LiveStatus;
+}
+
+/** A clock time written out in the original: `18:30`, `18時30分` and `18時30` all count. */
+function clockInText(text: string, value: string | null): string | null {
+  if (!value) return null;
+  const [h, m] = value.split(":");
+  const forms = [value, `${Number(h)}:${m}`, `${Number(h)}時${Number(m)}分`, `${Number(h)}時${Number(m)}`];
+  return forms.some((f) => text.includes(f)) ? value : null;
+}
+
+/** A date written out in the original: ISO, `2026/11/3`, `2026年11月3日`, `11月3日`. */
+function dateInText(text: string, value: string | null): string | null {
+  if (!value) return null;
+  const [y, m, d] = value.split("-");
+  const forms = [value, `${y}/${m}/${d}`, `${y}年${Number(m)}月${Number(d)}日`, `${Number(m)}月${Number(d)}日`];
+  return forms.some((f) => text.includes(f)) ? value : null;
+}
+
+/**
+ * Keep only what the announcement actually states. A venue or a start time the model "knows" about the
+ * tour but that is not in the text is dropped, so one show never borrows another's venue. The name is
+ * the reader-facing Chinese one and is not checked against the text; nothing at all readable means no
+ * live section at all.
+ */
+export function normalizeLive(data: z.infer<typeof LiveSchema>, a: AnalyzeInputArticle): LiveRead | null {
+  const text = collapseWhitespace(buildMaterial(a));
+  const title = data.title ?? null;
+  const venue = data.venue && text.includes(collapseWhitespace(data.venue)) ? data.venue : null;
+  const startsTime = clockInText(text, data.startsTime);
+  const endsOn = dateInText(text, data.endsOn);
+  // Only an announcement that says so can cancel or postpone a show.
+  const status = data.status === "scheduled" || /中止|延期|振替|見送|キャンセル|cancel|取消|推迟/i.test(text) ? data.status : "scheduled";
+  return title || venue || startsTime || endsOn ? { title, venue, startsTime, endsOn, status } : null;
+}
+
+/** The live step only has something to say about Live or ticket material with a start date to key on. */
+export function readsLive(category: string | null, fact: { deadlines?: readonly { kind: string }[] | null } | null): boolean {
+  return !!category && LIVE_CATEGORIES.has(category) && !!fact?.deadlines?.some((d) => d?.kind === "event");
+}
+
 export interface AnalysisRun {
   prefilter: { label: "PASS" | "BLOCK" | "UNKNOWN"; reason: string; model: string; receiptId: number; reused: boolean };
   /**
@@ -224,6 +288,8 @@ export interface AnalysisRun {
     reused: boolean;
   } | null;
   structure: (ReturnType<typeof normalizeStructure> & { model: string; receiptId: number; reused: boolean }) | null;
+  /** What the show itself is; null when the material is not a Live, or states nothing about it. */
+  live: (LiveRead & { model: string; receiptId: number; reused: boolean }) | null;
 }
 
 const isContentFilter = (error: unknown) => error instanceof ProviderRejectedError && !error.retryable && /contentFilter|"1301"/.test(error.message);
@@ -349,6 +415,36 @@ export async function runStructure(a: AnalyzeInputArticle, opts: StepOpts = {}):
   return { ...normalizeStructure(res.data, a), model: res.model, receiptId: res.receiptId, reused: res.reused };
 }
 
+/** What the show itself is: the name, the venue, the start time, the last day, the announced status. */
+export async function runLiveTicket(
+  a: AnalyzeInputArticle,
+  structure: NonNullable<AnalysisRun["structure"]>,
+  opts: StepOpts = {},
+): Promise<AnalysisRun["live"]> {
+  // Same kind of work as the structure step (extraction only, no reader-facing prose), so it runs on
+  // the same model rather than a capability of its own with another switch to configure.
+  const model = await modelFor("structure");
+  checkAnalysisRunning();
+  // The dates the structure step already found tell the model which day this report is about.
+  const dates = (structure.fact?.deadlines ?? []).map((d) => `${d.kind} ${d.at}${d.note ? ` ${d.note}` : ""}`).join("\n");
+  const material = buildMaterial(a);
+  const res = await chatJson({
+    model,
+    purpose: "live_ticket_article",
+    subject: subjectOf(a),
+    promptVersion: PROMPT_VERSIONS.live,
+    system: LIVE_SYSTEM,
+    user: dates ? `${material}\n\n【结构步骤已抽出的日期】\n${dates}` : material,
+    schema: LiveSchema,
+    temperature: 0,
+    maxTokens: 400,
+    attemptTag: tagged(opts.attemptTag, "live"),
+  });
+  const live = normalizeLive(res.data, a);
+  // Nothing readable about the show: leave no live section behind, rather than an empty one.
+  return live ? { ...live, model: res.model, receiptId: res.receiptId, reused: res.reused } : null;
+}
+
 /** Content understanding grounded in the original; null on a content-filter refusal. */
 export async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts = {}, note?: string): Promise<AnalysisRun["writing"]> {
   const model = await modelFor("understand");
@@ -454,7 +550,7 @@ export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts = {}): 
   checkAnalysisRunning();
   const prefilter = await runSelectionPrefilter(a, opts);
   // UNKNOWN is let through (its material is as complete as it will get); BLOCK stops here.
-  if (prefilter.label === "BLOCK") return { prefilter, scores: null, writing: null, structure: null };
+  if (prefilter.label === "BLOCK") return { prefilter, scores: null, writing: null, structure: null, live: null };
   // The structure step needs nothing from the scores: it runs beside them.
   const structure = runStructure(a, opts).then((value) => ({ value }), (error: unknown) => ({ error }));
   try {
@@ -465,7 +561,10 @@ export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts = {}): 
     if ("error" in s) throw s.error;
     const wrote = (near ? await runUnderstand(a, opts) : null) ?? (await runSummarize(a, opts));
     const writing = await ensureCopy(a, opts, wrote);
-    return { prefilter, scores, writing, structure: s.value };
+    // Only a Live or ticket announcement with a start date has a show to describe: the date is what the
+    // Live identity is keyed on (lives/link.ts), so reading the rest of it without one buys nothing.
+    const live = readsLive(s.value.category, s.value.fact) ? await runLiveTicket(a, s.value, opts) : null;
+    return { prefilter, scores, writing, structure: s.value, live };
   } finally {
     // A score/writing error or deploy must not let the job finish while a paid structure request
     // still owns a response. It settles and stores its receipt before shutdown can close the DB.
@@ -536,6 +635,7 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
   const out = normalizeAnalysis(run);
   const receiptIds = [
     run.prefilter.receiptId, ...(run.scores?.receiptIds ?? []), ...(run.writing?.receiptIds ?? []), ...(run.structure ? [run.structure.receiptId] : []),
+    ...(run.live ? [run.live.receiptId] : []),
   ];
   const w = run.writing;
   const detail = {
@@ -544,6 +644,11 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
     ...(w ? { writer: w.kind, writerModel: w.model, itemType: w.itemType ?? null, authorRole: w.authorRole ?? null } : {}),
     ...(w?.identityGuard?.outcome === "fallback" ? { identityGuard: w.identityGuard } : {}),
     scope: out.scope, fact: out.fact,
+    // What the show itself is (Live and ticket material only); lives/link.ts reads it back to name a
+    // Live, and falls back to the announcement text for whatever the model left out.
+    ...(run.live ? {
+      live: { title: run.live.title, venue: run.live.venue, startsTime: run.live.startsTime, endsOn: run.live.endsOn, status: run.live.status },
+    } : {}),
   };
   const committed = await sql.begin(async (tx) => {
     const [current] = await tx<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${articleId} FOR UPDATE`;
@@ -567,6 +672,7 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
     }
     return { analysisId: row!.id, stale };
   });
-  const reused = run.prefilter.reused && (run.scores?.reused ?? true) && (w?.reused ?? true) && (run.structure?.reused ?? true);
+  const reused = run.prefilter.reused && (run.scores?.reused ?? true) && (w?.reused ?? true) && (run.structure?.reused ?? true)
+    && (run.live?.reused ?? true);
   return { analysisId: committed.analysisId, stale: committed.stale, output: out, receiptIds, reused };
 }

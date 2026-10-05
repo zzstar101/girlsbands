@@ -17,8 +17,10 @@ import { ChronicleBand, ChronicleRail } from "../features/topic/Chronicle";
 import { MonthCalendar } from "../features/topic/Calendar";
 import { EmptyState } from "../components/ui/Page";
 import { IconArrowLeft } from "../components/icons";
+import { Badge } from "../components/ui/Badge";
+import { LIVE_STAGES, openStage } from "../features/feed/lives";
 import { beijingDate } from "@girlsbands/contracts/time";
-import { monthDay, monthDayTime } from "../lib/format";
+import { monthDay, monthDayTime, weekdayShort } from "../lib/format";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import type { Screen } from "../components/shell/screens";
 
@@ -97,6 +99,38 @@ export function meta({ loaderData }: Route.MetaArgs) {
   });
 }
 
+/**
+ * 这个企划/乐队接下来的演出。月历回答「这个月有什么」，这一段回答「哪一场、到哪一步、还剩几天」——
+ * 两处读的是同一批日期（api 的 lives 与 calendar 都出自 facts 的 deadlines），不会各算各的。
+ */
+function LiveSection({ lives }: { lives: TopicPage["lives"] }) {
+  return (
+    <section id="lives" className="card mb-8 scroll-mt-16 p-5 lg:p-6">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-[16px] font-[650] text-ink">演出</h2>
+        <span className="text-[12px] text-ink-4">近期 {lives.length} 场</span>
+      </div>
+      <ol className="mt-2 divide-y divide-line-soft">
+        {lives.map((l) => {
+          const stage = LIVE_STAGES[l.stage];
+          return (
+            <li key={l.publicId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+              <span className="num w-[104px] shrink-0 text-[13px] text-ink-2">{monthDay(l.startsOn)}（{weekdayShort(l.startsOn)}）</span>
+              <Link viewTransition to={`/live/${l.publicId}`} prefetch="intent" className="min-w-0 flex-1 truncate text-[14.5px] font-[650] text-ink transition-colors hover:text-accent">
+                {l.title}
+              </Link>
+              {l.venue && <span className="hidden max-w-[180px] truncate text-[12.5px] text-ink-4 sm:inline">{l.venue}</span>}
+              <span className="num shrink-0 text-[12.5px] text-ink-3">{l.startsTime ?? "时间未定"}</span>
+              <Badge tone={stage.tone}>{stage.label}</Badge>
+              <span className="num w-[44px] shrink-0 text-right text-[12px] text-ink-4">{openStage(l.stage) && l.daysLeft !== null ? `D-${l.daysLeft}` : ""}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 export default function TopicRoute() {
   const { data, calendar, scope } = useLoaderData<typeof loader>();
   const home = useRouteLoaderData<typeof rootLoader>("root")?.home;
@@ -165,6 +199,8 @@ export default function TopicRoute() {
       {page === 1 && calendar && (
         <div id="calendar" className="scroll-mt-16"><MonthCalendar data={calendar} monthHref={(m) => href(1, { month: m })} icsHref={`/calendar/${topic.slug}.ics`} className="mb-8" /></div>
       )}
+
+      {page === 1 && data.lives.length > 0 && <LiveSection lives={data.lives} />}
 
       {page === 1 && hasChronicle(data) && (
         <div key={topic.slug} className="mb-8">

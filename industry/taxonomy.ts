@@ -37,6 +37,12 @@ export const CHANNEL_LABELS = {
 } as const;
 
 /**
+ * 能描述一场演出本身的类别：演出公告与它的票务公告。生放送（stream）、展览与快闪店（collab）不是演出，
+ * 不会被建成一场 Live。演出信息的抽取与 Live 身份的推导都按这一条设门（见 editorial/analyze.ts 与 lives/link.ts）。
+ */
+export const LIVE_CATEGORIES: ReadonlySet<string> = new Set(["live", "ticket"]);
+
+/**
  * 这个行业最受关注的一类发布（日报报头的计数、改分类后修订已出的报告、编年史的上面一行都按它数）。
  * category 是类别，tag 是标签，两者都对上才算；unit 接在数字后面。没有这样一类的行业设成 null。
  * 本行业取“票务”：开售与抽选是粉丝最需要第一时间知道的事。

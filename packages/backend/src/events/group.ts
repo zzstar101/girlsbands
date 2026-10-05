@@ -27,6 +27,7 @@ import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import { publishArticle, publishArticleTx } from "../publication/publish.ts";
 import { latestCompositeCondition } from "../publication/scope.ts";
 import { consolidate, liveStory, type Consolidation } from "./consolidate.ts";
+import { linkLiveEvent } from "./live.ts";
 import { mergeStoryInto } from "./merge.ts";
 import { candidateViews, cosine32, recallFacts, recallSelectedBackground, relatedPosts, vectorsFor } from "./recall.ts";
 import {
@@ -222,6 +223,9 @@ export interface GroupResult {
   reclaimed?: number;
   reclaimError?: string;
   rematchError?: string;
+  /** The live this fact is about, when its material identifies one (lives/link.ts). */
+  liveEventId?: number;
+  liveLinkError?: string;
 }
 
 export interface GroupOptions {
@@ -458,6 +462,15 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
   for (const id of receipts) await completeReceipt(sql, id);
   if (written.manual) return { verdict: "manual", factId: written.manual.factId };
   const result: GroupResult = { verdict, factId: written.factId!, storyId: written.storyId! };
+
+  // 这是哪一场演出：fact 一写完（新建或并入）就挂上身份。推不出来或失败都不影响归组本身 —— 报告已经挂
+  // 好了，下一条报告或回填脚本还能补。
+  try {
+    const liveEventId = await linkLiveEvent(written.factId!, articleId);
+    if (liveEventId !== null) result.liveEventId = liveEventId;
+  } catch (error) {
+    result.liveLinkError = String(error).slice(0, 300);
+  }
 
   // Other stories this report is firmly tied to: one story may have grown two roots. Best effort:
   // the report's own decision is written; a failed comparison is reported in the job's result.

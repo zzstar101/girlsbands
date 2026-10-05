@@ -20,15 +20,16 @@ const T = tag();
 const SOURCE = `test-analyze-${T}`;
 const X_SOURCE = `test-analyze-x-${T}`;
 
-type Step = "prefilter" | "score" | "understand" | "summarize" | "structure";
+type Step = "prefilter" | "score" | "understand" | "summarize" | "structure" | "live";
 interface Req { step: Step; marker: string; system: string; user: string }
 const requests: Req[] = [];
-const MARKERS = ["CLEAR", "RESCUE", "LOW", "OFFTOPIC", "BARE", "VAGUE", "THIN", "SENSITIVE", "推文", "BLANK", "EMPTY"];
-const scoreAnswers: Record<string, number[]> = { CLEAR: [78, 72], RESCUE: [56, 50], LOW: [45, 40], THIN: [70, 70], SENSITIVE: [80, 80], 推文: [40, 40], BARE: [30, 34], VAGUE: [60, 62], BLANK: [40, 40], EMPTY: [40, 40] };
+const MARKERS = ["SHOWGOOD", "SHOWBAD", "STREAMSHOW", "CLEAR", "RESCUE", "LOW", "OFFTOPIC", "BARE", "VAGUE", "THIN", "SENSITIVE", "推文", "BLANK", "EMPTY"];
+const scoreAnswers: Record<string, number[]> = { SHOWGOOD: [80, 80], SHOWBAD: [80, 80], STREAMSHOW: [80, 80], CLEAR: [78, 72], RESCUE: [56, 50], LOW: [45, 40], THIN: [70, 70], SENSITIVE: [80, 80], 推文: [40, 40], BARE: [30, 34], VAGUE: [60, 62], BLANK: [40, 40], EMPTY: [40, 40] };
 
 const stepOf = (system: string, user: string): Step =>
   system.includes("宽召回的行业相关性预筛") ? "prefilter" : system.includes("事件注意力评分器") ? "score"
   : system.includes("内容理解编辑") ? "understand" : system.includes("资料结构化助手") ? "structure"
+  : system.includes("演出信息抽取助手") ? "live"
   : user.includes("title_zh") ? "summarize" : (() => { throw new Error("unknown request"); })();
 
 // One stub stands in for DashScope (prefilter, structure), Zhipu (score, understand) and DeepSeek (summarize).
@@ -47,7 +48,19 @@ const provider = await stub((_hit, req) => {
     if (marker === "SENSITIVE") return new Reply(400, { contentFilter: [{ level: 1, role: "user" }], error: { code: "1301", message: "系统检测到输入或生成内容可能包含不安全或敏感内容" } });
     return answer({ itemType: "live_announcement", authorRole: "principal", tags: ["新 Live", "联动企划", "声优", "不存在的标签"], editorialJudgment: `理由 ${marker}`, titleZh: `理解标题 ${marker}`, summaryZh: `理解摘要 ${marker}。第二句补充一个关键数字。` });
   }
-  if (step === "structure") return answer({ category: "live", tags: ["新 Live", "出演阵容"], subjects: ["togenashi-togeari", "unknown-co"], scope: "single", fact: { title: `事实 ${marker}`, subject: "トゲナシトゲアリ", action: "公布", object: "新 Live", occurredAt: null, evidence: "a band announced a live tour", conditions: [] } });
+  if (step === "structure") {
+    // The three SHOW markers are announcements with a start date, which is what the live step keys on.
+    if (marker === "SHOWGOOD" || marker === "SHOWBAD" || marker === "STREAMSHOW") {
+      return answer({ category: marker === "STREAMSHOW" ? "stream" : "live", tags: ["新 Live"], subjects: ["togenashi-togeari"], scope: "single", fact: { title: `事实 ${marker}`, subject: "トゲナシトゲアリ", action: "公布", object: "新 Live", occurredAt: null, evidence: "a band announced a live tour", conditions: [], deadlines: [{ kind: "event", at: "2026-11-03", note: "开演", quote: "a band announced a live tour" }] } });
+    }
+    return answer({ category: "live", tags: ["新 Live", "出演阵容"], subjects: ["togenashi-togeari", "unknown-co"], scope: "single", fact: { title: `事实 ${marker}`, subject: "トゲナシトゲアリ", action: "公布", object: "新 Live", occurredAt: null, evidence: "a band announced a live tour", conditions: [] } });
+  }
+  if (step === "live") {
+    // SHOWBAD names a venue and a time the announcement never states (and says the show is off).
+    return marker === "SHOWBAD"
+      ? answer({ title: `演出名 ${marker}`, venue: "日本武道館", startsTime: "19:00", endsOn: null, status: "cancelled" })
+      : answer({ title: `演出名 ${marker}`, venue: "ぴあアリーナMM", startsTime: "18:30", endsOn: null, status: "scheduled" });
+  }
   // BLANK and EMPTY both name a band the material never mentions, so the identity guard drops the
   // copy; BLANK writes properly once the retry says so, EMPTY never does.
   if (marker === "EMPTY" || (marker === "BLANK" && !user.includes("上一次的中文标题里出现了原文没有提到的名字"))) {
@@ -117,6 +130,30 @@ test("a selected item: prefilter, two scores, the content understanding and the 
   assert.ok(understand.system.includes("【摘要答案前置规则") && understand.system.includes("【标题自洽规则"));
   const prefilter = requests.find((q) => q.marker === "CLEAR" && q.step === "prefilter")!;
   assert.ok(JSON.parse(prefilter.user).includes("【材料质量】"), "the material context, sent as a JSON string");
+});
+
+test("a Live or ticket announcement with a start date reads the show itself, and only what it states", async () => {
+  const id = await article("SHOWGOOD", { bodyText: `SHOWGOOD: ${LONG} 会場：ぴあアリーナMM 18:30 開演 (${T})` });
+  const res = await analyzeArticle(id);
+  assert.deepEqual(calls("SHOWGOOD").sort(), ["live", "prefilter", "score", "score", "structure", "understand"]);
+  const r = await row(id);
+  assert.deepEqual(r.output.live, { title: "演出名 SHOWGOOD", venue: "ぴあアリーナMM", startsTime: "18:30", endsOn: null, status: "scheduled" });
+  assert.equal(r.receipt_ids.length, 6, "这一步的回执也记在这条分析上");
+  assert.equal(res!.reused, false);
+  const live = requests.find((q) => q.marker === "SHOWGOOD" && q.step === "live")!;
+  assert.ok(live.user.includes("【结构步骤已抽出的日期】\nevent 2026-11-03"), "the dates the structure step found go with it");
+  assert.ok(live.system.includes("演出信息抽取助手"));
+
+  // A venue and a time the announcement never states are dropped, the name is not; 中止是原文说的才算。
+  const bad = await article("SHOWBAD", { bodyText: `SHOWBAD: ${LONG} この公演は中止となりました (${T})` });
+  await analyzeArticle(bad);
+  assert.deepEqual((await row(bad)).output.live, { title: "演出名 SHOWBAD", venue: null, startsTime: null, endsOn: null, status: "cancelled" });
+
+  // A stream is not a show: the start date alone does not earn the step.
+  const stream = await article("STREAMSHOW", { bodyText: `STREAMSHOW: ${LONG} 会場：ぴあアリーナMM 18:30 開演 (${T})` });
+  await analyzeArticle(stream);
+  assert.deepEqual(calls("STREAMSHOW").sort(), ["prefilter", "score", "score", "structure", "understand"]);
+  assert.equal((await row(stream)).output.live, undefined, "生放送没有演出这一节");
 });
 
 test("structure retains grounded conditions, rejects invented or unseen quotes, and does not infer missing scope", async () => {

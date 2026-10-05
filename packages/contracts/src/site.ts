@@ -425,6 +425,8 @@ export interface StoryDetail {
   related: Array<StoryRef & { relation: "storyline" | "related" }>;
   /** The topics its reports belong to, most reports first. */
   topics: TopicLink[];
+  /** The live this event is about, when the facts behind it carry one (see the Live section below). */
+  live: LiveRef | null;
 }
 
 // Reports (daily / weekly / monthly)
@@ -673,6 +675,8 @@ export interface TopicPage {
   milestones: TopicMilestone[];
   /** The most important events of the last 30 days. */
   highlights: TopicEvent[];
+  /** This subject's live events, soonest first — the same rows its Live section and calendar show. */
+  lives: LiveEventSummary[];
   items: FeedItemSummary[];
   page: number;
   pageCount: number;
@@ -696,4 +700,53 @@ export interface HomeResponse {
   trackCounts: Record<string, number>;
   projects: Record<string, { latest: { id: string; title: string } | null; today: number; deadlines: number }>;
   deadlines: DeadlinesResponse;
+}
+
+// Live events (一场演出的身份)
+//
+// A live is not a report and not a story: reports get merged and stories get redirected, while the
+// question "这场 Live 现在走到哪一步" has to keep one answer. `live_events` holds the identity, and the
+// stage below is derived at read time from the dates and the reports — never stored, so it cannot go
+// stale. Everything here is on the announcement's own calendar and clock (the W7 rule).
+
+/** Where the run-up to a live stands. Derived at read time; what happened to the status stays separate. */
+export type LiveStage = "announced" | "ticketing" | "on_sale" | "live_day" | "finished" | "cancelled" | "postponed";
+
+/** The status the announcement itself stated. The reader-facing stage is derived around it. */
+export type LiveStatus = "scheduled" | "cancelled" | "postponed";
+
+/** The minimum a list needs to show one live: a subject page's Live section, a story's link to it. */
+export interface LiveRef {
+  publicId: string;
+  title: string;
+  /** The entity id of the band or project the live belongs to; its topic page is `/topics/<subject>`. */
+  subject: string;
+  subjectName: string;
+  venue: string | null;
+  timezone: Timezone;
+  /** `YYYY-MM-DD` on the announcement's own calendar. */
+  startsOn: string;
+  startsTime: string | null;
+  stage: LiveStage;
+}
+
+export interface LiveEventSummary extends LiveRef {
+  /** The last day of a multi-day run; null for a single performance. */
+  endsOn: string | null;
+  /** Days from today to `startsOn` on the event's own calendar; negative once past. */
+  daysLeft: number | null;
+  reportCount: number;
+}
+
+export interface LiveEventView extends LiveEventSummary {
+  status: LiveStatus;
+  /** When the site first saw this live, and when it was last written. */
+  firstSeenAt: string;
+  updatedAt: string;
+  /** Its own reports, listed ones only, newest first — the same gate the rest of the site uses. */
+  reports: StoryReportView[];
+  /** The dated points its reports state, from today forward — the same rows the radar reads. */
+  dates: DeadlineView[];
+  /** The event page its reports are grouped under, when they are grouped under one. */
+  story: { publicId: string; title: string } | null;
 }
