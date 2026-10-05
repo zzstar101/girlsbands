@@ -10,14 +10,22 @@
 //      ticket rounds it is taking applications for, only for Live or ticket material whose structure
 //      step found a start date — lives/link.ts turns it into a Live page and lives/tickets.ts into the
 //      ticket rounds the radar shows, and without a date there is no identity to derive.
+//   6. release: what a release or merch announcement is (the name, the day, the editions, the store
+//      bonuses, the serial numbers in the box), only for material the structure step filed under a
+//      release or merch tag — releases/derive.ts turns it into the page that connects a CD to the
+//      lottery its serial number buys.
 // Material with only a title or a feed summary has its article page fetched before it is judged.
 import { z } from "zod";
 import { CATEGORY_KEYS } from "@girlsbands/contracts/taxonomy";
-import { DEADLINE_KINDS, TICKET_ROUND_KINDS, type LiveStatus, type TicketRoundKind } from "@girlsbands/contracts/site";
+import {
+  DEADLINE_KINDS, RELEASE_EDITION_KINDS, RELEASE_KINDS, RELEASE_SERIAL_KINDS, TICKET_ROUND_KINDS,
+  type LiveStatus, type ReleaseEditionKind, type ReleaseKind, type ReleaseSerialKind, type TicketRoundKind,
+} from "@girlsbands/contracts/site";
 import { glossaryHits } from "@girlsbands/industry/glossary";
 import { CATEGORIES, LIVE_CATEGORIES } from "@girlsbands/industry/taxonomy";
 import { SELECTION } from "@girlsbands/industry/selection";
 import { sql } from "../db.ts";
+import { readsRelease } from "../releases/derive.ts";
 import { chatJson, MODELS, ModelOutputError, type ContentPart } from "../providers/llm.ts";
 import { completeReceipt, ProviderRejectedError, ReceiptUnknownError } from "../providers/receipts.ts";
 import { collapseWhitespace, looksChinese } from "../lib/text.ts";
@@ -42,6 +50,7 @@ export const PROMPT_VERSIONS = {
   summarize: promptVersion("summarize-article", "summarize-article-empty", "summarize-short-post", "summarize-short-post-quoted", "summarize-long-post", "summarize-long-post-quoted", "identity-context"),
   structure: promptVersion("structure"),
   live: promptVersion("live-ticket"),
+  release: promptVersion("release"),
 } as const;
 /** Every step's prompt, as stored on each judgement. */
 export const SELECTION_PROMPT_VERSION = [PROMPT_VERSIONS.prefilter, PROMPT_VERSIONS.score].join("+");
@@ -175,6 +184,39 @@ const LiveSchema = z.object({
   })).max(8).catch([]),
 });
 
+/** What a release or merch announcement is (prompts/release.md): the name, the day, the editions, the
+ *  store bonuses and the serial numbers in the box. Every field but the name and the kind has to be
+ *  found in the original text; a shop the announcement does not name stays out. */
+const ReleaseSchema = z.object({
+  title: z.string().trim().max(80).nullable().catch(null),
+  kind: z.enum(RELEASE_KINDS).catch("other"),
+  releaseOn: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().catch(null),
+  announcedOn: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().catch(null),
+  editions: z.array(z.object({
+    name: z.string().trim().max(40),
+    kind: z.enum(RELEASE_EDITION_KINDS).catch("other"),
+    includesBluray: z.boolean().catch(false),
+    includesSerial: z.boolean().catch(false),
+    priceYen: z.number().int().min(100).max(10_000_000).nullable().catch(null),
+    sku: z.string().trim().max(60).nullable().catch(null),
+    quote: z.string().trim().max(600).catch(""),
+  })).max(8).catch([]),
+  bonuses: z.array(z.object({
+    retailer: z.string().trim().max(60),
+    bonus: z.string().trim().max(160),
+    firstPress: z.boolean().catch(false),
+    editionName: z.string().trim().max(40).nullable().catch(null),
+    url: z.string().trim().max(500).nullable().catch(null),
+    quote: z.string().trim().max(600).catch(""),
+  })).max(12).catch([]),
+  serials: z.array(z.object({
+    kind: z.enum(RELEASE_SERIAL_KINDS).catch("other"),
+    liveTitle: z.string().trim().max(120).nullable().catch(null),
+    url: z.string().trim().max(500).nullable().catch(null),
+    quote: z.string().trim().max(600).catch(""),
+  })).max(6).catch([]),
+});
+
 const UnderstandSchema = z.object({
   itemType: z.enum(ITEM_TYPES),
   authorRole: z.enum(["principal", "observer", "relayer"]).catch("relayer"),
@@ -257,6 +299,48 @@ export interface LiveRead {
   rounds: LiveRound[];
 }
 
+/** One physical version of a release: 通常盤, 初回限定盤, a venue-only pressing. */
+export interface ReleaseEdition {
+  name: string;
+  kind: ReleaseEditionKind;
+  includesBluray: boolean;
+  includesSerial: boolean;
+  priceYen: number | null;
+  sku: string | null;
+  /** The sentence it was read from, already checked to be in the original. */
+  quote: string;
+}
+
+/** One shop's bonus for ordering the release there. Shops the announcement does not name stay out. */
+export interface ReleaseBonus {
+  retailer: string;
+  bonus: string;
+  firstPress: boolean;
+  editionName: string | null;
+  url: string | null;
+  quote: string;
+}
+
+/** A serial number in the box and the show it buys a lottery for — never its own dates: those are the
+ *  show's ticket rounds, and a second copy here would drift away from the one the radar reads. */
+export interface ReleaseSerial {
+  kind: ReleaseSerialKind;
+  liveTitle: string | null;
+  url: string | null;
+  quote: string;
+}
+
+/** The release itself, as read from the announcement: `output.release` on the stored judgement. */
+export interface ReleaseRead {
+  title: string | null;
+  kind: ReleaseKind;
+  releaseOn: string | null;
+  announcedOn: string | null;
+  editions: ReleaseEdition[];
+  bonuses: ReleaseBonus[];
+  serials: ReleaseSerial[];
+}
+
 /** A clock time written out in the original: `18:30`, `18時30分` and `18時30` all count. A value that
  *  carries a date too needs both halves in the text — the original writes `10月3日(金) 20:00`, not the
  *  `2026-10-03T20:00` we store, so checking the joined form alone would drop every window. */
@@ -277,6 +361,25 @@ function dateInText(text: string, value: string | null): string | null {
   const [y, m, d] = value.split("-");
   const forms = [value, `${y}/${m}/${d}`, `${y}年${Number(m)}月${Number(d)}日`, `${Number(m)}月${Number(d)}日`];
   return forms.some((f) => text.includes(f)) ? value : null;
+}
+
+/** A string the announcement really wrote (the model's own paraphrase of a shop name is not evidence). */
+function stringInText(text: string, value: string | null): string | null {
+  if (!value) return null;
+  const stated = collapseWhitespace(value);
+  return stated && text.includes(stated) ? stated : null;
+}
+
+/** A price the announcement really states: `3300`, `3,300` and `3,300円` all count. */
+function numberInText(text: string, value: number | null): number | null {
+  if (value === null) return null;
+  return [String(value), value.toLocaleString("en-US")].some((form) => text.includes(form)) ? value : null;
+}
+
+/** A link the announcement really carries. A URL the model only knew is dropped, not published. */
+function linkInText(text: string, value: string | null): string | null {
+  const url = value?.trim();
+  return url && /^https?:\/\//.test(url) && text.includes(url) ? url.slice(0, 500) : null;
 }
 
 /** The platform named, in the glossary's own writing (`ローチケ` → `ローソンチケット`), else as stated. */
@@ -335,6 +438,49 @@ export function normalizeLive(data: z.infer<typeof LiveSchema>, a: AnalyzeInputA
   return title || venue || startsTime || endsOn || rounds.length > 0 ? { title, venue, startsTime, endsOn, status, rounds } : null;
 }
 
+/**
+ * Keep only what the announcement actually states: an edition or a bonus whose sentence is not in the
+ * original is dropped, a price or a serial number has to appear in the text, and a shop the
+ * announcement did not name is not invented. The name is the reader-facing Chinese one and is not
+ * checked; nothing at all readable means no release section at all.
+ */
+export function normalizeRelease(data: z.infer<typeof ReleaseSchema>, a: AnalyzeInputArticle): ReleaseRead | null {
+  const text = collapseWhitespace(buildMaterial(a));
+  const title = data.title ?? null;
+  const releaseOn = dateInText(text, data.releaseOn);
+  const announcedOn = dateInText(text, data.announcedOn);
+  const editions = data.editions.flatMap((e): ReleaseEdition[] => {
+    const name = collapseWhitespace(e.name);
+    const quote = collapseWhitespace(e.quote);
+    if (!name || !quote || !text.includes(quote)) return [];
+    return [{
+      name: name.slice(0, 40), kind: e.kind, includesBluray: e.includesBluray, includesSerial: e.includesSerial,
+      priceYen: numberInText(text, e.priceYen), sku: stringInText(text, e.sku), quote,
+    }];
+  });
+  const bonuses = data.bonuses.flatMap((b): ReleaseBonus[] => {
+    const retailer = collapseWhitespace(b.retailer);
+    const bonus = collapseWhitespace(b.bonus);
+    const quote = collapseWhitespace(b.quote);
+    if (!retailer || !bonus || !quote || !text.includes(quote)) return [];
+    return [{
+      retailer: retailer.slice(0, 60), bonus: bonus.slice(0, 160), firstPress: b.firstPress,
+      editionName: stringInText(text, b.editionName), url: linkInText(text, b.url), quote,
+    }];
+  });
+  const serials = data.serials.flatMap((s): ReleaseSerial[] => {
+    const quote = collapseWhitespace(s.quote);
+    if (!quote || !text.includes(quote)) return [];
+    return [{ kind: s.kind, liveTitle: stringInText(text, s.liveTitle), url: linkInText(text, s.url), quote }];
+  });
+  return title || releaseOn || announcedOn || editions.length > 0 || bonuses.length > 0 || serials.length > 0
+    ? { title, kind: data.kind, releaseOn, announcedOn, editions, bonuses, serials }
+    : null;
+}
+
+/** What a release is, for release and merch material (industry/prompts/release.md). */
+export const RELEASE_SYSTEM = promptText("release");
+
 /** The live step only has something to say about Live or ticket material with a start date to key on. */
 export function readsLive(category: string | null, fact: { deadlines?: readonly { kind: string }[] | null } | null): boolean {
   return !!category && LIVE_CATEGORIES.has(category) && !!fact?.deadlines?.some((d) => d?.kind === "event");
@@ -363,6 +509,8 @@ export interface AnalysisRun {
   structure: (ReturnType<typeof normalizeStructure> & { model: string; receiptId: number; reused: boolean }) | null;
   /** What the show itself is; null when the material is not a Live, or states nothing about it. */
   live: (LiveRead & { model: string; receiptId: number; reused: boolean }) | null;
+  /** What the release is; null when the material is not a release, or states nothing about it. */
+  release: (ReleaseRead & { model: string; receiptId: number; reused: boolean }) | null;
 }
 
 const isContentFilter = (error: unknown) => error instanceof ProviderRejectedError && !error.retryable && /contentFilter|"1301"/.test(error.message);
@@ -518,6 +666,35 @@ export async function runLiveTicket(
   return live ? { ...live, model: res.model, receiptId: res.receiptId, reused: res.reused } : null;
 }
 
+/** What the release is: the name, the day, the editions, the store bonuses, the serials in the box. */
+export async function runRelease(
+  a: AnalyzeInputArticle,
+  structure: NonNullable<AnalysisRun["structure"]>,
+  opts: StepOpts = {},
+): Promise<AnalysisRun["release"]> {
+  // Extraction only, like the structure and live steps, so it runs on the structure model too.
+  const model = await modelFor("structure");
+  checkAnalysisRunning();
+  // The dates the structure step already found tell the model which day this release is about.
+  const dates = (structure.fact?.deadlines ?? []).map((d) => `${d.kind} ${d.at}${d.note ? ` ${d.note}` : ""}`).join("\n");
+  const material = buildMaterial(a);
+  const res = await chatJson({
+    model,
+    purpose: "release_article",
+    subject: subjectOf(a),
+    promptVersion: PROMPT_VERSIONS.release,
+    system: RELEASE_SYSTEM,
+    user: dates ? `${material}\n\n【结构步骤已抽出的日期】\n${dates}` : material,
+    schema: ReleaseSchema,
+    temperature: 0,
+    maxTokens: 1200,
+    attemptTag: tagged(opts.attemptTag, "release"),
+  });
+  const release = normalizeRelease(res.data, a);
+  // Nothing readable about the release: leave no release section behind, rather than an empty one.
+  return release ? { ...release, model: res.model, receiptId: res.receiptId, reused: res.reused } : null;
+}
+
 /** Content understanding grounded in the original; null on a content-filter refusal. */
 export async function runUnderstand(a: AnalyzeInputArticle, opts: StepOpts = {}, note?: string): Promise<AnalysisRun["writing"]> {
   const model = await modelFor("understand");
@@ -623,7 +800,7 @@ export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts = {}): 
   checkAnalysisRunning();
   const prefilter = await runSelectionPrefilter(a, opts);
   // UNKNOWN is let through (its material is as complete as it will get); BLOCK stops here.
-  if (prefilter.label === "BLOCK") return { prefilter, scores: null, writing: null, structure: null, live: null };
+  if (prefilter.label === "BLOCK") return { prefilter, scores: null, writing: null, structure: null, live: null, release: null };
   // The structure step needs nothing from the scores: it runs beside them.
   const structure = runStructure(a, opts).then((value) => ({ value }), (error: unknown) => ({ error }));
   try {
@@ -637,7 +814,10 @@ export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts = {}): 
     // Only a Live or ticket announcement with a start date has a show to describe: the date is what the
     // Live identity is keyed on (lives/link.ts), so reading the rest of it without one buys nothing.
     const live = readsLive(s.value.category, s.value.fact) ? await runLiveTicket(a, s.value, opts) : null;
-    return { prefilter, scores, writing, structure: s.value, live };
+    // A release or merch announcement that names a version or a bonus has a page of its own: what the
+    // disc is, what comes with it, and which show its serial number buys a ticket for.
+    const release = readsRelease(s.value.category, s.value.tags) ? await runRelease(a, s.value, opts) : null;
+    return { prefilter, scores, writing, structure: s.value, live, release };
   } finally {
     // A score/writing error or deploy must not let the job finish while a paid structure request
     // still owns a response. It settles and stores its receipt before shutdown can close the DB.
@@ -709,6 +889,7 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
   const receiptIds = [
     run.prefilter.receiptId, ...(run.scores?.receiptIds ?? []), ...(run.writing?.receiptIds ?? []), ...(run.structure ? [run.structure.receiptId] : []),
     ...(run.live ? [run.live.receiptId] : []),
+    ...(run.release ? [run.release.receiptId] : []),
   ];
   const w = run.writing;
   const detail = {
@@ -723,6 +904,15 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
       live: {
         title: run.live.title, venue: run.live.venue, startsTime: run.live.startsTime, endsOn: run.live.endsOn,
         status: run.live.status, rounds: run.live.rounds,
+      },
+    } : {}),
+    // What the release is (release and merch material only); releases/derive.ts reads it back into the
+    // page that connects a disc to the lottery its serial number buys.
+    ...(run.release ? {
+      release: {
+        title: run.release.title, kind: run.release.kind, releaseOn: run.release.releaseOn,
+        announcedOn: run.release.announcedOn, editions: run.release.editions, bonuses: run.release.bonuses,
+        serials: run.release.serials,
       },
     } : {}),
   };
@@ -749,6 +939,6 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
     return { analysisId: row!.id, stale };
   });
   const reused = run.prefilter.reused && (run.scores?.reused ?? true) && (w?.reused ?? true) && (run.structure?.reused ?? true)
-    && (run.live?.reused ?? true);
+    && (run.live?.reused ?? true) && (run.release?.reused ?? true);
   return { analysisId: committed.analysisId, stale: committed.stale, output: out, receiptIds, reused };
 }

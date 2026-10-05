@@ -592,8 +592,23 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 | 出口 | `npm run typecheck` 全绿；sitemap 有 `/release/`；`/og/releases/<id>.png` 200 |
 | 测试 | `tests/releases.test.ts` 全绿 + 全量 `npm test` 0 失败 |
 
-**待站主拍板**：店铺特典的真实信息几乎只在各店铺页（公告通常只写「対象店舗」）—— 要不要开人工配置文件 `industry/releases/{slug}.json`（先例 `industry/chronicles/{slug}.json`），还是接受「模型只抽公告写了的」；粒度是「通常盤 + 初回 A + 初回 B」一个 `releases` 行加 3 个 editions（本设计取这个）还是 3 个 `releases` 行；存量 21 条 `other` 要不要重抽（换 `attemptTag`，条目会短暂下架）。
-**工作量**：3 天（阶段 A 1 + 阶段 B 1 + 页面与出口 1），不含模型重跑。
+**站主已拍板（2026-10-05）**
+- 店铺特典**只抽公告里写了的**：不开人工配置文件，公告只写「対象店舗」时页面上就显示这几个字。
+- 粒度取「1 个 `releases` 行 + N 个 editions」（通常盤 / 初回限定盤 A / 初回限定盤 B 是同一张碟的三个版本）。
+- 存量**重抽**命中「发售 / 周边」标签的条目（实际候选 68 条），换 `attemptTag` 跑一次。
+
+**实现与验证（2026-10-05 完成）**
+1. **迁移** `database/migrations/0062_releases.sql`：`releases`（`kind` 8 个值含 `merch`，`UNIQUE` 走 `releases_identity ON (subject_entity, title, COALESCE(release_on, ''))` —— 发售日未定的公告也不会互相误并）、`release_editions`、`release_bonuses`、`release_serials`。第一次跑完 `\d releases` 发现 `releases_kind_check` 少了 `merch`，改完 CHECK 后 `DROP TABLE … CASCADE` + `DELETE FROM schema_migrations` 在 `aniband` 与 `girlsbands_test` 两个库各重跑一次（`scripts/migrate.ts` 只按文件名记账、没有 hash，所以改已应用的迁移要手动回退）。
+2. **阶段 A（零模型成本）** `packages/backend/src/releases/derive.ts`：`releaseKindOf`（分类 / 标签 / 标题三条线索，说不出「发布」就返回 null）、`readsRelease`、`releaseSubjectOf`（乐队优先于企划）、`deriveReleases(db, m)`，由 `packages/backend/src/publication/publish.ts:374` 在 publications upsert 的**同一事务**里调用。**标签免费且确定，只在标签只说得出 `other` 时才让模型细化 `kind`**。
+3. **阶段 B** `industry/prompts/release.md`（七节：碟名 / 形态 / 发售日与公布日 / 版本 / 店铺特典 / 序列号 / 引文）+ `analyze.ts` 的 `runRelease`（`PROMPT_VERSIONS.release`、purpose `release_article`、maxTokens 1200、`attemptTag` = `<tag>:release`），结果整包写 `analyses.output.release`，additive 不动 `fact`；每个叶子字段都过 grounded 三件套 `stringInText` / `numberInText`（`3300` 与 `3,300` 都算）/ `linkInText`（必须是 http(s) 且出现在原文）。`packages/backend/src/editorial/models.ts:22` 的 structure capability 加 `release_article`，`packages/backend/src/jobs/content.ts:248` 的 `ARTICLE_STEPS` 同步加，失败的条目才会被送回分析。
+4. **读取层** `packages/backend/src/publication/releases.ts`：`loadRelease`、`releasesForSubject`、`releaseOfStory`、`releaseSitemapEntries`，可见性一律走 `storyReportCondition`（第一条公告下架 / 未到发布时间 ⇒ 页面 404）。
+5. **出口** `/api/site/releases/:publicId`（ETag 前缀 `release`、`public, max-age=60, s-maxage=60`）、`/og/releases/:file`、sitemap 的 `/release/`、`apps/web/app/routes/release.tsx`、主体页的「发售」栏（`topic.tsx` 的 `ReleaseSection`）、story 页的「这张碟」pill；契约加 `TopicPage.releases` 与 `StoryDetail.release`。
+6. **踩到的坑**：`RELEASE_SELECT` 片段自带 `FROM …`，列表查询再往后追加 `edition_count` / `has_serial` 两个子查询就会拼出 `SELECT …, FROM …` ⇒ `syntax error at or near "("`；拆成 `RELEASE_COLUMNS` / `RELEASE_FROM` / `RELEASE_COUNTS` 三段才修好（`lives.ts` 的 `LIVE_SELECT` 没这个坑，是因为它的计数写在片段内部的 `CROSS JOIN LATERAL` 里）。教训：**带 FROM 的 SQL 片段不能再被追加列**。
+7. **验收数字**：`tests/releases.test.ts` 7/7（走真实 `publishArticle` 路径，所以 `deriveReleases` 真的被调到；含「第二条公告只补空」「下架后三处出口一起消失」）；`tests/architecture.test.ts` 8/8；`npm run typecheck` 全绿；`npm run build -w @girlsbands/web` + `node --test apps/web/tests/*.test.ts` 29/29；全量 `npm test` **662/662 通过（67.6s）**（W10 基线 654）。
+
+8. **存量重抽（2026-10-05）**：`scripts/reanalyze-releases.ts`（`--pace MS` 控制入队间隔，避开模型商 120 次/分钟的上限 —— 一次入队 68 条时有一半吃了 429 回退）跑完 68 条候选：**59 条**留下 `output.release`，`releases` **55 行**（bluray 19 / merch 16 / digital 14 / single 3 / other 3，其中 21 行有发售日、55 行有公布日）、`release_editions` **21 行**（10 张碟 ≥2 个版本）、`release_bonuses` **15 行**、`release_serials` **3 行**。**1 条**（`oujg5cpvykp4u5fz4av4u93vv`）模型连续两次给出无法使用的输出，交回 sweep 重试；dev 库里序列号还指不到 `live_events`（公告写的演出名与 W8 的实体名对不上），这条链路由 `tests/releases.test.ts` 用例 ④ 覆盖。
+
+**工作量**：实际约 1 天（迁移与阶段 A 半天、阶段 B 与页面半天），不含模型重跑；存量重抽 68 条只花 `release` 这一步的钱（`processing_attempt_tag` 会沿用上次评估的标签，前面的步骤全部命中回执）。
 
 ---
 
@@ -1106,7 +1121,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 | **W8** | Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留 | **代码按「一站一实体」落地了**（键 = 主体 + 会场 + 开演日 + 开演时刻，同一场取信息最全的那篇报告），要改粒度只需动唯一键与 `mergeKeys`；已完结页现在照常保留。**阶段 B 灰度重跑 2026-10-05 已跑完**（`candidates: 28`，`tag live-ticket-v1`，约 170 次调用）：24 条抽到 `output.live`，但**没有新建演出、也没有轮次** —— 重跑过的条目不会再归组（21 条是历史条目、不建事实；其余走提前返回），新轮次改由回填脚本补进 `ticket_rounds`（2 条）。详见 §六 W8 的「实现与验证」 |
 | ~~**W9**~~ ✅ | ~~`deadlines` 与 `ticket_rounds` 哪个权威；`status` 要不要含**个人**当落；`platform` 要不要中文化~~ | **已拍板 2026-10-05**：轮次权威、`deadlines` 只是投影；不含个人当落（站不持有账号）；平台名**照原文**、不做中文显示名映射（`industry/glossary.ts` 一个字不改 —— 改任何 `forms` 都会让 `GLOSSARY_VERSION` 变、全站重译）。已落地：见上面「实现与验证（2026-10-05 完成）」 |
 | ~~**W10**~~ ✅ | ~~首页 horizon 取 14 还是 30 天；「即将开售」是否包含周边开订（`merch_start`）与 CD/BD 发售日（`release_start`）~~ | **已拍板 2026-10-05**：首页 **14 天**（30 天全量留在 `/deadlines`）；「即将开售」= `sale_start` + `release_start` + `merch_start`。已落地：见 §六「W10 · 行动中心」的「实现与验证（2026-10-05 完成）」 |
-| **W11** | 店铺特典真源（公告通常只写「対象店舗」）：开人工 `industry/releases/{slug}.json` 还是接受「模型只抽公告写了的」；粒度是 1 个 `releases` + 3 个 editions 还是 3 行；存量 21 条 `other` 要不要花钱重抽 | 先只抽公告、粒度取前者；重抽等 W7 落地后一起做 |
+| ~~**W11**~~ ✅ | ~~店铺特典真源（公告通常只写「対象店舗」）：开人工 `industry/releases/{slug}.json` 还是接受「模型只抽公告里写了的」；粒度是 1 个 `releases` + 3 个 editions 还是 3 行；存量 `other` 要不要花钱重抽~~ | **已拍板 2026-10-05**：只抽公告写了的（不开人工配置，公告只写「対象店舗」就显示这几个字）；粒度取 **1 个 `releases` + N 个 editions**；存量**重抽**。已落地：见 §六「W11 · 发售·版本·特典数据库」的「实现与验证（2026-10-05 完成）」（68 条候选 → 55 张碟 / 21 个版本 / 15 个店铺特典 / 3 个序列号；`processing_attempt_tag` 沿用上次评估的标签 ⇒ 只花 `release` 这一步的钱） |
 | **W13** | 索引门槛（建议 `total >= 5`，比主题页宽松）；成员页要不要显示「中之人」真名与所属乐队（真人隐私）；成员要不要进 `/starred` 与订阅 `bands[]` | 门槛 5；只显示角色 ↔ 声优关系；不进订阅 |
 | **W15** | 索引门槛（建议有 `officialUrl` 或有 `live_events` 记录才进 sitemap）；要不要做「东京 11 月」地区聚合页；三条未核实规范化名；闭馆场馆要不要收录 | 门槛按建议；聚合页做（远征信息的入口）；收闭馆馆并标 `closedOn` |
 | **W18** | 投稿链接要不要保留原始 URL（留在库里，涉及投稿人隐私）；后台聚合视图要不要按 `from_source` 去重计数排优先级；要不要给已处理的纠错发邮件回执（需 SMTP，当前只有飞书内部通知） | 保留但只给管理员看；去重计数；先不发邮件 |

@@ -26,6 +26,7 @@ import { factSources } from "./coverage.ts";
 import { ITEM_COLUMNS, ITEM_FROM, toFeedItemSummary, type ItemRow } from "./items.ts";
 import { entityTags } from "./rules.ts";
 import { livesForSubject } from "./lives.ts";
+import { releasesForSubject } from "./releases.ts";
 import { evidenceCondition, listedCondition, ownFactEvidenceCondition, seatedCondition, selectedCondition, storyReportCondition } from "./scope.ts";
 
 export interface Topic {
@@ -346,7 +347,7 @@ export async function loadTopicPage(slug: string, page: number, now?: Date, scop
   const history = first && tracksAsSubject(topic.group) ? curatedChronicle(topic.slug) : undefined;
   const window = { now: at, through: history?.through };
   const named = first ? chronicleReadReports(seats.map((s) => chronicleReport(s, index.sources)), window) : [];
-  const [rows, brands, live, lives] = await Promise.all([
+  const [rows, brands, live, lives, releases] = await Promise.all([
     ids.length
       ? sql<ItemRow[]>`SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id = ANY(${ids}::text[])
           AND ${scope === "all" ? listedCondition(at) : seatedCondition(at)} AND ${inTopic(topic)}
@@ -355,6 +356,7 @@ export async function loadTopicPage(slug: string, page: number, now?: Date, scop
     companyBrands(),
     currentSeats([...seats.slice(0, LATEST_CANDIDATES), ...named].map((s) => s.id), at, [topic]),
     livesForSubject(topic.entityId ?? slug, at),
+    releasesForSubject(topic.entityId ?? slug, at),
   ]);
   const shown = named.flatMap((s) => {
     const current = live.get(s.id);
@@ -371,6 +373,7 @@ export async function loadTopicPage(slug: string, page: number, now?: Date, scop
     milestones: first && tracksAsSubject(topic.group) ? companyMilestones(history, picked) : [],
     highlights: first ? selectTopicHighlights(topic, shown, window) : [],
     lives,
+    releases,
     items,
     page,
     pageCount,

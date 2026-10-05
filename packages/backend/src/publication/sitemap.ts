@@ -11,6 +11,7 @@ import { escapeXml } from "../lib/text.ts";
 import { siteUrl } from "./links.ts";
 import { evidenceCondition, listedCondition, selectedCondition } from "./scope.ts";
 import { liveSitemapEntries } from "./lives.ts";
+import { releaseSitemapEntries } from "./releases.ts";
 import { topicPageCounts } from "./topics.ts";
 
 const MAX_URLS = 45_000;
@@ -57,6 +58,10 @@ async function build(): Promise<string> {
   // 演出页：和主题页一样，只有名下还有公开报告的那几场才进。
   for (const l of await liveSitemapEntries(new Date(), 500)) {
     entries.push({ loc: `/live/${l.publicId}`, lastmod: l.lastmod, changefreq: "daily", priority: 0.6 });
+  }
+  // 发售页：碟本身没有「下场」，只要第一条公告还在公开列表里，这页就能读，所以也进 sitemap。
+  for (const r of await releaseSitemapEntries(new Date(), 500)) {
+    entries.push({ loc: `/release/${r.publicId}`, lastmod: r.lastmod, changefreq: "weekly", priority: 0.5 });
   }
   // Stories with listed evidence of their own; pages that only gather reports grouped elsewhere (imported
   // story levels, regrouped history) or only mention facts are reachable but not listed.

@@ -11,6 +11,7 @@ export default [
   route("deadlines", "routes/deadlines.tsx"),
   route("story/:publicId", "routes/story.tsx"),
   route("live/:publicId", "routes/live.tsx"),
+  route("release/:publicId", "routes/release.tsx"),
   route("daily", "routes/report-latest.tsx", { id: "daily-latest" }),
   route("daily/archive", "routes/daily-archive.tsx"),
   route("daily/:key", "routes/report-detail.tsx", { id: "daily-detail" }),

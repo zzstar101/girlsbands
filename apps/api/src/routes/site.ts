@@ -23,6 +23,7 @@ import { registerFeedback } from "./feedback.ts";
 import { registerSubscribe } from "./subscribe.ts";
 import { loadHot, loadStoryDetail, resolveStory } from "@girlsbands/backend/publication/stories";
 import { loadLive } from "@girlsbands/backend/publication/lives";
+import { loadRelease } from "@girlsbands/backend/publication/releases";
 import { listReports, loadReport, reportNavigation, loadReportNavigation, loadReportMonth, type ReportKind } from "@girlsbands/backend/publication/reports";
 import { looseQuery, sendJsonWithEtag, sendProblem } from "../http/respond.ts";
 
@@ -215,6 +216,13 @@ export function registerSite(app: FastifyInstance) {
     const data = await loadLive(publicId);
     if (!data) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "live not public", cacheControl: "public, max-age=60" });
     return sendJsonWithEtag(req, reply, data, { etagPrefix: "live", cacheControl: "public, max-age=60, s-maxage=60" });
+  }));
+
+  app.get("/api/site/releases/:publicId", siteHandler(async (req, reply) => {
+    const publicId = (req.params as { publicId: string }).publicId;
+    const data = await loadRelease(publicId);
+    if (!data) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "release not public", cacheControl: "public, max-age=60" });
+    return sendJsonWithEtag(req, reply, data, { etagPrefix: "release", cacheControl: "public, max-age=60, s-maxage=60" });
   }));
 
   app.get("/api/site/reports/:kind", siteHandler(async (req, reply) => {

@@ -150,6 +150,15 @@ export async function liveRefForStory(storyId: number, now: Date): Promise<LiveR
   return refOf(row, await datesOf(row.item_ids, now), now);
 }
 
+/** 一批演出在别处出现时的那一行引用（碟里的序列号指向哪场演出）。没有公开报告的不算。 */
+export async function liveRefs(ids: number[], now: Date): Promise<Map<number, LiveRef>> {
+  const wanted = [...new Set(ids)];
+  if (wanted.length === 0) return new Map();
+  const rows = await sql<LiveRow[]>`SELECT ${LIVE_SELECT(now)} WHERE le.id IN ${sql(wanted)} AND r.report_count > 0`;
+  const dates = await datesByLive(rows, now);
+  return new Map(rows.map((row) => [row.id, refOf(row, dates.get(row.id) ?? [], now)]));
+}
+
 /** 一场演出的页面：报告、它自己的日期、以及它挂在哪个事件页下。报告全下架了就是 404。 */
 export async function loadLive(publicId: string, now = new Date()): Promise<LiveEventView | null> {
   const rows = await sql<LiveRow[]>`SELECT ${LIVE_SELECT(now)} WHERE le.public_id = ${publicId}`;

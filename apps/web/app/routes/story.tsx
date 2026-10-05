@@ -10,12 +10,13 @@ import { monthDay, monthDayTime, relativeTime } from "../lib/format";
 import { HeatChart } from "../features/story/HeatChart";
 import { DEADLINE_KINDS, clockText, md } from "../features/feed/deadlines";
 import { LIVE_STAGES } from "../features/feed/lives";
+import { RELEASE_KINDS } from "../features/feed/releases";
 import { sessionCache } from "../lib/session-cache";
 import { isReload } from "../lib/restore";
 import { Badge, SelectedBadge } from "../components/ui/Badge";
 import { PillTabs } from "../components/ui/Tabs";
 import { Select } from "../components/ui/Controls";
-import { IconArrowLeft, IconChevronRight, IconClock, IconDoc, IconTicket, IconUsers } from "../components/icons";
+import { IconArrowLeft, IconChevronRight, IconClock, IconDisc, IconDoc, IconTicket, IconUsers } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import type { Screen } from "../components/shell/screens";
 
@@ -249,6 +250,17 @@ export default function StoryPage() {
             <span className="num">{monthDay(story.live.startsOn)}{story.live.startsTime ? ` ${story.live.startsTime}` : ""}</span>
             {story.live.venue && <span className="truncate text-ink-4">{story.live.venue}</span>}
             <span className="text-ink-4">{LIVE_STAGES[story.live.stage].label}</span>
+            <IconChevronRight size={14} className="shrink-0 text-ink-4" />
+          </Link>
+        )}
+        {story.release && (
+          <Link viewTransition to={`/release/${story.release.publicId}`} prefetch="intent" className="mt-3.5 inline-flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 rounded-full border border-line px-3.5 py-1.5 text-[12.5px] text-ink-2 transition-colors hover:border-band hover:text-band">
+            <IconDisc size={14} className="shrink-0 text-ink-4" />
+            <span className="font-semibold">这张碟</span>
+            <span className="num">{story.release.releaseOn ? monthDay(story.release.releaseOn) : "发售日未定"}</span>
+            <span className="text-ink-4">{RELEASE_KINDS[story.release.kind].label}</span>
+            {story.release.editionCount > 0 && <span className="truncate text-ink-4">{story.release.editionCount} 个版本</span>}
+            {story.release.hasSerial && <span className="truncate text-amber">有序列号</span>}
             <IconChevronRight size={14} className="shrink-0 text-ink-4" />
           </Link>
         )}

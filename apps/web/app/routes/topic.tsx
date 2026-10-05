@@ -19,6 +19,7 @@ import { EmptyState } from "../components/ui/Page";
 import { IconArrowLeft } from "../components/icons";
 import { Badge } from "../components/ui/Badge";
 import { LIVE_STAGES, openStage } from "../features/feed/lives";
+import { RELEASE_KINDS } from "../features/feed/releases";
 import { beijingDate } from "@girlsbands/contracts/time";
 import { monthDay, monthDayTime, weekdayShort } from "../lib/format";
 import { PhoneBar } from "../components/shell/PhoneBar";
@@ -131,6 +132,39 @@ function LiveSection({ lives }: { lives: TopicPage["lives"] }) {
   );
 }
 
+/**
+ * 这个企划/乐队在卖的东西。月历回答「哪一天卖」，这一段回答「是什么、有几个版本、有没有序列号」——
+ * 与演出那段读的是同一批行（`releasesForSubject`），只是换了个问法。
+ */
+function ReleaseSection({ releases }: { releases: TopicPage["releases"] }) {
+  return (
+    <section id="releases" className="card mb-8 scroll-mt-16 p-5 lg:p-6">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-[16px] font-[650] text-ink">发售</h2>
+        <span className="text-[12px] text-ink-4">近期 {releases.length} 张</span>
+      </div>
+      <ol className="mt-2 divide-y divide-line-soft">
+        {releases.map((r) => {
+          const kind = RELEASE_KINDS[r.kind];
+          return (
+            <li key={r.publicId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+              <span className="num w-[104px] shrink-0 text-[13px] text-ink-2">
+                {r.releaseOn ? `${monthDay(r.releaseOn)}（${weekdayShort(r.releaseOn)}）` : "日期未定"}
+              </span>
+              <Link viewTransition to={`/release/${r.publicId}`} prefetch="intent" className="min-w-0 flex-1 truncate text-[14.5px] font-[650] text-ink transition-colors hover:text-accent">
+                {r.title}
+              </Link>
+              <span className={`shrink-0 text-[12.5px] font-semibold ${kind.className}`}>{kind.label}</span>
+              <span className="shrink-0 text-[12px] text-ink-4">{r.editionCount > 0 ? `${r.editionCount} 个版本` : "版本未定"}</span>
+              <span className="w-[56px] shrink-0 text-right text-[12px] text-ink-4">{r.hasSerial ? "有序列号" : ""}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 export default function TopicRoute() {
   const { data, calendar, scope } = useLoaderData<typeof loader>();
   const home = useRouteLoaderData<typeof rootLoader>("root")?.home;
@@ -201,6 +235,8 @@ export default function TopicRoute() {
       )}
 
       {page === 1 && data.lives.length > 0 && <LiveSection lives={data.lives} />}
+
+      {page === 1 && data.releases.length > 0 && <ReleaseSection releases={data.releases} />}
 
       {page === 1 && hasChronicle(data) && (
         <div key={topic.slug} className="mb-8">

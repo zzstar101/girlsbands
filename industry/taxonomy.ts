@@ -43,6 +43,14 @@ export const CHANNEL_LABELS = {
 export const LIVE_CATEGORIES: ReadonlySet<string> = new Set(["live", "ticket"]);
 
 /**
+ * 分类标签里属于一条「发售链」的两端：音像作品（一张碟本身）与商品特典（版本、店铺特典、序列号）。
+ * 发售链的抽取与 releases/derive.ts 的推导都按这两条设门，词表与 CATEGORY_TAGS 里那七个写法逐字一致。
+ */
+export const RELEASE_TAGS: ReadonlySet<string> = new Set(["新作发售", "初回限定盘", "数字发行", "Blu-ray/DVD"]);
+
+export const MERCH_TAGS: ReadonlySet<string> = new Set(["周边商品", "店铺特典", "联名商品"]);
+
+/**
  * 这个行业最受关注的一类发布（日报报头的计数、改分类后修订已出的报告、编年史的上面一行都按它数）。
  * category 是类别，tag 是标签，两者都对上才算；unit 接在数字后面。没有这样一类的行业设成 null。
  * 本行业取“票务”：开售与抽选是粉丝最需要第一时间知道的事。

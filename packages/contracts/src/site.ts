@@ -452,6 +452,8 @@ export interface StoryDetail {
   topics: TopicLink[];
   /** The live this event is about, when the facts behind it carry one (see the Live section below). */
   live: LiveRef | null;
+  /** The release this event is about (an announcement that puts out a disc), when its facts carry one. */
+  release: ReleaseSummary | null;
 }
 
 // Reports (daily / weekly / monthly)
@@ -702,6 +704,8 @@ export interface TopicPage {
   highlights: TopicEvent[];
   /** This subject's live events, soonest first — the same rows its Live section and calendar show. */
   lives: LiveEventSummary[];
+  /** This subject's releases, newest first — the CDs, the editions and the serials that lead to a live. */
+  releases: ReleaseSummary[];
   items: FeedItemSummary[];
   page: number;
   pageCount: number;
@@ -839,4 +843,120 @@ export interface TicketRoundView {
   itemId: string | null;
   title: string | null;
   firstSeenAt: string;
+}
+
+// Releases (一张碟与它的版本、特典、序列号)
+//
+// The chain this exists for: a CD comes out, the first-press edition carries a serial number, and that
+// number buys a lottery slot for a live. Tags already recorded every word of it (新作发售 / 初回限定盘 /
+// 店铺特典 / 序列号) but never connected them. One release is one page: the editions are rows under it,
+// and the release day and the lottery are shared by every edition. Dates are deliberately not repeated
+// here — the radar, the calendar, the .ics and the reminder email all read `deadlines` (and a live's
+// rounds), so the release page shows the release day plus the rounds of the live its serial points at.
+
+export const RELEASE_KINDS = ["single", "album", "ep", "bluray", "dvd", "digital", "merch", "other"] as const;
+
+export type ReleaseKind = (typeof RELEASE_KINDS)[number];
+
+/** What kind of thing came out. `merch` is here because a T-shirt has a release day and store bonuses too. */
+export const RELEASE_KIND_LABELS: Record<ReleaseKind, string> = {
+  single: "Single",
+  album: "专辑",
+  ep: "EP",
+  bluray: "Blu-ray",
+  dvd: "DVD",
+  digital: "数字发行",
+  merch: "周边",
+  other: "其他",
+};
+
+export const RELEASE_EDITION_KINDS = ["regular", "limited", "first_press", "other"] as const;
+
+export type ReleaseEditionKind = (typeof RELEASE_EDITION_KINDS)[number];
+
+export const RELEASE_EDITION_LABELS: Record<ReleaseEditionKind, string> = {
+  regular: "通常盘",
+  limited: "限定盘",
+  first_press: "初回盘",
+  other: "其他版本",
+};
+
+/** What a serial number in the package gets you: a lottery, a pre-order, or a streaming code. */
+export const RELEASE_SERIAL_KINDS = ["lottery", "preorder", "streaming", "other"] as const;
+
+export type ReleaseSerialKind = (typeof RELEASE_SERIAL_KINDS)[number];
+
+export const RELEASE_SERIAL_LABELS: Record<ReleaseSerialKind, string> = {
+  lottery: "抽选券",
+  preorder: "预约特典",
+  streaming: "配信码",
+  other: "其他序列号",
+};
+
+/** One edition of a release: the name the original wrote, and what is inside it. */
+export interface ReleaseEditionView {
+  name: string;
+  kind: ReleaseEditionKind;
+  includesBluray: boolean;
+  includesSerial: boolean;
+  priceYen: number | null;
+  sku: string | null;
+  quote: string | null;
+}
+
+/** A store bonus: which shop, what it gives, and whether it is first-come. */
+export interface ReleaseBonusView {
+  retailer: string;
+  bonus: string;
+  firstPress: boolean;
+  /** The edition it belongs to, when the original said; null when it applies to the release as a whole. */
+  editionName: string | null;
+  url: string | null;
+  quote: string | null;
+}
+
+/** A serial number or code in the package, and the live it leads to when the site could name one. */
+export interface ReleaseSerialView {
+  kind: ReleaseSerialKind;
+  /** The live this serial applies to, when it could be matched to one the site has a page for. */
+  live: LiveRef | null;
+  /** What the original called the live, even when no page could be matched. */
+  liveTitle: string | null;
+  url: string | null;
+  quote: string | null;
+}
+
+export interface ReleaseView {
+  publicId: string;
+  /** The entity the release belongs to (an id from the industry taxonomy), and its display name. */
+  subject: string;
+  subjectName: string;
+  title: string;
+  kind: ReleaseKind;
+  /** The release day on the announcement's own calendar; null when the original only said "this winter". */
+  releaseOn: string | null;
+  announcedOn: string | null;
+  timezone: Timezone;
+  /** Days from today to `releaseOn` on the release's own calendar; negative once past, null without a day. */
+  daysLeft: number | null;
+  editions: ReleaseEditionView[];
+  bonuses: ReleaseBonusView[];
+  serials: ReleaseSerialView[];
+  /** The story its announcements are grouped under, when they are: the way to read the whole thing. */
+  story: { publicId: string; title: string } | null;
+  firstSeenAt: string;
+  updatedAt: string;
+}
+
+/** A release as it appears in a list: the subject page, the story page, the search results. */
+export interface ReleaseSummary {
+  publicId: string;
+  subject: string;
+  subjectName: string;
+  title: string;
+  kind: ReleaseKind;
+  releaseOn: string | null;
+  daysLeft: number | null;
+  editionCount: number;
+  hasSerial: boolean;
 }

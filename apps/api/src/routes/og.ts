@@ -2,8 +2,10 @@
 // gets a card; anything else is a real 404.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { CATEGORY_LABELS } from "@girlsbands/contracts/taxonomy";
+import { RELEASE_KIND_LABELS } from "@girlsbands/contracts/site";
 import { beijingDate } from "@girlsbands/contracts/time";
 import { loadItemShare } from "@girlsbands/backend/publication/og";
+import { loadRelease } from "@girlsbands/backend/publication/releases";
 import { loadReport, type ReportKind } from "@girlsbands/backend/publication/reports";
 import { findPageTopic, TOPIC_GROUPS } from "@girlsbands/backend/publication/topics";
 import { loadStoryDetail, resolveStory } from "@girlsbands/backend/publication/stories";
@@ -220,6 +222,29 @@ export function registerOg(app: FastifyInstance) {
       subtitle: s.latest ?? s.digest,
       meta: `${s.sourceCount} 个来源 · ${s.reportCount} 篇报道`,
       accent: s.whyHot.rank ? "hot" : "teal",
+    }, 3600, CONTENT_IMAGE_CACHE);
+  });
+
+  /**
+   * 发售页的分享图：碟名 + 发售日 + 有几个版本，和 /release/<id> 讲同一件事。
+   * 与文章/事件图同档（内容会变），所以一小时缓存 + 源站五分钟。
+   */
+  app.get("/og/releases/:file", async (req, reply) => {
+    const file = (req.params as { file: string }).file;
+    if (!file.endsWith(".png")) return notFound(reply);
+    const r = await loadRelease(file.slice(0, -4));
+    if (!r) return notFound(reply);
+    const extras = [
+      r.editions.length > 0 ? `${r.editions.length} 个版本` : null,
+      r.bonuses.length > 0 ? `${r.bonuses.length} 个店铺特典` : null,
+      r.serials.length > 0 ? "带序列号" : null,
+    ].filter(Boolean).join(" · ");
+    reply.header("X-Accel-Expires", CONTENT_IMAGE_ORIGIN_SECONDS);
+    return send(req, reply, {
+      kicker: `发售 · ${r.subjectName}`,
+      title: r.title,
+      subtitle: `${RELEASE_KIND_LABELS[r.kind]}${r.releaseOn ? ` · ${r.releaseOn} 发售` : " · 发售日未定"}`,
+      meta: extras || null,
     }, 3600, CONTENT_IMAGE_CACHE);
   });
 }

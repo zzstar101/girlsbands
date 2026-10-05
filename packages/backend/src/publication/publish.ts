@@ -6,6 +6,8 @@ import { SITE } from "@girlsbands/industry/site";
 import { one, sql, type Tx } from "../db.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 import { collapseWhitespace, looksChinese } from "../lib/text.ts";
+import { deriveReleases } from "../releases/derive.ts";
+import { timezoneOf } from "../sources/timezone.ts";
 import { itemUrl } from "./links.ts";
 import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "./representative.ts";
 import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
@@ -43,6 +45,11 @@ interface AnalysisRow {
   reason_zh: string | null;
   score: number | null;
   selected: boolean | null;
+  /** The whole stored reading, kept for the release derivation below (fact deadlines, release section). */
+  output: {
+    fact?: { deadlines?: readonly { kind?: string | null; at?: string | null; note?: string | null }[] | null } | null;
+    release?: Record<string, unknown> | null;
+  } | null;
 }
 
 interface OverrideRow {
@@ -219,11 +226,11 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
     await tx`UPDATE articles SET grouping_status = 'complete', grouped_at = coalesce(grouped_at, ${options.releasedAt}) WHERE id = ${articleId}`;
     article.grouping_status = "complete";
   }
-  const [source] = await tx<SourceFacts[]>`
-    SELECT id, name, kind, tier, participation_mode, first_party, site_fulltext, syndicate_fulltext FROM sources WHERE id = ${article.source_id}`;
+  const [source] = await tx<Array<SourceFacts & { config: Record<string, unknown> }>>`
+    SELECT id, name, kind, tier, participation_mode, first_party, site_fulltext, syndicate_fulltext, config FROM sources WHERE id = ${article.source_id}`;
   if (!source) return null;
   const [analysis] = await tx<AnalysisRow[]>`
-    SELECT id, relevance, category, tags, subjects, title_zh, summary_zh, reason_zh, score, selected
+    SELECT id, relevance, category, tags, subjects, title_zh, summary_zh, reason_zh, score, selected, output
     FROM analyses WHERE article_id = ${articleId} ORDER BY input_revision DESC, id DESC LIMIT 1`;
   const [override] = await tx<OverrideRow[]>`SELECT fields, visibility FROM editorial_overrides WHERE article_id = ${articleId}`;
   const [membership] = await tx<{ fact_id: number; story_id: number | null }[]>`
@@ -359,6 +366,17 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
     await enqueue(QUEUES.notifySelected, { articleId }, { singletonKey: `selected:${articleId}`, startAfter: new Date(now.getTime() + 5_000) }, tx);
     // Prepare its images alongside the newly confirmed selection.
     await enqueue(QUEUES.prepareMedia, { articleId }, { singletonKey: `media:${articleId}` }, tx);
+  }
+
+  // 这张碟：分类与标签定它是什么，structure 抽出的发售日就是发售日，模型的 release 读取（有就）补上
+  // 版本、店铺特典与序列号。与公开投影同一事务：投影没了（下架）页面就 404，行跟着留着不碍事。
+  if (visibility !== "withdrawn" && source.participation_mode === "editorial") {
+    await deriveReleases(tx, {
+      articleId, factId: membership?.fact_id ?? null, storyId: membership?.story_id ?? null,
+      title: next.title, category, tags, subjects: analysis?.subjects ?? [], timezone: timezoneOf(source.config),
+      publishedAt: article.published_at,
+      output: { fact: analysis?.output?.fact ?? null, release: analysis?.output?.release ?? null },
+    });
   }
 
   // Seats of the fact this article reports (and of the one it left), then its place in the sync ledger.
