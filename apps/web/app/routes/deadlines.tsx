@@ -214,6 +214,13 @@ export default function DeadlinesPage() {
           </p>
         </div>
       </details>
+
+      {/* 会点进这一页的人，多半是真要出门的：把远征那一层（票务流程、交通、打 call）放在最容易顺手点到的地方。 */}
+      <p className="mt-5 text-[12.5px] leading-[1.75] text-ink-4">
+        要去现地看演出？
+        <Link to="/guide" className="mx-0.5 text-band hover:underline">远征参考</Link>
+        把公开的远征攻略与座位视角实拍收在一处；这一页管日期，那一页管怎么去。
+      </p>
     </div>
   );
 }

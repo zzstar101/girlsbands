@@ -201,6 +201,13 @@ export default function LiveRoute() {
         看这个主题的全部动态。本站 <time dateTime={live.firstSeenAt}>{relativeTime(live.firstSeenAt)}</time>首次收录，
         <time dateTime={live.updatedAt}>{relativeTime(live.updatedAt)}</time>最近更新。
       </p>
+
+      {/* 已经决定要出门的人才会翻到这一页的底部：远征那一层就挂在这里。 */}
+      <p className="mt-3 text-[12px] leading-[1.75] text-ink-4">
+        要去现地？
+        <Link to="/guide" className="mx-0.5 text-band hover:underline">远征参考</Link>
+        把公开的远征攻略与座位视角实拍收在一处。
+      </p>
     </div>
   );
 }
