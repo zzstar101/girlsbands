@@ -11,11 +11,11 @@ test("membersOfSubject: 乐队就是它自己，成员按 MEMBER_ENTITIES 顺序
   assert.equal(band.name, "トゲナシトゲアリ");
   assert.equal(band.accent, "#ff2d3f");
   assert.deepEqual(band.members, [
-    { id: "nina-iseri", name: "井芹仁菜", role: null, actor: "理名" },
-    { id: "momoka-kawaragi", name: "河原木桃香", role: null, actor: "夕莉" },
-    { id: "subaru-awa", name: "安和昴", role: null, actor: "美怜" },
-    { id: "tomo-ebizuka", name: "海老塚智", role: null, actor: "凪都" },
-    { id: "rupa", name: "卢帕", role: null, actor: "朱李" },
+    { id: "nina-iseri", name: "井芹仁菜", role: "Vo.", actor: "理名" },
+    { id: "momoka-kawaragi", name: "河原木桃香", role: "Gt.", actor: "夕莉" },
+    { id: "subaru-awa", name: "安和昴", role: "Dr.", actor: "美怜" },
+    { id: "tomo-ebizuka", name: "海老塚智", role: "Key.", actor: "凪都" },
+    { id: "rupa", name: "卢帕", role: "Ba.", actor: "朱李" },
   ]);
 });
 

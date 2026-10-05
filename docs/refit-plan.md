@@ -701,7 +701,7 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 4. **出口** `/api/site/members`、`/api/site/members/:id`（ETag 前缀 `members` / `member`）、`/og/members/:file`（kicker「角色 · 乐队」、副标题「担当 · CV · 别名」）、sitemap 的 `/members` 与 indexable 的 `/member/<id>`。
 5. **踩到的坑**：① `contains` 的空白归一让多词拉丁写法贴不上边界（`Nina Iseri announces` 折成 `ninaiseriannounces`）⇒ 多词拉丁写法改成按词序匹配的正则，单字与含汉字写法仍走 `contains`；② 声优名一开始漏在匹配表外（站主口径要求「只提声优也算」），补 `actor.forms`；③ 正文只在 `body_mode='full'` 时参与匹配（与 pool_search 同一条规则），测试文章的正文点了名不算；④ `originalTitle` 就是 `articles.title`，改「标题不再点名」必须同时改 `articles.title` 与 `analyses.title_zh`；⑤ sitemap 断言别写死协议（`SITE_URL` 在测试里不是 https）。
 6. **验收数字**：`tests/members.test.ts` **6 通过 / 0 失败**；全量 `npm test` **686 通过 / 0 失败**（93.2s；W12 基线 680）；`npm run typecheck` 全绿；dev 库跑完 0063 + 回填：**149 行提及、84 篇报道、35 个角色**，其中够 5 篇的是 8 个（Canna Lily / F-272 的 10 位在现有语料里 0 篇提及，页面可达但暂不进 sitemap）。
-7. **已知缺口（待办）**：`role`（担当）只有官方写明的才有 —— 目前 **15/88**（Mugendai Mewtype 5 + Canna Lily / F-272 10），其余 73 行 TSV 备注里没记担当。补齐要按 16 支乐队的官网逐条研究后重跑生成器；页面在没有 `role` 时照常显示，只是不写担当。
+7. **担当 85/88（2026-10-05 补齐一次）**：`role` 有没有照旧只认官方明文；16 支乐队的官网逐条查过一遍，来源写在 `.data/glossary-members.tsv` 备注列的 `位置来源` 里（`.data/` 不进仓库）。只剩ダイヤモンドダスト的奈奈 / 凛 / 爱 —— 官方角色页只列年龄、没有乐器图标（同页的トゲナシトゲアリ 五人就有），非官方来源（萌娘百科）不采用。补齐只改 `industry/members.ts`，不动词表与 `GLOSSARY_VERSION`；页面在没有 `role` 时照常显示，只是不写担当。
 
 **工作量**：4 天（真源重构 1 + 投影表与写入 1 + 读取与页面 1.5 + 出口与测试 0.5）。
 
@@ -1250,7 +1250,7 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - **`originalTitle` 就是 `articles.title`**：「标题不再点名」的用例必须同时改 `articles.title` 与 `analyses.title_zh`，只改一个旧行不会消失。
 - **sitemap 断言别写死协议**：`SITE_URL` 在测试里不是 https，用 `xml.includes("/member/<id></loc>")` 这种子串断言。
 - **别名合并方向不能靠「同一人」判定**：Hello, Happy World! 的米歇尔备注写的是「奥沢美咲的演出用熊玩偶身份」，而本名页写「与米歇尔为同一人」，两行方向相反 ⇒ 生成器只认「舞台代号」前缀 + 显式的别名表。
-- **遗留：担当只有 15/88**。`role` 只有官方写明的才有（Mugendai Mewtype 5 位 + 新补的 Canna Lily / F-272 10 位），其余 73 行的 TSV 备注里没记担当 ⇒ 角色页不显示这一行。补齐要按 16 支乐队的官网逐条研究后重跑 `.data/build-glossary-tables.ts`（`.data/` 不进仓库，生成物进仓库）。
+- **担当 85/88（2026-10-05 补齐）**：`role` 只有官方写明的才有，16 支乐队的官网逐条查过，来源写在 `.data/glossary-members.tsv` 的备注列（`.data/` 不进仓库）。只剩ダイヤモンドダスト的奈奈 / 凛 / 爱 —— 官方角色页没标乐器，非官方来源不采用 ⇒ 这 3 页不显示这一行。以后重跑 `.data/build-glossary-tables.ts` 即可（生成物进仓库）。
 - Canna Lily / F-272 的 10 位角色在现有语料里 **0 篇提及**（页面可达、不进 sitemap），等有报道提到自然长出内容。
 
 ---
