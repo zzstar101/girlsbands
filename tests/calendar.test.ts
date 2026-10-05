@@ -17,13 +17,13 @@ const NOW = new Date("2026-10-01T03:00:00Z");
 after(closeDb);
 
 let n = 0;
-async function report(opts: { deadlines: unknown; tags?: string[]; title: string; selected?: boolean }) {
+async function report(opts: { deadlines: unknown; tags?: string[]; title: string; selected?: boolean; timezone?: string }) {
   n += 1;
   const id = `${T}-a${n}`;
   const sourceId = `${T}-s${n}`;
   const at = new Date("2026-09-30T00:00:00Z");
-  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, created_at, next_fetch_at)
-            VALUES (${sourceId}, ${`媒体 ${n}`}, 'rss', 'T1', 'editorial', ${at}, '2100-01-01')`;
+  await sql`INSERT INTO sources (id, name, kind, tier, participation_mode, config, created_at, next_fetch_at)
+            VALUES (${sourceId}, ${`媒体 ${n}`}, 'rss', 'T1', 'editorial', ${sql.json((opts.timezone ? { timezone: opts.timezone } : {}) as never)}, ${at}, '2100-01-01')`;
   await sql`INSERT INTO articles (id, source_id, identity_key, url, title, discovered_at, timeline_at)
             VALUES (${id}, ${sourceId}, ${id}, ${`https://example.org/${id}`}, ${opts.title}, ${at}, ${at})`;
   const [analysis] = await sql`INSERT INTO analyses (article_id, input_revision, origin, output)
@@ -121,9 +121,11 @@ test("the export is a readable iCalendar file: folded, escaped, on the reader's 
   assert.ok(lines.includes("X-WR-TIMEZONE:Asia/Tokyo"));
   assert.ok(lines.includes("X-WR-CALNAME:少女乐队's — 結束バンド 日程"));
   assert.ok(lines.includes(`UID:${timed}-event-20261010T1530@${new URL(config.siteUrl).host}`));
-  // A timed date is floating local time — 15:30 on the announcement is 15:30 on the reader's clock — and
-  // it gets no end. An all-day date runs to the next day so it does not vanish from a day view.
-  assert.ok(lines.includes("DTSTART:20261010T153000"));
+  // A timed date is 15:30 on the announcement's own clock, and the zone it is on is named — the site never
+  // converts it — and it gets no end. An all-day date runs to the next day so it does not vanish from a
+  // day view.
+  assert.ok(lines.includes("DTSTART;TZID=Asia/Tokyo:20261010T153000"));
+  assert.equal(lines.some((l) => l.startsWith("DTSTART:20261010")), false, "no local time floats without its zone");
   assert.equal(lines.some((l) => l.startsWith("DTEND") && l.includes("20261010")), false);
   assert.ok(lines.includes("DTSTART;VALUE=DATE:20261004"));
   assert.ok(lines.includes("DTEND;VALUE=DATE:20261005"));
@@ -155,4 +157,33 @@ test("the export covers a month back and a year ahead, and one subject's is not 
   assert.equal(summaries.includes("SUMMARY:一年后的 Live"), false, "and ahead one year");
   assert.ok(one.some((l) => l.startsWith(`UID:${recent}-`)) && one.some((l) => l.startsWith(`UID:${nextYear}-`)));
   assert.equal(one.some((l) => l.startsWith(`UID:${tooOld}-`)) || one.some((l) => l.startsWith(`UID:${tooFar}-`)), false);
+});
+
+test("a mainland source's clock is named in the export, and both zones are written out", async () => {
+  const mainland = await report({
+    tags: ["entity:kessoku-band"],
+    timezone: "Asia/Shanghai",
+    title: `国内 Only 演出 ${T}`,
+    deadlines: [{ kind: "event", at: "2026-10-20T23:30", note: "开演 23:30", ...quote("10月20日 23:30") }],
+  });
+  const japanese = await report({
+    tags: ["entity:kessoku-band"],
+    title: `日本 Live ${T}`,
+    deadlines: [{ kind: "event", at: "2026-10-21T15:30", note: null, ...quote("10月21日 15:30") }],
+  });
+
+  const text = await calendarIcs(NOW);
+  const lines = unfold(text);
+  assert.ok(lines.includes("DTSTART;TZID=Asia/Shanghai:20261020T233000"), "23:30 in Beijing is 23:30 in Beijing");
+  assert.ok(lines.includes("DTSTART;TZID=Asia/Tokyo:20261021T153000"));
+  assert.ok(lines.includes(`UID:${mainland}-event-20261020T2330@${new URL(config.siteUrl).host}`), "the announced clock is part of the uid");
+  assert.ok(lines.includes(`UID:${japanese}-event-20261021T1530@${new URL(config.siteUrl).host}`));
+  // Both zones a file uses are defined in it, so a client without the IANA database still reads them.
+  assert.ok(lines.includes("BEGIN:VTIMEZONE"));
+  assert.ok(lines.includes("TZID:Asia/Shanghai"));
+  assert.ok(lines.includes("TZID:Asia/Tokyo"));
+  assert.ok(lines.includes("TZOFFSETTO:+0800"));
+  assert.ok(lines.includes("TZOFFSETTO:+0900"));
+  const physical = text.split("\r\n");
+  for (const line of physical) assert.ok(Buffer.byteLength(line, "utf8") <= 75, `line longer than 75 octets: ${line}`);
 });

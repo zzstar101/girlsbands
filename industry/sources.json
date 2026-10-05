@@ -653,6 +653,7 @@
           "https://www.allcpp.cn/allcpp/event/eventMainListV2.do?type=3&time=8&sort=1&pageNo=1&pageSize=100&tag=GirlsBandCry",
           "https://www.allcpp.cn/allcpp/event/eventMainListV2.do?type=3&time=8&sort=1&pageNo=1&pageSize=100&tag=GBC"
         ],
+        "timezone": "Asia/Shanghai",
         "itemsPath": "result.list",
         "titlePaths": [
           "name"
@@ -689,6 +690,7 @@
           "https://show.bilibili.com/api/ticket/search/list?keyword=MyGO&page=1&pagesize=20&platform=web",
           "https://show.bilibili.com/api/ticket/search/list?keyword=Ave%20Mujica&page=1&pagesize=20&platform=web"
         ],
+        "timezone": "Asia/Shanghai",
         "headers": {
           "Referer": "https://show.bilibili.com/"
         },
@@ -731,6 +733,7 @@
           "https://www.showstart.com/event/list?keyword=%E5%AD%A4%E7%8B%AC%E6%91%87%E6%BB%9A",
           "https://www.showstart.com/event/list?keyword=BanG%20Dream"
         ],
+        "timezone": "Asia/Shanghai",
         "itemSelector": "div.list-box a.show-item",
         "titleSelector": "div.title",
         "summarySelector": "div.time, div.addr, div.price",

@@ -4,7 +4,7 @@
 import { Link } from "react-router";
 import type { CalendarResponse, DeadlineView } from "@girlsbands/contracts/site";
 import { IconChevronLeft, IconChevronRight, IconDownload } from "../../components/icons";
-import { clock, DEADLINE_KINDS, md } from "../feed/deadlines";
+import { DEADLINE_KINDS, md } from "../feed/deadlines";
 
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 
@@ -27,7 +27,7 @@ function monthGrid(month: string): { lead: number; days: number } {
 /** One dated row: a kind-coloured dot and the title, which opens the report that stated the date. */
 function Event({ d }: { d: DeadlineView }) {
   const kind = DEADLINE_KINDS[d.kind];
-  const time = clock(d.at);
+  const time = d.localTime;
   return (
     <Link to={`/items/${d.itemId}`} prefetch="intent" title={`${kind.label}${d.note ? ` · ${d.note}` : ""} · ${d.title}`} className="group/event flex items-start gap-1.5">
       <span aria-hidden="true" className={`mt-[5px] size-1.5 flex-none rounded-full bg-current ${kind.className}`} />

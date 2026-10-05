@@ -93,6 +93,8 @@
 
 按工作流分组。每组给了**文件位置**和**验收标准**，可以直接照着做。
 
+两个阶段：**W0–W6 是「把 AIHOT 改成少女乐队情报站」**（已完成，见下）；**W7–W18 是「从新闻聚合升级成 Event Intelligence」**（2026-10-05 定，在本节末尾，先看那张优先级表）。
+
 ### W0 · 品牌脱钩（✅ 已完成）
 
 **已完成**（`npm run typecheck` 全绿，`git grep` 逐项验证）：
@@ -177,7 +179,7 @@
    - `translate.slow`（level `digest`）：`receipt_attempts` JOIN `receipts`，`purpose IN ('translate_body','translate_quoted') AND ra.status='received' AND latency_ms IS NOT NULL`，24 小时窗口内 `percentile_cont(0.9)::int`，样本 `n >= 5` 且 p90 > 3 分钟才报。**注意 `receipt_attempts.status` 的成功值是 `'received'` 不是 `'completed'`**（`database/migrations/0022_receipt_attempts_budgets.sql:12` 的 CHECK 只有 `pending/received/failed/unknown`），`receipts.status` 才有 `completed`。
    - 阈值常量放在 `alerts.ts` 顶部：`TRANSLATE_STUCK_MS = 2 * 3600_000`、`TRANSLATE_SLOW_MS = 3 * 60_000`（批次 3500 字符，正常答案远在一分钟内）。
    - 测试：`tests/alerts.test.ts` 的「translation problems reach the owner without crying wolf over long bodies」（该文件 5 条全过）。
-7. ❌ **原稿这条是错的，已作废（2026-10-05 查证）：不用统一到 JST。** `packages/backend/src/publication/deadlines.ts:5-7` 的头注释早就写明并论证了这个分工：「`at` is Japan wall-clock, the date the announcement itself gives, so the window, the day buckets and the 48-hour flag are all computed in JST rather than in the Beijing calendar the rest of the site uses. A deadline that closes at 23:59 JST is a thing the reader must act on that day, and converting it to another calendar would move it to the day before.」实现自洽（`JST_OFFSET_MS` / `jstDate` / `jstInstant` / `upcomingDeadlines` 全在 JST 内闭环）。全站其余部分用北京时间也是刻意的：`apps/worker/src/schedules.ts:1,72` 的 cron 跑在 `Asia/Shanghai`、`packages/backend/src/reports/compose.ts:1` 的窗口用 `beijingDate`/`beijingMidnight`、`packages/backend/src/editorial/analyze.ts:74` 与 `writing.ts:286` 的日期锚点也是 `Asia/Shanghai`。**截止日期来自日本公告 → 用公告自己的日历；日报的「今天」是读者的日子 → 用读者的日历。两者各自都对，统一到 JST 反而会让中文读者的日报对不上自己的日子。**
+7. ❌ **原稿这条是错的，已作废（2026-10-05 查证）：不用统一到 JST。** `packages/backend/src/publication/deadlines.ts:5-7` 的头注释早就写明并论证了这个分工：「`at` is Japan wall-clock, the date the announcement itself gives, so the window, the day buckets and the 48-hour flag are all computed in JST rather than in the Beijing calendar the rest of the site uses. A deadline that closes at 23:59 JST is a thing the reader must act on that day, and converting it to another calendar would move it to the day before.」实现自洽（`JST_OFFSET_MS` / `jstDate` / `jstInstant` / `upcomingDeadlines` 全在 JST 内闭环）。全站其余部分用北京时间也是刻意的：`apps/worker/src/schedules.ts:1,72` 的 cron 跑在 `Asia/Shanghai`、`packages/backend/src/reports/compose.ts:1` 的窗口用 `beijingDate`/`beijingMidnight`、`packages/backend/src/editorial/analyze.ts:74` 与 `writing.ts:286` 的日期锚点也是 `Asia/Shanghai`。**截止日期来自日本公告 → 用公告自己的日历；日报的「今天」是读者的日子 → 用读者的日历。两者各自都对，统一到 JST 反而会让中文读者的日报对不上自己的日子。**（W7 之后的形态：判断不变 —— 截止日期仍按公告自己的日历分桶；只是「公告那一地」不再死写 JST，而是来源的 `config.timezone`，`jstInstant` 已删除。）
 
 ### W3 · 全文搬运的合规底线（**必做，不用选**）· ✅ 已完成 2026-10-05
 
@@ -271,7 +273,7 @@
    - 该站 API 全部返回 `{"msg":"方法受限","success":false,"state":"get_not_support"}` → 无 JSON 可用，只能解析 HTML
    - 实测样本：`所谓正解？【哭泣少女乐队Only Live】| 2026/10/11 15:30 | [广州] MAOLivehouse（永庆坊店 CLUB厅）| ¥68起`
    - **详情页拿不到年份**：`/event/311467` 的 SSR 文本只写「10月11日 15:30」，年份只在列表卡片的 `div.time` 里 → 所以正文必须从列表卡片取，不能改成抓详情。
-4. **接进企划日历**：这三个源产出的都是**带明确日期的活动**，是 W1-3 企划日历和 `.ics` 导出最主要的素材。CPP 的 `enterTime`/`endTime`、B站的 `start_time`/`end_time`、秀动的演出时间统一落成 `kind=event` 的日期条目（`industry/prompts/structure.md` 已加对应规则）。**只抽日期、不抽时刻**：`publication/deadlines.ts:38` 的 `jstInstant(at)` 把带时刻的 `at` 当 JST，而这三个源的时刻是北京时间，只取日期才能原样往返。
+4. **接进企划日历**：这三个源产出的都是**带明确日期的活动**，是 W1-3 企划日历和 `.ics` 导出最主要的素材。CPP 的 `enterTime`/`endTime`、B站的 `start_time`/`end_time`、秀动的演出时间统一落成 `kind=event` 的日期条目（`industry/prompts/structure.md` 已加对应规则）。**只抽日期、不抽时刻**：`publication/deadlines.ts:38` 的 `jstInstant(at)` 把带时刻的 `at` 当 JST，而这三个源的时刻是北京时间，只取日期才能原样往返。（**W7 已改**：时刻现在按来源的 `config.timezone` 解释，「只取日期」不再是为了绕开 bug，而是那三个来源的公告本身就常只给日期。）
 5. **信源分级与阈值**：三个源都定为 **`T2_EVENT`（国内活动排期平台，门槛 54）**、`participation_mode: "editorial"`、`site_fulltext: true`（纯中文，正文直接展示，不走翻译）、`syndicate_fulltext: false`、`interval_minutes: 360`（`jobs/source-intervals.ts` 会按产出量自己调；editorial 源最多被调到 60 分钟）。
    **新档位 `T2_EVENT` 是这一轮校准出来的**：最初三个源按 `T2 = 72` 走，结果 15 条国内条目 0/14 入选，而且分数（36–58）和日语 T2 负样本（49、68）完全重叠 —— 调门槛救不回来。先改评分标准（见下），再把国内排期类单独一档。新增档位要同时改四处：`industry/selection.ts` 的 `thresholds`、`packages/backend/src/admin/sources.ts:101,168` 的 `z.enum`、DB 的 `sources_tier_check`（迁移 `0057_source_tier_event.sql`）、`apps/web/app/features/admin/labels.ts:7 TIER_LABEL`。
 
@@ -324,6 +326,479 @@
 
 ---
 
+### 下一阶段：从「新闻聚合」到「Event Intelligence」（2026-10-05 定，W7–W18）
+
+> 2026-10-05 站主看过一遍现状后的判断：项目已经不是「还缺几个信源」的阶段 —— 作为少女乐队新闻聚合站它相当完整（三个企划入口、10 个分类、中文全文、聚簇、热点、日报周报月报、截止雷达、企划日历、`.ics`、乐队页、邮件订阅、RSS/API/MCP、国内 ONLY/livehouse 数据都已落地）。缺的是把「**文章**」升级成「**可行动的结构化情报**」。
+
+**主次关系要反过来。** 现在是「新闻是主角，Live 是从新闻里抽出来的日期」；要变成「Live / Release / Member 才是主角，新闻只是它们的证据」。
+
+```
+Project ──► Band ──► Member
+                 └─► LiveEvent ─┬─ TicketRound（票务状态机）
+                                ├─ Stream（配信 / 回看期限）
+                                ├─ Merch（会场物贩）
+                                ├─ Announcement（公布与变更）
+                                ├─ Venue（场馆）
+                                └─ Setlist（演出之后）
+                 └─ Release ─┬─ Edition（通常盤 / 初回限定盤 A・B）
+                             ├─ RetailerBonus（店铺特典：Animate / Gamers / Amazon / Tower / HMV）
+                             └─ SerialCode（封入抽选序列号 ──► 哪一场 LiveEvent）
+
+Source ──► Article ──► evidence ──► 上面这些实体的状态变化
+```
+
+| 优先级 | 工作包 | 一句话 |
+|---|---|---|
+| **P0** | W7 · 时间模型带时区 | 裸 datetime 换成 `{localDate, localTime?, timezone, precision, sourceQuote}`；这是 W8/W9/W10/W14/W16 的地基 |
+| **P0** | W8 · LiveEvent 一等实体 | 一场 Live 一个稳定实体 + 生命周期阶段，几十条情报挂在它下面 |
+| **P0** | W9 · 票务状态机 TicketRound | FC先行 / Official先行 / CD封入 / 当落 / 入金 / 一般贩售 / 追加席 / 当日券 / resale，各带状态与时间点 |
+| **P0** | W10 · 行动中心 | 首页回答「**我现在该干什么**」：今天截止 / 还有 N 天 / 即将开售 / 今日 Live |
+| **P1** | W11 · 发售·版本·特典 | Single → Edition → 店铺特典 → 序列号 → Live，把已成型的分类连成链 |
+| **P1** | W12 · 无账号关注 | 浏览器本地关注 + 随机 token 绑邮箱，**不引入账号** |
+| **P1** | W13 · 成员实体页 | `/member/<id>`，把 162 条成员词表从「只为翻译」升级成页面（角色 ↔ 声优 ↔ 乐队） |
+| **P1** | W14 · 情报变更 Diff | 「相比上一版：+ 新增当日券 / OPEN 17:00→16:30」，延期与中止标 ⚠️ |
+| **P2** | W15 · 场馆实体页 | `/venue/<id>`：地址 / 最近车站 / 过往与未来演出 |
+| **P2** | W16 · Setlist 与事后档案 | Live 结束后 Event 页从 upcoming 切 archive：Setlist / 现场 repo / 官方照片 / Archive 截止 / BD |
+| **P2** | W18 · 用户纠错与情报投稿 | 条目页「报告问题」+ `/submit` 投稿源，全部先落 `feedback` 表，人工确认后才入库 |
+| **风险** | W17 · 全文政策分层 | 官方全文 / 第三方摘要+链接 / 许可全文 —— **推翻站主旧决定，动手前必须重新点头** |
+
+**这一步明确不做**：信源覆盖率与覆盖率评分（站主 2026-10-05 明确排除。健康度已经有 `sources.health` 与 `packages/backend/src/operations/`，覆盖率那层先不做）。
+
+**动手前先修一行**（不是新功能，是已经存在的缺陷，reader 可见）：
+`packages/backend/src/editorial/analyze.ts:108` 的 `DEADLINE_KINDS` 只有 **7** 个（`lottery_start / lottery_end / sale_start / event / stream_end / result / other`），少了 `release_start` 与 `merch_start`；而 `industry/prompts/structure.md:35-37` 明确让模型输出**九**种，`packages/backend/src/publication/deadlines.ts:23` 的 `KINDS` 与 `packages/contracts/src/site.ts:225` 的 `DeadlineKind` 也是九种。中间那道 `z.enum(DEADLINE_KINDS).catch("other")`（`analyze.ts:132`）把两者**悄悄吞成 `other`**：dev 库 177 条 deadline 里 21 条是 `other`，其中「发售日」「対象Blu-ray/DVD発売日」「受注截止」「标签罐发售结束」本应是 `release_start` / `merch_start`，在日历与截止雷达上被显示成「其他」。修法是在 `DEADLINE_KINDS` 里补上这两个值（`industry/prompts/structure.md` 与 `deadlines.ts` 都不用动），已入库的 21 条要不要重跑由 W7 决定。
+
+**命名冲突先记住**：`packages/backend/src/events/` **不是** Live 事件引擎，它是**新闻聚簇**引擎（`groupArticle` / `composeStoryDigest` / `computeHotRanking` / `linkRelatedStories`，cron 在 `packages/backend/src/jobs/events.ts`）。W8 的 LiveEvent 代码不要放进这个目录，表名也别叫 `events` —— 建议 `packages/backend/src/lives/` + 表 `live_events`。另一个现状：`stories.frame` 在 dev 库里全是 null、`story_aliases` 是空表，也就是说**今天没有任何「一件东西」的持久身份**，聚簇靠 `grouping_decisions` 与向量召回；LiveEvent 必须自带稳定主键（企划/乐队 + 日期 + 场馆 派生）以及「哪些 article 是它的证据」的映射表。
+
+---
+
+## 下一阶段工作包（W7–W18）
+
+> 每包按「为什么 / 现状（代码事实，已核） / 设计 / 验收标准 / 待站主拍板 / 工作量」写。**待拍板项汇总在 §七**，动手前先看那一节 —— 其中 W17 是**推翻站主旧决定**，必须先点头。
+
+### W7 · 时间模型带时区（P0，地基）· ✅ 已完成 2026-10-05
+
+**为什么**：`packages/backend/src/publication/deadlines.ts:38-40` 的 `jstInstant(at)` 把任何裸时刻死按 `+09:00` 解释（唯一调用点 `:104` 的 `soon` 标志）。中国大陆的场次是北京时间：dev 库里 `web-showstart-events` 已经有一条 `{"at":"2026-10-11T15:30","kind":"event"}`，15:30 侥幸同一天，**北京时间 21:00 之后开演就会被推成次日**。W8 的 `live_events`、W9 的票务轮次、W10 的行动中心、W14 的变更 Diff、W16 的 Setlist 都建在「一个带时区的时刻」上，所以先修这里，否则每个包各修一遍。
+
+**现状（已核）**
+- `packages/backend/src/publication/deadlines.ts:18` `JST_OFFSET_MS = 9 * 3600 * 1000` 是模块级常量；`:38-40` 死写 `${at}:00+09:00`；`:89-90` 用正则 + `at.slice(0,10)` 取日桶；`:145-159` `deadlineMonths` 直接对墙钟字符串比较。
+- `packages/backend/src/editorial/analyze.ts:108` 的 `DEADLINE_KINDS` 只有 **7** 种，而 `industry/prompts/structure.md:35-37`、`packages/backend/src/publication/deadlines.ts:23` 的 `KINDS`、`packages/contracts/src/site.ts:225` 都是 **9** 种；`:132` 的 `z.enum(DEADLINE_KINDS).catch("other")` 把 `release_start` / `merch_start` **静默吞成 `other`**（dev 库 21 条，日历上显示成「其他」）。
+- `.ics` 现在按浮动当地时间输出：`packages/backend/src/publication/calendar.ts:119` 是 `DTSTART:${compact(v.day)}T${hh}${mm}00`，**没有 `TZID`**。文件头 `:106` 的注释说明了这是刻意的（"a time is written as floating local time — 15:30 on the announcement is 15:30"）。
+- dev 库 deadline 里带时刻的占少数：198 条总量、77 条带时刻；三个国内源 40 条里只有秀动 1 条带时刻。
+
+**设计**
+1. **时区由来源决定，不让模型写**（这条与草稿 A 不同，理由见下）：新增 `timezoneOf(source)`，默认 `Asia/Tokyo`；`sources.config.timezone` 有值时用它。新增受控 config 键 `"timezone"`（`packages/backend/src/sources/config-keys.ts` 的 `COLLECTED` 白名单 + 值域只接受 `Asia/Tokyo` / `Asia/Shanghai`），迁移 `0059_source_timezone.sql` 给 `json-cpp-only-events` / `json-bilibili-show` / `web-showstart-events` 写入（照 `0055`/`0057`/`0058` 的 `jsonb_set` 写法；`scripts/seed.ts` 只插不更新，所以 JSON 与迁移都要改）。
+   - **不改 `industry/prompts/structure.md`**：提示词版本是内容哈希，改它 = 全部回执失效、已入库条目重跑结构步，而 `packages/backend/src/events/group.ts:237-241` 会把 `grouping_status` 置 `pending`、条目**短暂下架**。为一个代码能确定性推导的值付这个代价不值得（草稿 A 建议让模型输出 timezone，本文档改成由来源推导）。
+2. **解析收在一个函数**：`type DeadlineTime = { localDate: string; localTime: string | null; timezone: Timezone; precision: "date" | "datetime" }`；`deadlineInstant(d)` 把 `localDate` + `localTime` 按 `timezone` 转成绝对时刻（两个时区都没有夏令时，用固定偏移表即可，不引依赖）；`localDate` / `localTime` 由现有 `at` 切出，`at` **保留为只读派生字段**，v1 API / RSS / 邮件文案不用改。
+3. **读取路径全收在 `deadlines.ts`**：`deadlineRange`（`:135`）、`deadlineMonths`（`:145`）、`upcomingDeadlines`（`:119`）、`soon` 改吃 `localDate` + `localTime`；删 `jstInstant`；`packages/contracts/src/site.ts:244-265` 的 `DeadlineView` 加 `localTime` / `timezone`（`at` 标 `@deprecated`）；`apps/web/app/features/feed/deadlines.ts:24-26` 的 `clock()` 与 `packages/backend/src/subscriptions/content.ts:124-138` 改读 `localTime`（否则邮件里会写「当地时间」但其实是 JST）。
+4. **`.ics` 加 `TZID`**：`packages/backend/src/publication/calendar.ts:119` 改成 `DTSTART;TZID=Asia/Tokyo:...` / `Asia/Shanghai`，文件里补两个静态 `VTIMEZONE`（只有两个时区，手写安全）；全天事件（`DTSTART;VALUE=DATE` + 次日 `DTEND`）不动。
+5. **顺手补齐 `DEADLINE_KINDS`**：`packages/backend/src/editorial/analyze.ts:108` 补 `release_start` / `merch_start`，与另外三处逐字一致；**历史 21 条不重跑**（新条目自然就对了；旧条目留在库里不影响任何出口排序，只是标签仍显示「其他」）。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| `node --test-global-setup=tests/databases.ts --import ./tests/databases.ts --test --test-timeout=120000 tests/calendar.test.ts` | timed 事件 `DTSTART` 带 `TZID`、文件里有对应 `VTIMEZONE`，仍 CRLF、0 行 >75 octets |
+| 新测试 `tests/deadlines-time.test.ts` | 北京时间 23:30 的 `at` 落回当天 23:30（+08:00），**不推到次日**；JST 23:59 仍当天；裸日期行为不变 |
+| `DEADLINE_KINDS` 一致性 | 新增断言：`analyze.ts` 的集合 == `deadlines.ts:23` 的 `KINDS` == `packages/contracts/src/site.ts:225` 的 `DeadlineKind`（防止再次漂移） |
+| dev 读数 | `/calendar.ics` 里秀动那条是 `TZID=Asia/Shanghai`；`/deadlines` 与邮件文案显示「15:30（北京时间）」 |
+| 回执/花费 | 本轮**不改任何提示词**，无重跑、无模型调用 |
+
+**站主已拍板（2026-10-05）**：`.ics` 用**当地时刻**（日本 18:30 / 中国 15:30）并写 `TZID`；一天一桶**按当地日历** —— 北京时间 23:30 的场次就落在当天（不因为先换算成东京时间而挪到次日）。
+**工作量**：实际约半天（含测试与文档），无模型成本。
+
+**实现与验证（2026-10-05 完成）**
+
+与原设计的差异（设计见上，这里只记改了主意的地方）：
+- **`DEADLINE_KINDS` 不是补两项就完**：运行时数组搬进 `packages/contracts/src/site.ts` 当唯一真源（`DeadlineKind` 类型、`editorial/analyze.ts` 的 zod enum、`publication/deadlines.ts` 的 `KINDS`、`DEADLINE_LABELS` 全由它派生）。补丁式地给 `analyze.ts` 加两项，下次照样漂移。
+- **`DeadlineView.at` 没标 `@deprecated`**：v1 API、RSS、邮件与几个组件仍读它，标了会让人以为可以删。
+- **时区不进提示词**：`industry/prompts/structure.md` 一个字没改（改它 = 全部回执失效 + 已入库条目重跑结构步、`grouping_status` 置 `pending` 短暂下架）。时区只从 `sources.config.timezone` 读，`publication/deadlines.ts` 的 SQL 因此多取一列 `s.config AS source_config`。
+- **网页侧**：`apps/web/app/features/feed/deadlines.ts` 的 `clock()` 换成 `clockText(localTime, timezone)`（「15:30 北京时间」/「全天」）；`Countdown` 收 `timezone` 并用 `TIMEZONE_OFFSETS` 解析；邮件 `DeadlineEntry` 加 `zone`，两处「所有日期与时刻均为日本时间。」改成「均为公告当地时间。」。
+- **`VTIMEZONE` 只给带时刻的事件写**：全天事件没有钟，不需要声明时区。
+- 历史 21 条 `kind='other'` 不重跑（新条目自然正确）。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（含 `npm run typecheck -w @girlsbands/web`） |
+| `tests/calendar.test.ts` + 新 `tests/deadlines-time.test.ts` | **12 通过 / 0 失败**；带时刻的是 `DTSTART;TZID=Asia/Tokyo:…` / `Asia/Shanghai:…`，文件里有对应 `VTIMEZONE`，CRLF，0 行 >75 octets |
+| 迁移 | `npm run db:migrate` → `applied 0059_source_timezone.sql`；dev 库 3 条国内源 `config->>'timezone'` 都是 `Asia/Shanghai` |
+| 全量 `npm test` | **629 通过 / 0 失败**（65s） |
+| 回执/花费 | 未改任何提示词，无重跑、零模型调用 |
+
+**订正：dev 库里国内条目现在全是全天事件。** W6 交付时秀动那条抽到 `{"at":"2026-10-11T15:30"}`，但 W6 自己改了 `selection-score.md`，回执失效后该条在 20:41 重跑了一遍（`analyses.id` 316 → 386，`prompt_version` 里 `selection-score@1a83ac657c` → `@0a01fe5d9c`，`structure@558fff60ef` 未变），这次模型按 `structure.md` 的「国内排期类来源只写日期」给出裸日期 `2026-10-11`。所以线上 `/calendar.ics` 里看不到 `TZID=Asia/Shanghai`（105 个 VEVENT 全是 `DTSTART;VALUE=DATE`）—— 带时刻的上海来源由 `tests/deadlines-time.test.ts` 覆盖。这条修复的必要性没减少：模型哪天又写出时刻，没有时区就会按 JST 解释。
+
+`industry/prompts/structure.md` 里那句「这些来源的时刻是北京时间，本步骤的时间基准是 JST，只取日期不会错」的**理由**现在不成立了（时刻不会再被当 JST）。**故意不改**：改提示词会让全部回执失效、已入库条目短暂下架；留到下一次不得不改 `structure.md` 的包（W8）一起改。
+
+---
+
+### W8 · LiveEvent 一等实体（P0）
+
+**为什么**：现在一场 Live 没有身份 —— `facts` 只挂 `story_id`（`database/migrations/0002_events_reports.sql:51-65`），而 story 身份会合并、会 308 跳转（`packages/backend/src/publication/stories.ts:18/:28` 的 `resolveStory`），`stories.frame` 在 dev 库全是 null、`story_aliases` 是空表。所以「这场 Live 现在走到哪一步」无处可算，几十条情报只能各自成篇。
+
+**现状（已核）**
+- `packages/backend/src/events/` 是**新闻聚簇**引擎（`groupArticle` / `composeStoryDigest` / `computeHotRanking`），不是 Live 引擎 → 新代码放 `packages/backend/src/lives/`，表叫 `live_events`。
+- `facts` 只有 `(public_id, story_id, title, subject, action, object, conditions, occurred_at, created_at)`，`createFact`（`packages/backend/src/events/group.ts:111-119`）**只插不更新**，全仓唯一的 `UPDATE facts` 是 `packages/backend/src/events/merge.ts:17` 的 `SET story_id`。
+- `industry/taxonomy.ts:84-91` 的 `ENTITY_TAGS` 里会场只有 **7** 个（`Zepp` / `TOKYO DOME CITY HALL` / `日本武道館` / `ぴあアリーナMM` / `Kアリーナ横浜` / `有明アリーナ` / `LINE CUBE SHIBUYA`）；135 条场馆词表 `industry/glossary-venues.ts` 只服务翻译，**不是标签来源**。
+- `apps/web/app/routes.ts` 里没有 live 路由。
+
+**设计**
+1. **表**（迁移 `0060_live_events.sql`）：`live_events(id, public_id, title, subject_entity, venue, timezone, starts_on, ends_on, starts_time, status, story_id, first_seen_at, updated_at)`，`status ∈ scheduled | cancelled | postponed`，唯一键 `(subject_entity, venue, starts_on, starts_time)`（`venue` 可为 null，见下）；`facts` 加一列 `live_event_id`（可空，回填式）＋索引。
+2. **阶段 A（零模型成本，先做）**：`packages/backend/src/lives/link.ts` 的 `linkLiveEvent(tx, factId)` 在 `createFact` 同一个事务里调用（`events/group.ts:111` 之后），键的推法：主体 = 该 article 的 `analyses.subjects ∩ ENTITIES`；会场 = `ENTITY_TAGS` 命中（7 个会场）；日期 = 该 fact 的 `deadlines` 里 `kind='event'` 的 `localDate`（W7 之后是结构化的）。推不出日期就不建实体（宁缺勿错）。这一步能把「已经在库里的日文一手情报」直接挂上实体，Live 页当场就有内容。
+   - **已知弱点**：国内 livehouse 的会场不在 `ENTITY_TAGS` 里。阶段 A 允许 `venue = null`，键退化成 `(subject_entity, starts_on)`；同一天同一主体两场（昼/夜、巡演两站）会被并成一个实体 —— 这正是 §七 要拍板的「Live 粒度」。
+3. **阶段 B（花模型钱，独立排窗口）**：新提示词 `industry/prompts/live-ticket.md` + `packages/backend/src/editorial/analyze.ts` 新步骤 `runLiveTicket`，结果写 `analyses.output.live`（additive，不动 `output.fact`）。**新提示词文件不会让旧回执失效**，所以只有被显式重跑的条目才花这笔钱（`category IN ('live','ticket')`，新 `attemptTag`，例如 `live-ticket-v1`）。重跑期间条目会短暂下架（`grouping_status = pending`），要单独安排窗口。
+4. **读取**：`packages/backend/src/lives/read.ts` 出 `loadLiveEvent(publicId)`、`liveEventsForSubject(entityId, { from, to })`、`liveEventOfStory(storyId)`；生命周期阶段**不存表**，由 `(now, starts_on/ends_on, 票务轮次, facts 标签)` 现场派生 `announced → ticketing → on_sale → sold_out → live_day → finished`；所有日期一律走 W7 的 `deadlineRange` / `upcomingDeadlines`，报道列表必须过 `listedCondition` + `hasItemPage`（公开出口只从 `packages/backend/src/publication/` 读）。
+5. **界面**：`apps/web/app/routes/live.tsx`（`/live/:publicId`：标题 / 主体 / 会场 / 日期 / 当前阶段 / 时间线 / 相关文章 / 票务轮次占位）+ 主体页的「Live」区块；`apps/api/src/routes/site.ts` 加 `/api/site/live/:publicId`（在 `/^\/api\//` 下，**不用改** `packages/contracts/src/http-policy.ts`，但**新页面路径不能匹配** `API_OWNED_PATTERNS`，否则 `apps/web/server.ts:139` 的 `isApiOwned` 会把它代理去 api）；`packages/backend/src/publication/sitemap.ts` 收录 Live 页（有内容才收，照 topic 页的 `isIndexable` 思路）；`apps/web/app/routes/story.tsx:293` 的日期面板上方加入口。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| 阶段 A 回填 | 抽 20 个已入库的 Live 类条目：能建实体的比例，以及**误并/误分**各几例；库里有实体后 `/live/<id>` 200 |
+| 幂等 | 同一条 article 重复 `linkLiveEvent` 不产生第二个实体；同事务，`createFact` 失败不留孤儿 |
+| 阶段 B | 新提示词不改旧回执（跑一次 `npm test` 确认 `prompt_version` 相关断言不变）；重跑只影响指定 `attemptTag` |
+| 公开出口 | Live 页只显示 `listedCondition` 的报道；`.ics` / 日历读数与 W7 后一致（不新增日期算法） |
+| 测试 | `tests/live-events.test.ts`：键推导、阶段派生（含 cancelled / postponed）、页面 200 与 404 |
+
+**待站主拍板**：Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结的 Live 页要不要长期保留；阶段 B 灰度重跑愿意花多少模型钱 / 接受多长的短暂下架。
+**工作量**：2.5 天（阶段 A 约 1 天，阶段 B 与页面 1.5 天），阶段 A 零模型成本。
+
+---
+
+### W9 · 票务状态机 TicketRound（P0）
+
+**为什么**：`apply_start` 与 `apply_end` 现在是两条互不相识的 `deadlines`（`kind` 分别为 `lottery_start` / `lottery_end`），`result` / `payment_deadline` / `platform` / 轮次类型（FC 先行 / Official 先行 / CD 封入 / 一般贩售 / 追加席 / 当日券 / resale）**无处可放**。用户打开 Live 页要看到的是「**当前：CD 封入先行受理中，10/12 23:59 JST 截止，还有 7 天**」，而不是「10 月 4 日官方公布了新的先行信息」。
+
+**现状（已核）**
+- `packages/backend/src/editorial/analyze.ts:108` 的 `DEADLINE_KINDS`（7 种）与 `industry/prompts/structure.md:35-37`（9 种）不同步 —— 见 W7 第 5 条，W9 依赖它补齐。
+- `packages/backend/src/publication/deadlines.ts:1-12` 已把口径（listed 集合、JST、48 小时）定死在头注释里，是唯一日期算法；**轮次日期必须接进这里，不能在日历里另算一套**。
+- 票务分类在 `industry/taxonomy.ts` 里已经很细（FC/Official/CD 封入先行、抽选结果、一般贩售、追加席、当日券、转售），只是它们今天只是文章标签。
+
+**设计**
+1. **两张表**（迁移 `0061_ticket_rounds.sql`）：`ticket_rounds(id, public_id, live_event_id FK, kind, platform, apply_start_local_date, apply_start_local_time, apply_end_local_date, apply_end_local_time, result_on, payment_due_on, timezone, status, first_fact_id, quote)`，`kind ∈ fc | official | cd_serial | playguide | general | additional_seat | day_of | resale | streaming`，`status ∈ announced | open | closed | awaiting_result | result_out | payment_open | paid | unpaid | sold_out | cancelled`；外加 **append-only** `ticket_round_events(id, ticket_round_id, kind, observed_at, fact_id, quote)`（`kind ∈ opened | closed | result | payment_due | paid | sold_out | cancelled | updated`）。
+2. **`status` 是投影，真值是事件表**：轮次状态由 `ticket_round_events` 的时间线推出，便于 W14 的变更 Diff 与 W10 的行动中心读同一条时间线；不存「当前状态」的独立副本。
+3. **接进唯一日期算法**：`packages/backend/src/publication/deadlines.ts:61-112` 的 SQL 里 `UNION ALL` 一段 `ticket_rounds` 投影（轮次日期 → 统一的 `DeadlineTime`），`upcomingDeadlines` / `deadlineRange` / `deadlineMonths` **不改调用方**；`publication/calendar.ts` 一行不碰。
+4. **读取**：`packages/backend/src/lives/tickets.ts` 出 `roundsOf(liveEventId)`、`currentRound(liveEventId, now)`、`nextStage(...)`、`daysLeft(...)`，供 W8 的 Live 页与 W10 用。
+5. **不 backfill 老数据**：散点回填会造出错误批次（分不清哪些条目属于同一个轮次）。靠 W8 阶段 B 的灰度重跑生成（`category IN ('live','ticket')`，新 `attemptTag`，例如 `live-ticket-v1`），已跑过的条目在 Live 页上先显示「票务信息以原文为准」。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| 日期唯一算法 | 从 `ticket_rounds` 加一条轮次后，`/deadlines`、企划日历、`.ics` **三处同时**出现该日期（不是各算一遍） |
+| 状态投影 | 给定一串 `ticket_round_events`（开 / 截止 / 当落 / 入金）能推出正确 `status`；乱序插入按 `observed_at` 排序 |
+| 幂等 | 同一条 article 重跑两次不产生重复轮次（按 `live_event_id + kind + apply_start_local_date` 归并） |
+| 公开出口 | 轮次日期能被 `deadlineRange` 取到；`.ics` 折行/CRLF 检查仍通过 |
+| 测试 | `tests/ticket-rounds.test.ts`：状态投影、跨时区截止时刻、`currentRound` 选轮规则 |
+
+**待站主拍板**：`status` 要不要包含**个人**当落（当选 / 落选 —— 站不持有账号，只能靠读者自己标）；`platform` 要不要中文化（`e+` → 「e+」还是「イープラス」）；`deadlines` 与 `ticket_rounds` 哪个权威（建议：轮次是权威，`deadlines` 只是投影）。
+**工作量**：3 天（含阶段 B 的提示词与灰度重跑安排；重跑本身花模型钱且条目会短暂下架）。
+
+---
+
+### W10 · 行动中心（P0）
+
+**为什么**：首页现在只回答「今天发生了什么」。`apps/web/app/routes/home.tsx:84` 的注释早就写着 *"Trending comes last on purpose: what the reader can still act on outranks what is merely being talked about."* —— 但落地的是一个热点区块，不是「**我现在该干什么**」。截止雷达的算法已经存在，缺的只是产品界面。核心主张从「中文看全」升级成「**中文看全，而且不会错过**」。
+
+**现状（已核）**
+- `packages/backend/src/publication/deadlines.ts:1-12` 的头注释已把口径定死（listed 集合、JST 口径、48 小时），`:119` `upcomingDeadlines` 与 `:61` `deadlineWindow` 是唯一日期算法。
+- `apps/api/src/routes/site.ts:167-171` 的 `/api/site/deadlines` **只读 `horizon`**，不传 subject / kind；`apps/web/app/routes/deadlines.tsx:19-22` 的 loader 同样不传。
+- 邮件侧已有 48 小时提醒：`packages/backend/src/subscriptions/notify.ts:30` `sendDeadlineReminders`。
+- 首页没有行动区块。
+
+**设计**
+1. **数据层**：`upcomingDeadlines` 加可选 `{ subject?, kinds?, horizonDays? }` 过滤，并**在服务端**分成四组返回：`今天截止` / `还有 N 天` / `即将开售` / `今日 Live`。分组只在服务端做一次，首页、`/deadlines` 页、邮件、RSS 共用同一份。
+2. **界面**：新增 `apps/web/app/features/feed/ActionCenter.tsx`，插在 `home.tsx` 的 `HotTopics` **之上**；每行一张卡片（主体 / 轮次名 / 截止时刻（W7 之后带时区）/ 还有几天 / 链接到 Live 页或条目页）。`/deadlines` 页加主体与类别筛选（URL 参数，照 `packages/contracts/src/site.ts` 的 `TimelineFilters` 写法）。
+3. **「即将开售」包含哪些 kind**：建议 `sale_start` + `release_start` + `merch_start`（后两个依赖 W7 第 5 条补齐 `DEADLINE_KINDS`）——见 §七 待拍板。
+4. **缓存与一致性**：沿用 `/api/site/deadlines` 的 `public, max-age=60, s-maxage=60` 与 ETag 约定；四组数据都从同一个 `deadlineRange` 投影出，不新增日期算法。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| 首页 | 出现「今天截止」区块；只含 listed 条目；空态是一句话（「今天没有截止的」）而不是空白 |
+| API | `/api/site/deadlines?subject=…&kinds=…` 返回分组；**旧调用（只带 horizon）行为不变** |
+| 一致性 | 同一时刻，行动中心、`/deadlines`、`.ics`、邮件提醒的日期集合相同（写一条测试直接比这四处） |
+| 时区 | 国内场次显示「北京时间」、日本场次显示 JST（W7 之后才有） |
+| 测试 | `tests/action-center.test.ts` |
+
+**待站主拍板**：horizon 取 14 还是 30 天；「即将开售」是否包含周边开订与 CD/BD 发售日。
+**工作量**：2 天，无模型成本。
+
+---
+
+### W11 · 发售·版本·特典数据库（P1）
+
+**为什么**：用户要的是一张 Single 的完整形状 —— 通常盤 / 初回限定盤 A（Blu-ray + Live 抽选序列号）/ 初回限定盤 B / 店铺特典（Animate、Gamers、Amazon、Tower、HMV）/ 预约截止 / 首批特典 / 封入抽选券对应哪场 Live / 配信平台 / 官方商品页。分类与标签已经把「限定版、店铺特典、序列号、受注生产、场贩」都记下来了，**但它们彼此不相连**；`deadlines` 把发售日与受注截止当散点（而且这两个 kind 现在被吞成 `other`）。对少女乐队企划最值钱的 **CD → 抽选券 → Live** 这条链，今天在任何出口上都读不出来。
+
+**现状（已核）**
+- 分类与标签已齐：`industry/taxonomy.ts:61-71` 的 `CATEGORY_TAGS`（新作发售 / 初回限定盘 / 数字发行 / Blu-ray/DVD / 周边商品 / 店铺特典 / 联名商品）、`:74-81` 的 `TOPIC_TAGS`（序列号 / Single / Album / EP / Blu-ray / Live 专辑 / MV / 限定版 / 店铺特典 / 受注生产 / 场贩）、`:94-144` 的 `TAG_SYNONYMS` 已做归一。
+- **没有任何表**存版本与特典（dev 库 49 张表里没有）；结构化扩展只有 `analyses.output` jsonb，而 `packages/backend/src/editorial/analyze.ts:117-139` 的 `FactSchema` 只有 `conditions[]` 与 `deadlines[]`。
+- 数据量：dev 库 `publications` 438 行，命中发售类标签 **36 行**（`Blu-ray/DVD` 14、`限定版` 13、`受注生产` 12、`店铺特典` 12、`新作发售` 11、`Single` 5、`初回限定盘` 5、`场贩` 4、`数字发行` 3）。
+- 唯一写入点：`packages/backend/src/publication/publish.ts:207-211` 与 `:314-351` 的 `publications` upsert。
+
+**设计**
+1. **四张表**（迁移 `0062_releases.sql`，编号按实际合并顺序取）：
+   - `releases(public_id, subject_entity, title, kind ∈ single|album|ep|bluray|dvd|digital|other, release_on, announced_on, timezone, story_id, UNIQUE(subject_entity, title, release_on))`
+   - `release_editions(release_id, name, kind ∈ regular|limited|first_press|other, includes_bluray, includes_serial, price_yen, sku, UNIQUE(release_id, name))`
+   - `release_bonuses(release_id, edition_id, retailer, bonus, first_press, url)`
+   - `release_serials(release_id, edition_id, kind ∈ lottery|preorder|streaming|other, live_event_id FK→W8, live_title（W8 未落地时兜底）, apply_start, apply_end, result_on, url)`
+2. **哪些不做表**：「预约截止 / 受注截止 / 配信观看期限」继续留 `deadlines` —— `deadlineRange` 已经吃它，日历、`.ics`、邮件、雷达共用一份日期，另起一张表就是把「别在别处另算日期」重犯一遍；「哪家店」不做实体表（`ENTITY_TAGS` 的 5 个商店已是标签，存文本就够）；「配信平台」也不做表（`industry/glossary.ts` 的 `PLATFORMS` 只是写法白名单）。
+3. **写入分两阶段**：阶段 A（**零模型成本**）新增 `packages/backend/src/publication/releases.ts` 的 `deriveReleases(tx, articleId, analysis)`，在 `publish.ts:314-351` 的 upsert **同一事务**里调用，只复用现有数据（`category ∈ {release, merch}`、`tags` 里的 `Single/Album/EP/Blu-ray/Live 专辑/限定版/店铺特典/受注生产/序列号`、`deadlines` 里 `release_start`/`merch_start` 的日期、`subjects ∩ ENTITIES`）—— 它只能造出 `releases` 行与发售日，造不出版本与特典；阶段 B（要模型，可灰度）新提示词 `industry/prompts/release.md` + `analyze.ts` 的 `runRelease(a, opts)`，结果整包写 `analyses.output.release`（additive，**不动 `fact`、不改 `structure.md`**），每个叶子字段都要过 `grounded`（`analyze.ts:173-204`）：引文必须同时出现在 `collapseWhitespace(buildMaterial(a))` 与 `bodyText ?? excerpt`，否则整条丢掉。
+4. **读取**：`loadRelease(publicId)`、`releasesForSubject(subject, now, limit)`、`releasesForMember(memberId, now)`（W13 用）、`releaseOfStory(storyId)`；日期一律走 `deadlineRange` / `upcomingDeadlines`，报道过滤走 `listedCondition` + `hasItemPage`（下架必须能让页面 404）。
+5. **出口**：`apps/web/app/routes/release.tsx` + `apps/api/src/routes/site.ts` 的 `/api/site/releases/:publicId` + `apps/api/src/routes/og.ts` 的 `/og/releases/:file` + `packages/backend/src/publication/sitemap.ts`（只收有 listed 证据的，`lastmod` 取 `updated_at`）+ `apps/web/app/routes/story.tsx:293-320` 日期面板加一行「这张碟」。API 与 OG 都落在 `packages/contracts/src/http-policy.ts:97` 的 `/^\/api\//` 与 `:106` 的 `/^\/(og|contact)\//` 里，**不用登记 `API_OWNED_PATTERNS`**。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| 迁移幂等 | 迁移连跑两次 0 error；`\d releases` 有 `UNIQUE (subject_entity, title, release_on)` |
+| 表与列都被用 | `tests/architecture.test.ts` 全绿（`:106-118` 要求每列都被生产代码按名字引用） |
+| 发售日不再吞成 other | 重跑后 `deadlines` 的 `kind` 分布里出现 `release_start` / `merch_start` |
+| 版本与特典真的连起来 | 至少一行 `releases` 带 >1 个 edition；序列号能指到 `live_event_id`（W8 落地后） |
+| 实体不误并 | 同 `(主体, 标题, 发售日)` 命中同一行、次日不误并、`withdrawn` 让发售页 404 |
+| 出口 | `npm run typecheck` 全绿；sitemap 有 `/release/`；`/og/releases/<id>.png` 200 |
+| 测试 | `tests/releases.test.ts` 全绿 + 全量 `npm test` 0 失败 |
+
+**待站主拍板**：店铺特典的真实信息几乎只在各店铺页（公告通常只写「対象店舗」）—— 要不要开人工配置文件 `industry/releases/{slug}.json`（先例 `industry/chronicles/{slug}.json`），还是接受「模型只抽公告写了的」；粒度是「通常盤 + 初回 A + 初回 B」一个 `releases` 行加 3 个 editions（本设计取这个）还是 3 个 `releases` 行；存量 21 条 `other` 要不要重抽（换 `attemptTag`，条目会短暂下架）。
+**工作量**：3 天（阶段 A 1 + 阶段 B 1 + 页面与出口 1），不含模型重跑。
+
+---
+
+### W12 · 无账号关注（P1）
+
+**为什么**：站主已定「不做账号、注册、登录」（§四）。但「我关注这几支乐队，只提醒 Live 与票务」**不需要账号** —— 浏览器本地关注 + 一个随机 token 绑邮箱就够。后端几乎现成，缺的是那一跳。
+
+**现状（已核）**
+- `apps/web/app/lib/local-state.ts`（465 行）是唯一浏览器存储层：`KEYS`、`readJson/writeRaw/storedKeys`、`STARRED_LIMIT=500`、`READ_LIMIT=5000`、`getStarred/toggleStar/removeStar`、`exportBundle/importBundle`、`useStarred()`。但 `/starred` 是**条目级**收藏，**不能直接扩成主体关注**。
+- `packages/backend/src/subscriptions/store.ts` 已有完整 token 体系：`byToken(value)`、`subscribe(input)`、`confirm(value)`、`updatePreferences(value, input)`、`unsubscribe(value)`；`content.ts:43-44` 的 `manageUrl(token)` → `/subscribe/manage?token=…`；偏好目前只有 `bands[]` + `wantsDeadlines` + `wantsDigest`。
+- `apps/web/app/features/subscribe/ui.tsx` 的 `BandPicker` 已能做主体选择 —— `/subscribe` 只差「读 localStorage 预填」这一跳。
+- **「只看我关注的」不需要新数据**：`ItemSummary.subjects` 由 `packages/backend/src/publication/items.ts:131` 的 `toItemSummary` 用 `entityIds(row.tags)` 产出，每张卡片都有；过滤接进 `apps/web/app/lib/seo.ts:48/59` 与 `packages/contracts/src/site.ts:114` 的 `TimelineFilters` URL 参数即可。
+- 提醒类别可以复用现成的 `CategoryKey`（`industry/taxonomy.ts:15` 的 `live/ticket/release/merch/media/member`），`DeadlineView` 已经同时带 `kind` 与 `category`。
+
+**设计**
+1. **本地关注**：`local-state.ts` 的 `KEYS` 加 `girlsbands-follows`（主体 id 数组）；主体页 / 乐队页加「关注」按钮；列表页支持 `?follows=1` 只看关注（纯 URL 参数 + 本地过滤）。
+2. **一键转邮件**：`/subscribe` 读本地关注预填 `BandPicker`，提交走现有 `subscribe` 流程。**不新造 token**：读者端自生成 token 会让 `subscribers.token` 变成可猜面，而它同时是 `List-Unsubscribe` 凭据；要短链就做 `/subscriptions/:token` 别名。
+3. **迁移**（`0063_subscriber_kinds.sql`：加 `subscribers.kinds text[]`，**不需要新表**）：`updatePreferences` 与 `subscriptions/notify.ts` 按类别过滤；`kinds` 为空表示「全部」，与现在的行为一致。
+4. **隐私**：带 `subjects=` / `follows=` 的列表 URL 必须 `noindex`（照 `apps/web/app/routes/all.tsx:47` 的写法）。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| 本地关注 | 关注 / 取关在刷新后仍在；`exportBundle` 能带出关注列表 |
+| 一键转邮件 | 从 `/subscribe` 提交后，邮件里的偏好与本地关注一致；`wantsDeadlines` / `wantsDigest` 老行为不变 |
+| 类别过滤 | 只勾 `ticket` 的订阅者收不到 `release` 提醒；`kinds` 为空的订阅者行为与现在逐字一致 |
+| 隐私 | `?follows=1` / `?subjects=…` 的页面 `<meta name="robots" content="noindex">` |
+| 测试 | `tests/subscriptions.test.ts` 扩两个用例（类别过滤、空 kinds 兼容） |
+
+**待站主拍板**：见 §七（自生成 token 不做，改成短链别名 —— 需点头）。
+**工作量**：2 天，无模型成本。
+
+---
+
+### W13 · 成员实体页（P1）
+
+**为什么**：162 条成员现在只为「翻译正确性」服务（一个中文通用名、一个日文原名、一个罗马字别名），**没有 id、没有乐队归属、不分角色与配音/真人演奏者** —— 这是站里唯一一份已经人工整理过、却完全没被用起来的数据库。而 BanG Dream! 恰恰是「角色 / CV / 乐手 / 乐队」多对多的企划，读者问「这个角色的声优还配了谁」「这个人还在哪支乐队」今天是回答不了的。
+
+**现状（已核）**
+- `industry/glossary-members.ts:10` 的 `export const MEMBERS: readonly GlossaryEntry[]`，实测 **162** 条，每条形如 `{ kind: "member", forms: ["井芹仁菜", "いせりにな", "Nina Iseri"] }` —— 只有写法，没有归属。
+- `industry/glossary.ts:102` 汇总 `GLOSSARY = [...entityEntries, ...WORKS, ...MEMBERS, ...VENUES, ...PLATFORMS]`，`:119` 的 `GLOSSARY_VERSION` 进了 `packages/backend/src/editorial/translate.ts` 的 `TRANSLATE_PROMPT_VERSION` ⇒ **改一个写法就让全部旧回执与已入库译文失效**。
+- 全库 grep：**没有任何地方 import `MEMBERS`**，只有 `glossary.ts` 自己汇总。
+- 现成的关联键只有 `publications.tags`；`ENTITY_TAGS`（`industry/taxonomy.ts:84-91`）里**没有成员标签**；`facts.subject` 里成员名是自由文本（例：`理名（トゲナシトゲアリ Vo）`）。
+- `apps/web/app/features/feed/bands.ts` 的 `Subject` 只认 `ENTITIES`。
+
+**设计**
+1. **新真源 `industry/members.ts`**：`export const MEMBER_ENTITIES: Record<string, MemberEntity>`，字段 `{ id, name, forms, bands?: readonly string[], roles?, portrayedBy?, portrays?, accent? }`；知识图谱 `character —portrayedBy→ actor/musician —bands→ band —seriesKeyOf→ project`，**不建关系表**（关系全是静态人工数据，跟代码一起发布）。
+2. **不进 `ENTITIES`**：`ENTITIES` 与 `assets/band-logos/manifest.json` 有一一对应校验（`tests/email-hero.test.ts:151-155`）、`scripts/fetch-band-logos.ts` 会照着 `ENTITIES` 去抓字标（164 个不存在的字标会全红）、`industry/topics.json` 的主题 slug 与 `tests/topics.test.ts:253-271` 的校验也挂在 `ENTITIES` 上。**也不进 `glossary.ts` 的 `GlossaryEntry`**（那是 `{kind, forms}` 翻译白名单，塞 id 会污染语义）。
+3. **数据库只建投影表**（迁移 `0064_member_mentions.sql`，编号按实际顺序）：`member_mentions(member_id, article_id, source CHECK (title|body|x_post), PRIMARY KEY (member_id, article_id, source))` —— **不建成员表**，成员跟代码发布；这张表只是「哪篇文章提到了谁」的倒排索引，删了能重建。写入在 `packages/backend/src/publication/publish.ts:314-351` 的 upsert **同一事务**里，用 `industry/glossary.ts:123-145` 的 `fold`/`contains` 匹配 `title` / `original_title` / `summary` 与 `pool_search.body`。**不走 `publications.tags`**：成员进 `ENTITY_TAGS` 会改 `packages/backend/src/editorial/vocabulary.ts:7` 的 `ALLOWED_TAGS`，进而换掉 `promptVersion("structure")`＝全库回执失效。
+4. **读取** `packages/backend/src/publication/members.ts`：`listMembers()`、`loadMemberPage(id, page, now, scope)`、`membersOfSubject(subject)`、`bandsOfMember(id)`、`memberOfStory(storyId)`；「出演 / Live / 采访 / 发售」是同一批报道按 `publications.category` 切段，**不另建表**。索引门槛**不要复用** `packages/backend/src/publication/topics.ts:237` 的 `isIndexable`（`total >= 50 || (total >= 20 && recent > 0)` 是为新闻主题定的，对成员太严），建议 `total >= 5`（待拍板）。
+5. **出口**：`apps/web/app/routes/member.tsx`（`/member/:id`）+ `/api/site/members`、`/api/site/members/:id` + `apps/api/src/routes/og.ts` 的 `/og/members/:file` + `packages/backend/src/publication/sitemap.ts`（只收 indexable）+ 乐队页与企划页侧栏入口。API/OG 都已在 `packages/contracts/src/http-policy.ts:97`/`:106` 覆盖的模式里，**不用登记 `API_OWNED_PATTERNS`**。`apps/web/app/features/feed/bands.ts` **不改**，新开 `apps/web/app/features/topic/member.ts`，页面的主体/方向渲染直接复用主题页组件。
+6. **`GLOSSARY_VERSION` 的代价（本包最关键的一条）**：`scripts/build-members.ts` 从 `industry/glossary-members.ts` 生成 `industry/members.ts` 时，每条 `forms` 的**顺序与内容必须逐字节保持**（顺序变了 `GLOSSARY.length` 不变但 `fnv(...)` 变，版本照样变）⇒ 只要保持，「重构」这次改动**不重译一个字**。**「重构」与「扩充写法」必须分成两次改动**，第二次才付重译代价。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| 词表零漂移 | 改动前后 `GLOSSARY_VERSION` 完全相同（`tests/glossary.test.ts` 的断言不变） |
+| `ENTITIES` 没被动 | `tests/email-hero.test.ts` / `tests/topics.test.ts` / `fetch-band-logos` 全绿且抓取数仍是 22 |
+| 归属关系真实 | `MEMBER_ENTITIES` 里 BanG Dream! 的角色能经 `portrayedBy` 走到 CV、再经 `bands` 走到乐队 |
+| 投影表被用 | `tests/architecture.test.ts` 全绿（每列都被生产代码引用）；同一文章重复 publish 不产生重复行 |
+| 页面 | 一个成员页 200、404 规则（未 indexable 仍可达但不进 sitemap）、下架文章从列表消失 |
+| 出口 | `npm run typecheck` 全绿；`/og/members/<id>.png` 200；sitemap 有 `/member/` |
+| 测试 | 新增 `tests/members.test.ts` 全绿 + 全量 `npm test` 0 失败 |
+
+**待站主拍板**：索引门槛（建议 `total >= 5`）该不该比主题页更宽松；成员页要不要显示「中之人」的真名与所属乐队（涉及真人隐私，也可以只显示角色 ↔ 声优关系）；成员页要不要进 `/starred`（浏览器本地关注）与邮件订阅的 `bands[]`（本设计**不进**，订阅仍只按主体）。
+**工作量**：4 天（真源重构 1 + 投影表与写入 1 + 读取与页面 1.5 + 出口与测试 0.5）。
+
+---
+
+### W14 · 情报变更 Diff（P1）
+
+**为什么**：官方会陆续改 OPEN 时间、追加注意事项、公布当日券。现在这些只体现为时间线上的新条目，读者看不出「**相比上一版变了什么**」。延期 / 中止 / 场馆变化 / 开演时间变化 / 票价变化 / 出演者变化必须显眼地标成 ⚠️。
+
+**现状（已核）**
+- `packages/backend/src/events/digest.ts:93` 是「无变化就返回」的门：`if (story.digest !== null && sameReports && last!.inputs_hash === inputsHash) return { updated: false };`；`:103` 是「`inputs_hash` 相同就复用上一版 digest、不调模型」的分支。
+- `story_digests` **已有版本历史**（`(story_id, version, digest, latest, receipt_id, article_ids[], inputs_hash, created_at)`）。
+- `packages/backend/src/events/corrections.ts:1-4` 的「更正」是**分组更正**（把文章移到别的 fact、合并 story），语义不同，不要复用。
+- `facts` **只新建不更新**：`packages/backend/src/events/group.ts:111-119` 的 `createFact` 只 `INSERT`，全仓唯一的 `UPDATE facts` 是 `packages/backend/src/events/merge.ts:17` 的 `SET story_id`。⇒ **快照必须取 `analyses.output->'fact'`**（分析当时的说法），取 `facts.subject/action/object` 的话 diff 永远是空。
+
+**设计**
+1. 迁移 `0065_story_digest_facts.sql`：`story_digests` 加 `facts jsonb`、`facts_hash text`、`changes jsonb`、`change_kinds text[]`。
+2. `packages/backend/src/events/change-diff.ts`：`factsSnapshot(storyId)` 取该 story 各 article **最新一条** `analyses.output->'fact'`（注意 dev 库里 CPP 的 article 有两条 `analyses`，必须走 `publications.analysis_id` 或取 max）→ 规范化 JSON → `facts_hash`。
+3. **接入点**：把 `facts_hash` 加进 `digest.ts:93` 的门，但**不改 `inputs_hash` 的定义** —— 于是纯日期变化（OPEN 17:00→16:30）只插一行版本、**零模型调用**，也不会让全库 story 重写 digest。
+4. `changes` 生成：结构化字段级 diff（时间 / 会场 / 出演者 / 票价 / 票务轮次）优先；只有「结构化 diff 非空且需要中文措辞」时才调一次模型（新提示词 `industry/prompts/story-changes.md`，新文件不使旧回执失效）。
+5. 界面：`apps/web/app/routes/story.tsx` 顶部「⚠️ 变更」块，形如「+ 新增当日券销售 / OPEN 17:00 → 16:30 / − 取消原场贩开始时间」；`change_kinds` 含 `cancelled` / `postponed` / `venue` / `time` / `price` / `cast` 时用醒目样式。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| 零成本路径 | 只改日期的 story：`story_digests` 多一版、`receipt_id` 不变、模型调用数为 0 |
+| 快照来源 | 手工改 `facts.subject` 不影响 diff（证明取的是 `analyses.output`） |
+| 内容 | 延期 / 中止 / 会场变更 / OPEN 变化各造一条 fixture，`change_kinds` 正确、页面显示 ⚠️ |
+| 兼容 | `inputs_hash` 定义未变 → 现有 `tests/events*.test.ts` 全绿 |
+| 测试 | `tests/change-diff.test.ts` |
+
+**待站主拍板**：变更 Diff 是否进 v1 API；要不要做公开的「更正日志」出口；要不要顺手修「`facts` 三列永不更新」这个上游问题（改了会影响现有聚簇与 digest 输入，风险要单独评估）。
+**工作量**：2.5 天（含一次小范围模型调用）。
+
+---
+
+### W15 · 场馆实体页与远征信息（P2）
+
+**为什么**：135 个场馆今天只是一个「写法白名单」，用来让翻译不要把 `Zepp Haneda` 音译成别的。可读者真正要的是：这个场馆在哪、怎么去、能装多少人、最近车站、官方交通页、**这里办过什么、接下来要办什么**，再往后是「东京 11 月有哪些少女乐队 Live」。远征（外地/跨城看演出）是这类站的高频真实需求。
+
+**现状（已核）**
+- `industry/glossary-venues.ts:21` 的 `export const VENUES` 实测 **135** 条 `{ kind: "venue", forms }` —— **没有地址、容量、最近车站、坐标**；文件头写明这是 2026-10-05 的研究产物、逐条带来源，场馆更名按新名收录、旧名留在 `forms`（例：TOKYO DOME CITY HALL → Kanadevia Hall 2025），有三条规范化名未核实，Zepp Tokyo 已闭馆未收录。
+- `industry/taxonomy.ts:84-91` 的 `ENTITY_TAGS` 里场馆只有 **7** 个；dev 库 `publications` 里命中这 7 个标签的只有 **3 行** ⇒ 今天没有任何「过往演出」可展示。
+- `packages/backend/src/publication/calendar.ts:37-41` 的 `calendarSubject(slug)` 要求 `findPageTopic(slug)` 且 `topic.entityId` 且 `tracksAsSubject(group)`；场馆不是主题 ⇒ **今天拿不到场馆日历**。
+- 代码里没有任何地方 import `VENUES`；没有 venue 路由，`packages/backend/src/publication/` 没有 venues 模块。
+
+**设计**
+1. **新真源 `industry/venues.ts`**（结构化）：`export const VENUE_ENTITIES: Record<string, VenueEntity>`，字段 `{ id(稳定 slug，更名不改), name, forms(顺序不变), kind(dome|arena|hall|livehouse|theater|outdoor|other), prefecture, city, address?, access?, capacity?, officialUrl?, mapUrl?, openedOn?, closedOn?, renamedFrom? }`；`industry/glossary-venues.ts` **降级成派生视图**（照 W13 的做法：`forms` 逐字节保持 ⇒ `GLOSSARY_VERSION` 不变 ⇒ 不重译）。地址 / 容量 / 最近车站是**人工整理**的（模型抽不出来，且错一个数字就是误导），**只存官方链接，不存坐标、不引地图 SDK、不加依赖**。
+2. **本包不建表**：「这个场馆办过什么 / 即将有什么」的真源是 W8 的 `live_events(venue, starts_on, starts_time, status)`，会场内的报道直接 JOIN `publications`（`hasItemPage` + `listedCondition`）。为 3 行数据建一张投影表不划算，而且 `tests/architecture.test.ts:106-118` 要求每张新表的每一列都被生产代码按名字引用。
+3. **读取** `packages/backend/src/publication/venues.ts`：`loadVenue(id)`、`listVenues()`、`venuesByPrefecture(prefecture)`、`venuesOfSubject(subject)`、`monthAtVenues(prefecture, month)`（「东京 11 月」聚合，返回形状照 `packages/contracts/src/site.ts:589-605` 的 `TopicEvent` / `TopicMonth`，**日期一律走 `deadlineRange`**）。
+4. **出口**：`apps/web/app/routes/venue.tsx`（`/venue/:id`）+ `apps/api/src/routes/site.ts` 的 `/api/site/venues`、`/api/site/venues/:id` + `apps/api/src/routes/og.ts` 的 `/og/venues/:file` + `packages/backend/src/publication/sitemap.ts`；页面给地址、官方交通链接、容量、过往与即将演出（过往按 `starts_on DESC`）。API/OG 已在 `packages/contracts/src/http-policy.ts:97`/`:106` 覆盖的模式里，**不用登记 `API_OWNED_PATTERNS`**。
+5. **会场名规范化是 W8 的副产品**：`live_events.venue` 取 `ENTITY_TAGS` 会场子集或 `VENUES` 的 `forms[0]`，所以本包排在 W8 之后；W8 落地前只能做「场馆静态信息页」，没有「过往 / 即将」两栏（照 W16 的降级路径写法）。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| 词表零漂移 | 改动前后 `GLOSSARY_VERSION` 完全相同；`tests/glossary.test.ts` 全绿 |
+| 结构完整度 | 135 个场馆全部有 `prefecture`/`city`；有官方页的场馆 ≥ 100 个填了 `officialUrl`；`address` 只填人工核实过的 |
+| 与 W8 接上 | 至少一个场馆页显示出真实的「即将」条目（来自 `live_events`），且日期与 `/calendar.ics` 一致 |
+| 更名与闭馆 | `renamedFrom` 能让旧名页面/搜索仍指向同一实体；`closedOn` 的场馆不出现在「即将」里 |
+| 出口 | `npm run typecheck` 全绿；`/og/venues/<id>.png` 200；sitemap 有 `/venue/` |
+| 测试 | 新增 `tests/venues.test.ts` 全绿 + 全量 `npm test` 0 失败 |
+
+**待站主拍板**：索引门槛（建议有 `officialUrl` 或有 live_events 记录才进 sitemap）；要不要做「东京 11 月」这种地区聚合页（本设计先做，因为它是远征信息的入口）；三条未核实规范化名要不要人工复核；闭馆场馆（Zepp Tokyo 等）要不要收录（建议收，标 `closedOn`，页面给「已闭馆」）。
+**工作量**：2 天（135 条人工整理为主 + 读取与页面 0.5 天）。
+
+---
+
+### W16 · Setlist 与事后档案（P2）
+
+**为什么**：现在重心全在「发生前 / 发生中」。Live 结束之后还有 Setlist、现场 repo、官方照片、Archive 截止、BD、Live Album —— 收进来，站会自然长成少女乐队历史数据库，而且**不需要复活已经砍掉的编年史产品**。
+
+**现状（已核）**
+- dev 库 49 张表里**没有** `setlists` / `venues` / `live_events`；全仓没有 Setlist 概念。
+- 落点只能是 Event 页：`apps/web/app/routes/story.tsx:52` 与 `:324-347`；`packages/backend/src/publication/chronicles.ts` 一行不碰。
+
+**设计**
+1. 新提示词 `industry/prompts/setlist.md`（新文件 ⇒ 旧回执不失效）+ `packages/backend/src/editorial/analyze.ts` 新步骤 `runSetlist`，只对「已结束的 Live」条目跑；把 `analyze.ts:174-204` 里 `grounded` 的闭包抽成共享的 `groundedFor(...)` 复用 —— **歌名必须能在正文里找到，否则不落库**。
+2. 表 `0066_setlist_entries.sql`：`setlist_entries(live_event_id FK, position, title, is_encore, is_cover, quote, article_id)`。**外键要等 W8 的 `live_events` 列名与阶段枚举定稿**（这是 W8 → W16 的接口）。
+3. 页面：Live 页由 `upcoming` 切到 `archive`（W8 的阶段派生已有 `finished`）；Archive 截止日期照常进 `.ics`（走 W9 的轮次 / `deadlines`，不另算）。
+4. **降级路径**：W8 未落地时，先在 Event 页做**不依赖 `live_events` 的那一半**（按 story 收集 Setlist 与 Archive 信息），等 W8 合了再迁到实体上。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| 落地 | 至少 3 场已结束 Live 的 Setlist 落库并显示；歌名引用能在正文里找到（`groundedFor` 拦住幻觉） |
+| 阶段切换 | Live 结束后页面显示 archive 区块（Setlist / Archive 截止 / 官方报道） |
+| 不复活编年史 | `publication/chronicles.ts` 未被引用为出口；cron 仍关闭 |
+| 测试 | `tests/setlist.test.ts`（含「引用不到就不落库」的反例） |
+
+**待站主拍板**：Setlist 落库 vs 现算；歌名要不要进 `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍）；粉丝现场 repo 的版权边界（`site_fulltext` 只对 editorial 源全开）。
+**工作量**：2.5 天。
+
+---
+
+### W17 · 全文政策分层（风险项，**推翻站主旧决定**）
+
+**为什么**：现行政策是「不管许可，全文站内、给所有人看」，W3 只做了工程补救（联系邮箱、`/rights`、单条与整源下架、原文链接）。补救**不消除**未经许可复制与翻译完整版权内容的暴露面。站一旦做大，「中文看全」本身会变成最大的风险面。这一包**推翻站主 2026-10 的旧决定**，动手前必须重新点头；下面的保守默认可以先落，不影响任何公开读数。
+
+**建议的三层**
+
+| 层 | 内容 | 展示 |
+|---|---|---|
+| 官方公告（一手） | 全文中文翻译 | 全文 |
+| 第三方媒体 | 标题 + 中文摘要 + **少量必要引用** + 原文链接 | 摘要 |
+| 明确许可 / CC | 全文 | 全文 |
+
+**现状（已核）**
+- 全文开关**唯一入口**是 `packages/backend/src/publication/rules.ts:48-50` 的 `bodyModeOf(source, bodyStatus, hasBody)`，只在 `packages/backend/src/publication/publish.ts:268` 调用一次落库 ⇒ 改这一个函数，下游 13 处读取点（items / detail / representative / stories / reports / translate / admin-review …）自动跟随。
+- **翻译门控已经存在**：`packages/backend/src/editorial/translate.ts:169` 是 `if (row.visibility !== "public" || row.body_mode !== "full") return result({ status: "skipped", reason: "not a public full-text item" });`，`:251` 与 `:298` 的查询都带 `p.body_mode = 'full'` ⇒ **`translate.ts` 一行都不用改**。
+- `publications.syndicate` 全为 false ⇒ **一篇全文都没进过 RSS，不需要清理**。
+- 老数据回填必须走 `packages/backend/src/admin/sources.ts:151` 的 republish 出站链（迁移 `0056` 的教训：只 `UPDATE` 不 enqueue，老 `body_mode` 不会自己变）。
+- 影响面（dev 库实测）：`full` 118 条（其中**非一手 112 条**）、`summary` 320 条 ⇒ 分层一旦生效，这 112 条会从 full 掉到 summary。
+
+**设计**
+1. **保守默认（可以先做）**：迁移 `0067_rights_tiers.sql` 只加 `sources.rights_tier`（`official | media | licensed`）与 `sources.rights_note`，**`site_fulltext` 与公开读数一字不改**；管理后台显示层级；`docs/rights.md` 与 `/rights` 页补一段说明。
+2. **切换（等点头）**：`bodyModeOf` 改成读 `rights_tier`（`official` / `licensed` → 允许 full；`media` → 强制 summary），然后按 republish 出站链回填。
+3. **引用方案**：默认 A —— 摘要里直接引用原文句子（零提示词改动）；方案 B 是改提示词让模型产出「必要引用」字段，代价是 prompt version 变更、已入库条目重跑（重跑必须换 `attemptTag`，否则命中回执不花钱也不重问，见 `packages/backend/src/providers/receipts.ts:83`）。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| 保守默认 | 迁移后公开读数**逐字节不变**（`publications` 快照比对）；`npm test` 全绿 |
+| 切换（点头后） | `media` 层条目 `body_mode='summary'`、正文不外泄；翻译任务自动跳过（`translate.ts:169` 现有门控）；RSS / v1 API 无全文 |
+| 回填 | republish 出站链跑完后老条目也变了（不能只 `UPDATE`） |
+| 页面 | `/rights` 与 `docs/rights.md` 的政策描述与实际行为一致 |
+
+**待站主拍板**：是否切换（以及切到哪一层）；`T2_EVENT` 三个国内票务 / 展会源算哪层（归 media 会让 W6 验过的 15 条从 full 掉到 summary）；官方判据用 `owner_entity_id IS NOT NULL`（12 个 T1_5 官方 X 也算官方，含 5 个成员个人 X）还是 `tier = 'T1'`（`first_party` 只认 T1，见 `publish.ts:294`）。
+> 这一包涉及法律判断，本文档只写工程事实与影响面，**不是法律意见**。
+**工作量**：1 天（保守默认）+ 决策后的回填与验证。
+
+---
+
+### W18 · 用户纠错与情报投稿（P2）
+
+**为什么**：站里已经有完整的匿名反馈通道（`/feedback` → `feedback` 表 → 飞书 → `/admin/feedback` 处理），但它现在是**自由文本**：读者想说的是「这条的日期错了」「这个场馆名不对」「这场 Live 我在别处也看到过」，而页面只给一个空白框。同时站主自己找新源靠手工（W6 那三个源就是手工试出来的），读者手里往往有现成的一手链接。这两件事都不需要账号，只是缺一个「结构化的入口 + 人工确认的出口」。
+
+**现状（已核）**
+- 公开入口已有：`apps/api/src/routes/feedback.ts` 的 `POST /api/site/feedback`（multipart，最多一张截图，`bodyLimit` 12MB）→ `packages/backend/src/operations/feedback.ts` 的 `submitFeedback`：正文 2–5000 字、可选邮箱、`pageUrl` 截 500 字、截图按**首字节**嗅探类型 + `sharp` 真解码 + 8MB 上限、存 `config.dataDir/feedback-screenshots`、`sourceFingerprint(ip, ua)`（HMAC，不可反查）→ `feedback_bans` 命中即 403 → `rateLimit(source)` → 落 `feedback(content, email, page_url, screenshot_key, source_hash, forward_error)` → `forwardFeedbackToFeishu`（`FEISHU_*` 默认关）。
+- 后台处理已有：`packages/backend/src/admin/feedback.ts` 的 `listFeedback`（按状态/关键词、每页 50、含 `from_source` 与 `banned`）、`updateFeedback`（状态 `new/triaged/replied/resolved/spam` + 备注，`updated_at` 做 CAS）、`banSource`/`unbanSource`；页面 `apps/web/app/routes/admin/feedback.tsx`。
+- 内容侧已有可复用的纠错动作：`packages/backend/src/admin/content.ts` 的 `setVisibility`（`:90`）、`setSeoIndexed`（`:115`）、`overrideFields`（`:141`，可改字段或清空，带 `version` CAS 与审计）、`rerun`（`:171`）；`packages/backend/src/events/corrections.ts` 是**分组更正**，与读者纠错不是一回事，不要复用。
+- 投递侧已有：`apps/api/src/routes/ingest.ts` 的 `POST /api/ingest/items`（**只给外部脚本**，`INGEST_TOKEN` 常量时间比对 + 10 次/分钟），`packages/backend/src/ingest/items.ts` 的 `ingestItems` —— 公网读者**不能**走这条路。
+- 缺口：`feedback` 表没有「针对哪一条内容/哪个字段」的列；没有 `/submit` 投稿页；后台没有按目标聚合的视图。
+
+**设计**
+1. **表只加列，不建表**（迁移 `0068_feedback_targets.sql`，编号按实际顺序；`feedback` 表本身在 `0003_monitor_leaderboard_notify.sql`/`0004_admin_ops.sql`，`0027_feedback_forward_error.sql` 加过 `forward_error`）：`ALTER TABLE feedback ADD COLUMN target_kind text, ADD COLUMN target_id text, ADD COLUMN target_field text, ADD COLUMN expected text;` 加 `CHECK (target_kind IS NULL OR target_kind IN ('article','story','topic','release','live','venue','source'))`、`CHECK (target_field IS NULL OR target_field IN ('title','date','venue','price','translation','category','duplicate','other'))`、索引 `(target_kind, target_id, created_at DESC)`；全部可空 ⇒ 老数据与自由文本反馈不受影响。
+2. **读者侧入口**：条目页 / 故事页 / 主题页加「报告问题」小按钮，弹层里预填 `target_kind`/`target_id`（从 loader 已有数据取，**不新增公开接口**），读者选字段 + 写一句期望值；提交仍走**同一个** `POST /api/site/feedback`（表单多四个可选字段），于是限流、封禁、截图、飞书转发全部白拿。
+3. **投稿入口 `/submit`**：同一张表、`target_kind = 'source'`、正文里放链接与说明。**硬约束：读者提交的 URL 绝不直接抓取发布**（投毒、SSRF、版权、以及 429 配额都会被一个陌生链接打满）。人工在 `/admin/feedback` 确认后二选一：①按 `AGENTS.md` 的手工流程加进 `industry/sources.json`（推荐，走既有 review）；②用 `scripts/` 里的一次性脚本调 `packages/backend/src/sources/collect.ts` 的 `collectSource` 试抓一次看质量（必须带 `attemptTag`，且 `COLLECT_ENABLED` 只在本机临时打开）。
+4. **后台视图**：`/admin/feedback` 加一个「按目标聚合」标签页 —— 同一 `(target_kind, target_id)` 的纠错并排显示（含 `from_source` 计数，一眼看出是不是同一个人刷的），每行给「跳到该条目」按钮进 `/admin/content/:id`，用已有的 `overrideFields` / `setVisibility` 处理；处理完把状态改成 `resolved` 并写 `note`（**公开页不显示读者的邮箱**，隐私声明 §3 已覆盖）。
+5. **公开更正出口不新建**：确属情报变更的（日期改了、开演时间改了）由 W14 的变更 Diff 出口自然呈现，读者纠错只是它的输入之一。**明确不做**：不做众包直接改库、不做投票/点赞、不做纠错排行榜、不给投稿人账号（回执只靠可选邮箱）。
+6. **防滥用复用现成的**：`sourceFingerprint` + `feedback_bans` + `rateLimit`（`packages/backend/src/operations/abuse.ts`）一行不改；`/submit` 与 `/feedback` 共用同一配额，避免出现第二条免费通道。
+
+**验收标准**
+
+| 检查 | 通过标准 |
+|---|---|
+| 迁移安全 | `ALTER TABLE` 连跑两次不报错（`ADD COLUMN IF NOT EXISTS`）；老反馈行四个新列全 null |
+| 入口复用 | 条目页「报告问题」提交后，`feedback` 行带正确的 `target_kind`/`target_id`/`target_field`，且仍出现在飞书转发路径里 |
+| 限流一致 | 同一来源连发触发 429（与 `/feedback` 同一计数器），`feedback_bans` 命中后两个入口都 403 |
+| 不自动抓取 | 全仓 grep 证明没有任何公开路由把 `target_id`/正文里的 URL 直接交给 `collectSource`/`extractFromUrl` |
+| 后台可用 | 同一目标的两条纠错显示在一起；「跳到该条目」落到 `/admin/content/:id`；处理后状态与备注写回并进审计 |
+| 出口 | `npm run typecheck` 全绿；`/submit` 与 `/feedback` 都在 `packages/contracts/src/http-policy.ts` 已覆盖的 `/^\/api\//` 下，**不用登记 `API_OWNED_PATTERNS`** |
+| 测试 | 新增 `tests/feedback-targets.test.ts` 全绿 + 全量 `npm test` 0 失败 |
+
+**待站主拍板**：「报告问题」要不要在页面上显示成「纠错」还是更弱的「告诉我们」；投稿链接要不要保留原始 URL（会留在数据库里，涉及投稿人隐私）；后台聚合视图要不要给同一目标的纠错排优先级（建议按 `from_source` 去重后计数）；要不要给已处理的纠错发一封邮件回执（需要 SMTP，当前只有飞书内部通知）。
+**工作量**：2 天（迁移与入口 0.5 + 后台聚合视图 1 + 投稿页与流程 0.5）。
+
+---
+
 ## 四、明确不做
 
 - 账号、注册、登录（用户明确否掉）
@@ -331,6 +806,7 @@
 - 编年史入口、普通主题页、话题页
 - ICP 备案、Cloudflare China Network、大陆本地节点
 - 优选 IP（**已死**：Cloudflare 2026-08 起 Error 1034；阿里云 ESA 2026-01 起 CNAME 校验拦截。任何还在教这个的教程都过时了）
+- **信源覆盖率与覆盖率评分**（站主 2026-10-05 明确排除：源健康度已经有 `sources.health` + `packages/backend/src/operations/`，覆盖率那层先不做。见「下一阶段」）
 
 ### 国内源实测排除项（都试过了，别再试）
 
@@ -356,7 +832,7 @@
 1. `docker-compose.yml` 用的 `postgres:17-alpine` 够不够。本机开发容器 `aniband-pg` 是 `pgvector/pgvector:pg18`，但**迁移和代码里都没有 `CREATE EXTENSION` / `vector(` 用法**，embedding 只用于召回（`packages/backend/src/providers/embeddings.ts`，无 key 时退回文本重合度比较）。看起来 17 够用，但没实测。
 2. 8 个 `hot_signal` 源要不要改成 `editorial` 以拿到正文（见 W2-1）。
 3. `syndicate_fulltext`（对外接口/RSS 带全文）要不要一起打开。当前建议：**站内全开，对外接口和 RSS 先关**（那是给机器和聚合器用的，风险面更大），需要时再打开。
-4. 日报/周报/月报的"今天"改成 JST 之后，历史期号（`packages/contracts/src/site.ts:508` 的期号日历）会不会错位，需要回归测试。
+4. ~~日报/周报/月报的"今天"改成 JST~~ **已作废**：W2-7 查证后认定「统一到 JST」本身是错的（见 W2 第 7 条），截止时间用公告自己的日本日历、日报的"今天"用读者的北京日历，两者都保留。本条不再需要回归测试；真正要解决的是**国内源带时刻的 `at` 被按 JST 解释**，见 W7。
 5. ~~**中文源的入选阈值没校准过**~~ **已校准（2026-10-05，见 W6「第二版校准」）**：加了 `T2_EVENT = 54` 这一档，57 条样本上 acc 0.912 / P 0.97 / R 0.889。局限仍在：国内只有 15 条自标样本、`T2` 日语正样本 1 条、`T1_5` 0 条，采满一个月后要重标重跑。
 6. ~~**CPP 的 `tag` 过滤词表要定死**~~ **已定案**：扫过 `type=3&time=8` 全部 187 条的 447 个 tag 片段，与我们相关的只有 `BanGDream`（含大小写与 `!`/`！` 三种写法）、`邦多利`、`少女乐队`、`孤独摇滚`、`GirlsBandCry`、`GBC`、`音乐企划`、`音乐番Only`、`音企`；落地用了 8 条 URL（前 8 个写法），实测覆盖在范围内的全部 9 场。其余 400+ 个 tag 是明日方舟/原神/特摄等无关 IP。**新增写法时要重新扫一遍**（`tag=` 大小写不敏感，但不折叠 `!` 与 `！`）。
 
@@ -491,7 +967,7 @@
 **W6 踩到的坑**
 - **模型配额是这次唯一的真障碍**：`registerContentJobs` 的 `localConcurrency: 6`（`packages/backend/src/jobs/content.ts:188`）撞上服务商「60s 内 120 次」的限额 —— 开阀门后 29 个源一次全量重抓（97 条新条目）把配额打满，我们那 15 条首轮 **15/15 都是 `llm HTTP 429: 请求过于频繁（60s 内超过 120 次）`**，靠 `RETRY_MINUTES = [5,10,20,40,60,120,240,360]`（`jobs/content.ts:18`）的阶梯重试到第 2 轮才过（`processing_attempts = 2`）。稳态（每天几条）碰不到，但「一次全量重抓」一定碰到 —— 这是 W5 成本与模型要看的第一个数字。
 - **改 `.env` 不会让 `node --watch` 重启**：`apps/worker` 的进程是 `node --watch --env-file-if-exists=../../.env src/main.ts`，换安全阀必须 `touch apps/worker/src/main.ts`，否则你以为阀门开了、其实还是旧的（第一轮采集会一直不出现）。
-- **`structure.md` 写了「只写日期不写时刻」，模型仍会写时刻**：秀动那条抽出的是 `{"at":"2026-10-11T15:30","kind":"event"}`。`publication/deadlines.ts:38` 的 `jstInstant` 按 JST 解释，15:30 这种下午场没事，但**北京时间 23:00 之后开演的场次会被推成次日**。要彻底消掉得让结构步骤按来源地区选时区，现在没做。
+- **`structure.md` 写了「只写日期不写时刻」，模型仍会写时刻**：秀动那条抽出的是 `{"at":"2026-10-11T15:30","kind":"event"}`。`publication/deadlines.ts:38` 的 `jstInstant` 按 JST 解释，15:30 这种下午场没事，但**北京时间 23:00 之后开演的场次会被推成次日**。要彻底消掉得让结构步骤按来源地区选时区，现在没做。（**W7 已修**：`jstInstant` 删除，`publication/deadlines.ts` 改成按来源的 `config.timezone` 解释；见 W7 章节。）
 - **关阀门要等积压跑完**：worker 拿不到模型时条目会按 `RETRY_MINUTES` 阶梯重试，整条阶梯走完（约 14 小时）才落 `failed`；中途关掉会把剩下的积压条目一路耗到终态，之后只能从后台「重试」救回来。
 - **单文件跑测试必须带 preload，否则会污染模板库**：`node --test tests/x.test.ts`（不带 `--import ./tests/databases.ts`）会直接写进 `DATABASE_URL` 指向的模板库 `girlsbands_test` —— 而模板库是所有测试文件克隆的来源（`tests/databases.ts:62-65`）。留下 2 条 `test-analyze-*` 源和 13 篇文章之后，之后的**全量**运行里 `tests/backend-read-load.test.ts`（断言 `sources` 恰好 2 条）、`tests/grouping-reliability.test.ts`、`tests/processing-recovery.test.ts` 会无端变红（实测 4 条失败、单跑也红），排查半天才发现与代码无关。正确写法：`node --test-global-setup=tests/databases.ts --import ./tests/databases.ts --test --test-timeout=120000 tests/x.test.ts`。模板库脏了就洗一遍：`DROP DATABASE girlsbands_test WITH (FORCE)` → `CREATE DATABASE girlsbands_test OWNER aniband` → `DATABASE_URL=postgres://…/girlsbands_test node scripts/migrate.ts`；**干净模板里 `sources`/`articles`/`receipts` 都必须是 0，只有迁移自己插的 9 条 `budgets`**。**少写 `--test-global-setup=tests/databases.ts` 时，每个测试文件克隆出来的 `girlsbands_test_f<pid>_test` 不会被清掉**（实测单跑 5 个文件留下 5 个库），得手工 drop。
 
@@ -515,3 +991,54 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - 本文档 W2-1 原写「`scripts/seed.ts` 是 upsert，改完跑一次 seed 即可」→ 错，是 `ON CONFLICT (id) DO NOTHING`，必须加迁移。
 - 本文档 W3 原写「`grep '下架'` 零命中，只能手改数据库」→ 错，单条下架机制一直在 `packages/backend/src/admin/content.ts:90` 的 `setVisibility`。
 
+
+**W7（2026-10-05 完成）：时间模型带时区**
+
+`packages/backend/src/publication/deadlines.ts` 删掉 `jstInstant`（死写 `+09:00`），改吃 `packages/backend/src/sources/timezone.ts` 的 `splitDeadlineAt` / `deadlineInstant` / `timezoneOf`：`at` 拆成 `day` + `localTime`，时区来自 `sources.config.timezone`（默认 `Asia/Tokyo`，三个国内源 `Asia/Shanghai`）。`DeadlineView` 加 `localTime` / `timezone`；`DEADLINE_KINDS` 搬进 `packages/contracts/src/site.ts` 当唯一真源（原先 `analyze.ts` 少两项，把 `release_start` / `merch_start` 静默吞成 `other`）；`.ics` 带时刻的事件写 `DTSTART;TZID=…` 并附静态 `VTIMEZONE`；网页与邮件显示「15:30 北京时间」。迁移 `0059_source_timezone.sql` 给三条国内源写 `timezone`。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（含 `npm run typecheck -w @girlsbands/web`） |
+| `tests/calendar.test.ts` + `tests/deadlines-time.test.ts` | **12 通过 / 0 失败** |
+| 全量 `npm test` | **629 通过 / 0 失败**（65s） |
+| 迁移 | 已应用到 dev 库（3 条国内源 `config->>'timezone'` = `Asia/Shanghai`） |
+| 模型花费 | 零（没改提示词） |
+
+**这一轮的坑：机器负载会让全量测试假红。** 这台机器上另有一个虚拟机（`Virtualization.framework` 125% CPU）、DSH/ChatGPT 的渲染进程和一个 Codex 会话，`load average` 一度到 **181（10 核）**。全量 `npm test` 因此跑成 1057s（基线 122s），5 条报 `test timed out after 120000ms` 或 `spawnSync … ETIMEDOUT`（`tests/analyze-kill.test.ts`、`tests/backup-files.test.ts`、`tests/collection-tail.test.ts` ×2、`tests/collection.test.ts`、`tests/mcp-host.test.ts` ×2、`tests/rss-conditional.test.ts`、`tests/selection-eval-runtime.test.ts`）。同一批文件用 `--test-concurrency=1` 单独跑是 **55 通过 / 0 失败**，负载回落到 60 后全量 **629 通过 / 0 失败**。结论：那批红全是饿死，与改动无关；**报全量结果前先看 `uptime`**。
+
+---
+
+## 七、待站主拍板汇总（动手前先看这里）
+
+W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主拍板**的地方（工程上都能做，但方向不同结果不同）。汇总如下。
+
+### 必须先点头（不定就动不了）
+
+| 包 | 要拍板的事 | 我的建议 |
+|---|---|---|
+| **W17** | 全文政策分层**推翻旧决定**：官方全文 / 第三方摘要+链接 / 许可全文，是否切换、切到哪一层 | 先按现状不动，等这一包正式开工时单独讨论 |
+| **W17** | `T2_EVENT` 三个国内票务 / 展会源算哪层 | 归「官方全文」会误判，归 media 会让 W6 验过的 15 条从 `full` 掉到 `summary` —— 建议单列一层 |
+| **W17** | 官方判据用 `owner_entity_id IS NOT NULL`（12 个 T1_5 官方 X 也算官方，含 5 个成员个人 X）还是 `tier = 'T1'`（`first_party` 只认 T1，见 `packages/backend/src/publication/publish.ts:294`） | 前者更准，后者更保守 |
+| **W12** | 关注 → 邮件的 token 方案：**不做**读者端自生成 token（它同时是 `List-Unsubscribe` 凭据，自生成会把 `subscribers.token` 变成可猜面），改成 `/subscriptions/:token` 短链别名 | 按建议做 |
+| ~~**W7**~~ ✅ | ~~`.ics` 用当地时刻（日本 18:30 / 中国 15:30）还是统一北京时间；北京时间 21:00 之后的场次在「今天截止」里算哪天~~ | **已拍板 2026-10-05**：用当地时刻 + `TZID`、按当地日历（已完成） |
+| **W8** | Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留；阶段 B 灰度重跑愿意花多少模型钱、接受多长的短暂下架 | 一站一实体；已完结页保留（那是事后档案的落点） |
+| **W9** | `deadlines` 与 `ticket_rounds` 哪个权威；`status` 要不要含**个人**当落；`platform` 要不要中文化 | 轮次权威、`deadlines` 只是投影；不含个人当落；平台名照官方原文 |
+| **W11** | 店铺特典真源（公告通常只写「対象店舗」）：开人工 `industry/releases/{slug}.json` 还是接受「模型只抽公告写了的」；粒度是 1 个 `releases` + 3 个 editions 还是 3 行；存量 21 条 `other` 要不要花钱重抽 | 先只抽公告、粒度取前者；重抽等 W7 落地后一起做 |
+| **W13** | 索引门槛（建议 `total >= 5`，比主题页宽松）；成员页要不要显示「中之人」真名与所属乐队（真人隐私）；成员要不要进 `/starred` 与订阅 `bands[]` | 门槛 5；只显示角色 ↔ 声优关系；不进订阅 |
+| **W15** | 索引门槛（建议有 `officialUrl` 或有 `live_events` 记录才进 sitemap）；要不要做「东京 11 月」地区聚合页；三条未核实规范化名；闭馆场馆要不要收录 | 门槛按建议；聚合页做（远征信息的入口）；收闭馆馆并标 `closedOn` |
+| **W18** | 投稿链接要不要保留原始 URL（留在库里，涉及投稿人隐私）；后台聚合视图要不要按 `from_source` 去重计数排优先级；要不要给已处理的纠错发邮件回执（需 SMTP，当前只有飞书内部通知） | 保留但只给管理员看；去重计数；先不发邮件 |
+
+### 可以边做边定
+
+- **W10**：首页 horizon 取 14 还是 30 天；「即将开售」是否包含周边开订（`merch_start`）与 CD/BD 发售日（`release_start`）。
+- **W14**：变更 Diff 是否进 v1 API；要不要做公开的「更正日志」出口；要不要顺手修「`facts` 三列永不更新」这个上游问题（改了会影响现有聚簇与 digest 输入，风险要单独评估）。
+- **W16**：Setlist 落库还是现算；歌名要不要进 `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍）；粉丝现场 repo 的版权边界（`site_fulltext` 只对 editorial 源全开）。
+
+### 我已经替你定的小事（不同意就说）
+
+- **提示词一律新增文件、不改 `industry/prompts/structure.md`**：提示词版本是内容哈希，改它 = 全部回执失效 + 已入库条目重跑结构步 + `grouping_status` 置 `pending`（`packages/backend/src/events/group.ts:237-241`）导致条目**短暂下架**。所以 W8 的 `live-ticket.md`、W11 的 `release.md`、W16 的 `setlist.md` 都是新文件。
+- **公开出口只从 `packages/backend/src/publication/` 读**（`tests/architecture.test.ts:57-64` 会拦）；**日期一律走 `deadlineRange`/`deadlineMonths`**，任何包都不许在别处另算日期；`/api/site/*` 与 `/og/*` 已被 `packages/contracts/src/http-policy.ts:97`/`:106` 覆盖，**不用登记 `API_OWNED_PATTERNS`**。
+- **成员与场馆都不进 `ENTITIES`**：会连带 `assets/band-logos/manifest.json` 一一对应校验、`scripts/fetch-band-logos.ts` 抓 164 个不存在的字标、主题 slug 校验全红。
+- **迁移编号**（按包号顺延，谁先落地谁拿号）：W7 `0059_source_timezone.sql`、W8 `0060_live_events.sql`、W9 `0061_ticket_rounds.sql`、W11 `0062_releases.sql`、W12 `0063_subscriber_kinds.sql`、W13 `0064_member_mentions.sql`、W14 `0065_story_digest_facts.sql`、W16 `0066_setlist_entries.sql`、W17 `0067_rights_tiers.sql`、W18 `0068_feedback_targets.sql`（W10 与 W15 不建表、无迁移）。
+- **任何重跑都换 `attemptTag`**（`packages/backend/src/editorial/analyze.ts` 的回执按 prompt version + 输入哈希复用，不换 tag 会把条目翻回旧状态）。
+- **不做**：账号/注册/登录、审核队列、众包直接改库、信源覆盖率与覆盖率评分（§四）。

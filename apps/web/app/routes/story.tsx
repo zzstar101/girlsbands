@@ -8,7 +8,7 @@ import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
 import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
 import { monthDay, monthDayTime, relativeTime } from "../lib/format";
 import { HeatChart } from "../features/story/HeatChart";
-import { DEADLINE_KINDS, clock, md } from "../features/feed/deadlines";
+import { DEADLINE_KINDS, clockText, md } from "../features/feed/deadlines";
 import { sessionCache } from "../lib/session-cache";
 import { isReload } from "../lib/restore";
 import { Badge, SelectedBadge } from "../components/ui/Badge";
@@ -295,16 +295,15 @@ export default function StoryPage() {
                 <div className="flex items-center gap-2 text-[12px]">
                   <IconClock size={13} className="shrink-0 text-ink-4" aria-hidden="true" />
                   <span className="font-semibold text-ink">关键日期</span>
-                  <span className="text-ink-4">按日本时间，读自官方原文</span>
+                  <span className="text-ink-4">按公告当地时间，读自官方原文</span>
                 </div>
                 <ul className="mt-2.5 space-y-2">
                   {story.dates.map((d) => {
                     const kind = DEADLINE_KINDS[d.kind];
-                    const time = clock(d.at);
                     return (
                       <li key={`${d.at}-${d.itemId}-${d.kind}`} className="flex items-baseline gap-3">
-                        <span className={`num w-[86px] shrink-0 text-[12px] font-bold tracking-[0.04em] ${kind.className}`}>
-                          {md(d.day)}{time ? ` ${time}` : ""}
+                        <span className={`num w-[124px] shrink-0 text-[12px] font-bold tracking-[0.04em] ${kind.className}`}>
+                          {md(d.day)}{d.localTime ? ` ${clockText(d.localTime, d.timezone)}` : ""}
                         </span>
                         <span className="min-w-0">
                           <span className={`mr-1.5 text-[12px] font-semibold ${kind.className}`}>{kind.label}</span>

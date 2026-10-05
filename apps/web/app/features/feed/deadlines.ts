@@ -1,7 +1,7 @@
 // How a dated point is worded, shared by the deadline radar and an event's own page so the two can
 // never drift apart. The words and the hints come from the contract (the reminder emails use the same
 // ones); only the colour class is the website's own business.
-import { DEADLINE_LABELS, type DeadlineKind } from "@girlsbands/contracts/site";
+import { DEADLINE_LABELS, TIMEZONE_LABELS, type DeadlineKind, type Timezone } from "@girlsbands/contracts/site";
 
 export const DEADLINE_KINDS: Record<DeadlineKind, { label: string; hint: string; className: string }> = {
   lottery_end: { ...DEADLINE_LABELS.lottery_end, className: "text-hot" },
@@ -20,9 +20,13 @@ export function md(day: string): string {
   return `${day.slice(5, 7)}/${day.slice(8, 10)}`;
 }
 
-/** `2026-10-04T12:00` → `12:00`; a date with no stated time shows no clock. */
-export function clock(at: string): string | null {
-  return at.length > 10 ? at.slice(11, 16) : null;
+/**
+ * `15:30 北京时间`, or `全天` when the original stated only a day. Every place that prints a clock goes
+ * through this: the announcement's own zone is part of the date, and a bare "15:30" would be a lie for a
+ * mainland show.
+ */
+export function clockText(localTime: string | null, timezone: Timezone): string {
+  return localTime ? `${localTime} ${TIMEZONE_LABELS[timezone]}` : "全天";
 }
 
 /** 今天 / 明天 / 后天 for the first three days, then the empty string (the caller prints the weekday). */

@@ -9,6 +9,7 @@
 // Material with only a title or a feed summary has its article page fetched before it is judged.
 import { z } from "zod";
 import { CATEGORY_KEYS } from "@girlsbands/contracts/taxonomy";
+import { DEADLINE_KINDS } from "@girlsbands/contracts/site";
 import { CATEGORIES } from "@girlsbands/industry/taxonomy";
 import { SELECTION } from "@girlsbands/industry/selection";
 import { sql } from "../db.ts";
@@ -104,9 +105,8 @@ export function buildScoreInput(a: AnalyzeInputArticle): string {
 
 // Step outputs
 
-/** What a dated event in the original is, for the deadline radar. */
-export const DEADLINE_KINDS = ["lottery_start", "lottery_end", "sale_start", "event", "stream_end", "result", "other"] as const;
-/** A date, or a date with a JST time. Anything else is dropped before it reaches a reader. */
+/** A date, or a date with a time on the announcement's own clock. Anything else is dropped before it
+ *  reaches a reader. */
 const DEADLINE_AT = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/;
 
 const PrefilterSchema = z.object({

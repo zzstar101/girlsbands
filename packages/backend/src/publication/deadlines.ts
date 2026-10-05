@@ -2,16 +2,19 @@
 // (`analyses.output.fact.deadlines`, written by editorial/analyze.ts). Nothing new is inferred here — an
 // entry only exists when the original wording it quotes was found verbatim in that report.
 //
-// `at` is Japan wall-clock, the date the announcement itself gives, so the window, the day buckets and
-// the 48-hour flag are all computed in JST rather than in the Beijing calendar the rest of the site uses.
-// A deadline that closes at 23:59 JST is a thing the reader must act on that day, and converting it to
+// `at` is the wall clock the announcement itself gives, and `timezone` says which clock that is: a
+// Japanese source states Japan time, a mainland one Beijing time (sources/timezone.ts). The day buckets
+// are the announcement's own calendar rather than the Beijing one the rest of the site uses, because a
+// deadline that closes at 23:59 local is a thing the reader must act on that day, and converting it to
 // another calendar would move it to the day before.
 //
 // Scope: the listed set (public, pool eligible, released) rather than the selected set. A lottery closing
 // is something the reader cannot miss even when the announcement that carried it was not worth pushing as
 // news; the reports that did clear the bar carry `selected` and sort first within their day.
 import type { DeadlineKind, DeadlinesResponse, DeadlineView } from "@girlsbands/contracts/site";
+import { DEADLINE_KINDS } from "@girlsbands/contracts/site";
 import { sql } from "../db.ts";
+import { deadlineInstant, splitDeadlineAt, timezoneOf } from "../sources/timezone.ts";
 import { entityIds, entityTags, publicSourceName, hasItemPage } from "./rules.ts";
 import { listedCondition } from "./scope.ts";
 
@@ -20,9 +23,7 @@ const DAY_MS = 86_400_000;
 const SOON_MS = 2 * DAY_MS;
 /** The most rows one window reads; the calendar's year and the radar's month both fit inside it. */
 const MAX_LIMIT = 2_000;
-const KINDS: ReadonlySet<string> = new Set<DeadlineKind>([
-  "lottery_start", "lottery_end", "sale_start", "event", "stream_end", "result", "release_start", "merch_start", "other",
-]);
+const KINDS: ReadonlySet<string> = new Set<string>(DEADLINE_KINDS);
 
 /** `YYYY-MM-DD` of the instant on the Japan calendar. */
 export function jstDate(instant: Date): string {
@@ -32,11 +33,6 @@ export function jstDate(instant: Date): string {
 /** A JST day shifted by whole days — month arithmetic for the calendar and the export. */
 export function addDays(date: string, days: number): string {
   return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
-}
-
-/** The JST instant a stored `at` falls on: a bare day is midnight, a day with a time is that minute. */
-function jstInstant(at: string): number {
-  return Date.parse(`${at.length === 10 ? `${at}T00:00` : at}:00+09:00`);
 }
 
 interface Row {
@@ -49,6 +45,7 @@ interface Row {
   published_at: Date | null;
   source_name: string;
   source_mode: string;
+  source_config: Record<string, unknown> | null;
   kind: string | null;
   at: string | null;
   note: string | null;
@@ -69,7 +66,7 @@ async function deadlineWindow(
   const subjectFilter = opts.subject === undefined ? sql`` : sql`AND p.tags && ${entityTags(opts.subject)}::text[]`;
   const rows = await sql<Row[]>`
     SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at,
-           s.name AS source_name, s.participation_mode AS source_mode,
+           s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
            d.value->>'kind' AS kind, d.value->>'at' AS at, d.value->>'note' AS note
     FROM publications p
     JOIN sources s ON s.id = p.source_id
@@ -91,11 +88,15 @@ async function deadlineWindow(
     const at = r.at;
     // A malformed or time-less row never reaches a reader: the extraction only emits both, and this
     // is the last gate before the page prints a date someone might plan around.
-    if (!at || !/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/.test(at)) continue;
-    const day = at.slice(0, 10);
+    const split = at === null ? null : splitDeadlineAt(at);
+    if (!at || !split) continue;
+    const timezone = timezoneOf(r.source_config);
+    const day = split.day;
     const view: DeadlineView = {
       at,
       day,
+      localTime: split.localTime,
+      timezone,
       kind: KINDS.has(r.kind ?? "") ? (r.kind as DeadlineKind) : "other",
       note: r.note?.trim() || null,
       itemId: r.item_id,
@@ -106,7 +107,7 @@ async function deadlineWindow(
       source: { name: publicSourceName(r.source_name) },
       publishedAt: r.published_at ? r.published_at.toISOString() : null,
       selected: r.selected,
-      soon: jstInstant(at) - now.getTime() <= SOON_MS,
+      soon: deadlineInstant(day, split.localTime, timezone) - now.getTime() <= SOON_MS,
     };
     total += 1;
     const bucket = days.get(day);

@@ -3,7 +3,7 @@
 //
 // The calendar belongs to a subject — a project or a band, whose series dates come along — because that
 // is what a reader plans around. The export is offered whole-site as well.
-import type { CalendarResponse, DeadlineView } from "@girlsbands/contracts/site";
+import type { CalendarResponse, DeadlineView, Timezone } from "@girlsbands/contracts/site";
 import { SITE } from "@girlsbands/industry/site";
 import { config } from "../config.ts";
 import { addDays, deadlineMonths, deadlineRange, jstDate } from "./deadlines.ts";
@@ -103,12 +103,13 @@ function fold(line: string): string[] {
 }
 
 /**
- * One date as a VEVENT. A time is written as floating local time — 15:30 on the announcement is 15:30
- * on the reader's clock, which is how they read it — and an entry without one is an all-day event.
+ * One date as a VEVENT. A time keeps the announcement's own clock and names its zone — 15:30 on the
+ * announcement is 15:30 where the event happens, whether that is Japan or the mainland — and an entry
+ * without one is an all-day event on the announcement's own calendar day.
  */
 function event(v: DeadlineView, now: Date, host: string): string[] {
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  const timed = v.at.length > 10;
+  const timed = v.localTime !== null;
   const uid = `${v.itemId}-${v.kind}-${v.at.replace(/[^0-9A-Za-z]/g, "")}@${host}`;
   const description = [v.note, `来源：${v.source.name}`, itemUrl(v.itemId)].filter(Boolean).join("\n");
   return [
@@ -116,7 +117,7 @@ function event(v: DeadlineView, now: Date, host: string): string[] {
     `UID:${uid}`,
     `DTSTAMP:${stamp}`,
     timed
-      ? `DTSTART:${compact(v.day)}T${v.at.slice(11, 13)}${v.at.slice(14, 16)}00`
+      ? `DTSTART;TZID=${v.timezone}:${compact(v.day)}T${v.localTime!.replace(":", "")}00`
       : `DTSTART;VALUE=DATE:${compact(v.day)}`,
     ...(timed ? [] : [`DTEND;VALUE=DATE:${compact(addDays(v.day, 1))}`]),
     `SUMMARY:${escapeText(v.title)}`,
@@ -127,6 +128,24 @@ function event(v: DeadlineView, now: Date, host: string): string[] {
     "END:VEVENT",
   ];
 }
+
+/**
+ * The zone definitions a file needs, written out rather than referenced: neither zone has observed
+ * daylight saving since 1991 and no date the site carries reaches back that far, so each is one constant
+ * observance. A client that does not know the IANA database still reads the times correctly.
+ */
+const VTIMEZONE: Record<Timezone, string[]> = {
+  "Asia/Tokyo": [
+    "BEGIN:VTIMEZONE", "TZID:Asia/Tokyo", "X-LIC-LOCATION:Asia/Tokyo",
+    "BEGIN:STANDARD", "DTSTART:19700101T000000", "TZOFFSETFROM:+0900", "TZOFFSETTO:+0900", "TZNAME:JST", "END:STANDARD",
+    "END:VTIMEZONE",
+  ],
+  "Asia/Shanghai": [
+    "BEGIN:VTIMEZONE", "TZID:Asia/Shanghai", "X-LIC-LOCATION:Asia/Shanghai",
+    "BEGIN:STANDARD", "DTSTART:19700101T000000", "TZOFFSETFROM:+0800", "TZOFFSETTO:+0800", "TZNAME:CST", "END:STANDARD",
+    "END:VTIMEZONE",
+  ],
+};
 
 /** The whole site's dates, or one subject's, as an iCalendar file. */
 export async function calendarIcs(now: Date, subject?: string): Promise<string> {
@@ -140,6 +159,9 @@ export async function calendarIcs(now: Date, subject?: string): Promise<string> 
   const topic = subject === undefined ? null : findPageTopic(subject);
   const name = topic ? `${SITE.name} — ${topic.name} 日程` : `${SITE.name} — 全部日程`;
   const host = new URL(config.siteUrl).host;
+  // Only a timed event carries a TZID, so only those need a definition in the file. An all-day event is
+  // a date on the announcement's own calendar: no clock, no zone.
+  const zones = [...new Set(items.filter((v) => v.localTime !== null).map((v) => v.timezone))].sort();
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -148,9 +170,12 @@ export async function calendarIcs(now: Date, subject?: string): Promise<string> 
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${escapeText(name)}`,
     `X-WR-CALDESC:${escapeText(`收录最近 ${ICS_BACK_DAYS} 天与未来 ${ICS_AHEAD_DAYS} 天的演出、抽选、发售与周边开订日期，与站内截止雷达同一份数据。`)}`,
+    // The site's own baseline; every timed event still names its zone, so this only tells an app how to
+    // show a file whose dates are mostly Japanese.
     "X-WR-TIMEZONE:Asia/Tokyo",
     "REFRESH-INTERVAL;VALUE=DURATION:PT6H",
     "X-PUBLISHED-TTL:PT6H",
+    ...zones.flatMap((zone) => VTIMEZONE[zone]),
     ...items.flatMap((v) => event(v, now, host)),
     "END:VCALENDAR",
   ];

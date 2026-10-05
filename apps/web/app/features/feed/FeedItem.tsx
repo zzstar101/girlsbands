@@ -17,7 +17,7 @@ import { beijingTime } from "@girlsbands/contracts/time";
 import { daysAway } from "./Ticket";
 import { DEADLINE_LABELS } from "@girlsbands/contracts/site";
 import { BandLogo } from "../../components/ui/BandTip";
-import { clock, md } from "./deadlines";
+import { clockText, md } from "./deadlines";
 import { subjectsOfItem } from "./bands";
 import { MediaThumbs, SourceLine, StarButton } from "./parts";
 import { GroupButton, GroupSources } from "./ReadingGroup";
@@ -136,7 +136,7 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
         </div>
       )}
 
-      {deadline && <div className="feed-date"><span className={deadline.soon ? "date-soon" : "date-later"}>{deadlineFrom ? `D-${daysAway(deadline.day, deadlineFrom)}` : md(deadline.day)}</span>{DEADLINE_LABELS[deadline.kind].label} · {md(deadline.day)} {clock(deadline.at) ?? '全天'} JST</div>}
+      {deadline && <div className="feed-date"><span className={deadline.soon ? "date-soon" : "date-later"}>{deadlineFrom ? `D-${daysAway(deadline.day, deadlineFrom)}` : md(deadline.day)}</span>{DEADLINE_LABELS[deadline.kind].label} · {md(deadline.day)} {clockText(deadline.localTime, deadline.timezone)}</div>}
       {item.reason && (
         <div className="feed-reason mt-1 lg:mt-3 lg:border-t lg:border-dashed lg:border-line-strong lg:pt-3">
           <p className="line-clamp-1 text-[13px] leading-[1.65] text-note lg:line-clamp-none lg:leading-[1.75]">

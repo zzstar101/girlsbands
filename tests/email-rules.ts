@@ -92,6 +92,7 @@ export const SAMPLES: EmailData[] = [
           {
             at: "2026-10-04T23:59",
             time: "23:59",
+            zone: "日本时间",
             label: "抽选截止",
             note: "FC先行受付締切",
             title: "トゲナシトゲアリ 8th ONE-MAN LIVE『凛音の理』チケット先行受付",
@@ -104,6 +105,7 @@ export const SAMPLES: EmailData[] = [
           {
             at: "2026-10-04T10:00",
             time: "10:00",
+            zone: "日本时间",
             label: "一般发售",
             note: null,
             title: "結束バンド 出演 新宿LOFT 50周年記念 2マンライブ「DREAM MATCH 2026」",
@@ -123,6 +125,7 @@ export const SAMPLES: EmailData[] = [
           {
             at: "2026-10-11",
             time: null,
+            zone: null,
             label: "演出当天",
             note: "開場 17:00 / 開演 18:00",
             title: "MyGO!!!!! 5th LIVE「迷跡波」日本武道館公演",
@@ -142,6 +145,7 @@ export const SAMPLES: EmailData[] = [
           {
             at: "2026-10-18",
             time: null,
+            zone: null,
             label: "配信截止",
             note: "アーカイブ配信の視聴期限",
             title: "『ガールズバンドクライ』2nd Anniversary LIVE アーカイブ配信",
@@ -259,7 +263,7 @@ export const EVIL_SAMPLES: EmailData[] = [
         date: "2026-10-04",
         label: NASTY,
         weekday: NASTY,
-        items: [{ at: "2026-10-04", time: null, label: NASTY, note: NASTY, title: NASTY, url: `https://girlsbands.example/${NASTY}`, band: NASTY, accent: NASTY, source: NASTY, soon: true }],
+        items: [{ at: "2026-10-04", time: null, zone: null, label: NASTY, note: NASTY, title: NASTY, url: `https://girlsbands.example/${NASTY}`, band: NASTY, accent: NASTY, source: NASTY, soon: true }],
       },
     ],
     unsubscribeUrl: "https://girlsbands.example/u",

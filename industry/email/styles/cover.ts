@@ -164,7 +164,7 @@ function deadlineBody(data: DeadlineData, site: EmailSite, accent: string): stri
           const soon = item.soon ? `<span style="font-size:${TYPE.small}px;color:${site.hot}"> · 48 小时内</span>` : "";
           const who = clean(item.band) || clean(item.label);
           // 时刻用粗体顶在状态前面；只写了「当天」的节点没有时刻，就只印状态。
-          const when = item.time ? `<strong>${text(item.time)}</strong>&nbsp; ` : "";
+          const when = item.time ? `<strong>${text(item.time)}</strong>${item.zone ? ` ${text(item.zone)}` : ""}&nbsp; ` : "";
           const source = [clean(item.note), clean(item.source)].filter(Boolean).map(text).join(" · ");
           return `
     <div${i === 0 ? "" : ` style="border-top:1px solid ${site.lineSoft};padding-top:${PAD_Y.card}px;margin-top:${PAD_Y.card}px"`}>
@@ -330,7 +330,7 @@ function deadline(data: DeadlineData): RenderedEmail {
       : "接下来没有要过期的日子，有新的我们立刻提醒你。";
 
   const soonNote = soon.length > 0 ? ` · <span style="font-size:${TYPE.body}px;color:${site.hot}">${soon.length} 件在 48 小时内到期</span>` : "";
-  const note = `本期 ${items.length} 条动态${soonNote}<br>所有日期与时刻均为日本时间。`;
+  const note = `本期 ${items.length} 条动态${soonNote}<br>所有日期与时刻均为公告当地时间。`;
   // 用户那版样张底下有一条「查看完整日程 ↗」；P0 的截止雷达页就是按天排的完整日程，指过去。
   const schedule = page(site, "/deadlines");
   const inner = `${heroRow(site, data.hero, accent)}
@@ -343,13 +343,13 @@ ${footer(data, site)}`;
     `${site.name} — 截止雷达`,
     "",
     `本期 ${items.length} 条动态${soon.length > 0 ? `，其中 ${soon.length} 件在 48 小时内到期` : ""}。`,
-    "所有日期与时刻均为日本时间。",
+    "所有日期与时刻均为公告当地时间。",
     "",
     ...data.days.map((day) =>
       [
         `【${plain(day.label)} ${plain(day.weekday)}】`,
         ...day.items.map((item) => {
-          const when = [item.time, item.label].filter(Boolean).map(plain).join("　");
+          const when = [item.time, item.zone, item.label].filter(Boolean).map(plain).join("　");
           const where = [item.band, item.source].filter(Boolean).map(plain).join(" · ");
           return [`  ${when}${item.soon ? "（48 小时内）" : ""}`, `  ${plain(item.title)}`, where ? `  ${where}` : "", `  ${hrefPlain(item.url, site.url)}`]
             .filter(Boolean)

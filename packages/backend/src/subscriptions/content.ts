@@ -4,7 +4,7 @@
 // 收件人的乐队过滤在这里做：截止雷达和精选摘要各算一次全量，再按每个人的乐队名单筛。
 // 没勾任何乐队的人拿全部（见 store.ts 的说明）。
 import { CATEGORY_LABELS } from "@girlsbands/contracts/taxonomy";
-import { DEADLINE_LABELS, type DeadlineKind, type DeadlineView } from "@girlsbands/contracts/site";
+import { DEADLINE_LABELS, TIMEZONE_LABELS, type DeadlineKind, type DeadlineView } from "@girlsbands/contracts/site";
 import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
 import { ENTITIES, isBand } from "@girlsbands/industry/taxonomy";
 import { heroHandle, normalizeHero, type HeroHandle, type HeroSpec } from "@girlsbands/industry/email/hero";
@@ -125,7 +125,8 @@ function toEntry(view: DeadlineView): DeadlineEntry {
   const band = bandOf(view.subjects);
   return {
     at: view.at,
-    time: view.at.length > 10 ? view.at.slice(11, 16) : null,
+    time: view.localTime,
+    zone: view.localTime ? TIMEZONE_LABELS[view.timezone] : null,
     label: DEADLINE_LABELS[view.kind].label,
     note: view.note,
     title: view.title,

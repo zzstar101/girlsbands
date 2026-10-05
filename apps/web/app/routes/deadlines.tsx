@@ -7,7 +7,7 @@ import { weekdayShort } from "../lib/format";
 import { DayHeader } from "../features/feed/Timeline";
 import { Ticket, daysAway, Countdown } from "../features/feed/Ticket";
 import { subjectOfId } from "../features/feed/bands";
-import { DEADLINE_KINDS, clock, dayName, md } from "../features/feed/deadlines";
+import { DEADLINE_KINDS, clockText, dayName, md } from "../features/feed/deadlines";
 import { ArtistLine } from "../components/ui/ArtistBadge";
 import { EmptyState } from "../components/ui/Page";
 import { IconCalendar, IconInfo } from "../components/icons";
@@ -42,12 +42,11 @@ function Row({ d, from }: { d: DeadlineView; from: string }) {
     const s = subjectOfId(id);
     return s ? [s] : [];
   });
-  const time = clock(d.at);
   const date = d.publishedAt ? new Date(d.publishedAt) : null;
   return (
     <li className={`radar-row ${d.soon ? 'soon' : ''}`}>
       <span className="radar-date"><b>{daysAway(d.day, from)}</b><span>{md(d.day)}</span></span>
-      <div className="min-w-0"><span className={`block text-[12px] font-bold ${kind.className}`}>{kind.label} · {time ?? '全天'} JST</span><Countdown at={d.at} from={from} /></div>
+      <div className="min-w-0"><span className={`block text-[12px] font-bold ${kind.className}`}>{kind.label} · {clockText(d.localTime, d.timezone)}</span><Countdown at={d.at} timezone={d.timezone} from={from} /></div>
       <div className="min-w-0">
         <h3 className="text-[15px] font-[650] leading-[1.55] text-ink">
           <Link viewTransition to={`/items/${d.itemId}`} prefetch="intent" className="transition-colors group-hover:text-accent">
@@ -152,7 +151,7 @@ export default function DeadlinesPage() {
         <div className="max-w-[760px] space-y-2 pb-2 pl-[21px] pt-2 leading-[1.75] text-ink-3">
           <p>每一条都是从公告原文里读出来的日期，并保留原句作为凭据；原文没有写明日期的节点不会出现在这里，我们不会替官方推算。</p>
           <p>
-            日期按日本时间（JST）计算，因为受理截止通常写的是日本当地的 23:59。换算成北京时间需减 1 小时。一行只代表一个节点，同一条公告里的受理期与一般发售会拆成两行。
+            日期与时刻按公告写的那一地时间显示：日本的活动是日本时间（JST），国内的活动是北京时间。我们不替官方换算，也不替官方推算。一行只代表一个节点，同一条公告里的受理期与一般发售会拆成两行。
           </p>
           <p>这里不只有已选入头条的公告：只要公告本身写清了日期，就会进入雷达——截止日不值得上头条，但值得你提前知道。</p>
           <p>

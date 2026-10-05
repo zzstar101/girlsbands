@@ -225,11 +225,37 @@ export interface HotResponse {
 }
 
 /**
- * A dated event a report's own text states, for the deadline radar. `at` is Japan wall-clock — the
- * date the announcement itself gives — never converted to the reader's calendar, so a deadline that
- * closes at 23:59 JST still reads as that day.
+ * The clock a stated time is on. A Japanese announcement states Japan time, a mainland one Beijing
+ * time; the site never converts one into the other, so a deadline that closes at 23:59 local still
+ * reads as that day.
  */
-export type DeadlineKind = "lottery_start" | "lottery_end" | "sale_start" | "event" | "stream_end" | "result" | "release_start" | "merch_start" | "other";
+export type Timezone = "Asia/Tokyo" | "Asia/Shanghai";
+
+export const TIMEZONES: readonly Timezone[] = ["Asia/Tokyo", "Asia/Shanghai"];
+
+/**
+ * The fixed offset of each zone. Neither has observed daylight saving since 1991 and no date the site
+ * carries reaches back that far, so a constant offset is exact — no timezone database is needed.
+ */
+export const TIMEZONE_OFFSETS: Record<Timezone, string> = { "Asia/Tokyo": "+09:00", "Asia/Shanghai": "+08:00" };
+
+/** How a clock is named in the reader's language; printed next to every stated time. */
+export const TIMEZONE_LABELS: Record<Timezone, string> = { "Asia/Tokyo": "日本时间", "Asia/Shanghai": "北京时间" };
+
+/**
+ * A dated event a report's own text states, for the deadline radar. `day` and `localTime` are the
+ * announcement's own wall clock — the wording it gave, never converted to the reader's calendar.
+ */
+/**
+ * Every kind of dated point the site carries, in the order the radar lists them. This array is the one
+ * definition: the type, the extraction's schema, the radar's filter and the labels below all derive from
+ * it, because the four drifted apart once and silently filed two kinds under 「其他」.
+ */
+export const DEADLINE_KINDS = [
+  "lottery_start", "lottery_end", "sale_start", "event", "stream_end", "result", "release_start", "merch_start", "other",
+] as const;
+
+export type DeadlineKind = (typeof DEADLINE_KINDS)[number];
 
 /**
  * How a dated point is worded. The wording stays on the action ("受理截止", "开卖") rather than on the
@@ -249,10 +275,17 @@ export const DEADLINE_LABELS: Record<DeadlineKind, { label: string; hint: string
 };
 
 export interface DeadlineView {
-  /** `YYYY-MM-DD`, or `YYYY-MM-DDTHH:mm` when the original stated a time. */
+  /**
+   * `YYYY-MM-DD`, or `YYYY-MM-DDTHH:mm` when the original stated a time. Kept for readers that only
+   * want one string; `day`, `localTime` and `timezone` carry the same thing, split.
+   */
   at: string;
-  /** The `YYYY-MM-DD` half of `at`, which buckets the radar's days. */
+  /** The `YYYY-MM-DD` half of `at`, on the announcement's own calendar; buckets the radar's days. */
   day: string;
+  /** The `HH:mm` half of `at`, on the announcement's own clock; null when it stated only a day. */
+  localTime: string | null;
+  /** The clock `localTime` is on: Japan for a Japanese source, Beijing for a mainland one. */
+  timezone: Timezone;
   kind: DeadlineKind;
   /** The short label the extraction gave it ("FC先行", "二次先行", "一般発売"), else null. */
   note: string | null;
