@@ -1,14 +1,16 @@
 // The action center is the radar's own rows, split by what the reader can still do about them. Written
 // from the ways that goes wrong: a row landing in two buckets (or none), a show counted as "today" on
 // Tokyo's calendar while its own clock still says yesterday, a window that quietly stops matching the
-// radar's, and the API filters drifting away from the page's.
+// radar's, the four places a date can surface (center, radar, calendar, reminder mail) disagreeing about
+// which dates exist, and the API filters drifting away from the page's.
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import type { DeadlineView } from "@girlsbands/contracts/site";
 import { addDays, timezoneDate } from "@girlsbands/contracts/time";
 import { closeDb, sql } from "@girlsbands/backend/db";
-import { actionCenter, upcomingDeadlines } from "@girlsbands/backend/publication/deadlines";
+import { actionCenter, deadlineRange, upcomingDeadlines } from "@girlsbands/backend/publication/deadlines";
+import { deadlineData } from "@girlsbands/backend/subscriptions/content";
 import { buildApp } from "../apps/api/src/app.ts";
 
 process.env.FEISHU_INTERNAL_ENABLED = "false";
@@ -174,4 +176,30 @@ test("the api answers both shapes, and a horizon-only call is unchanged", async 
   assert.equal(plain.from, expected.from);
   assert.equal(plain.to, expected.to);
   assert.equal(plain.total, expected.total);
+});
+
+test("the center, the radar, the calendar and the reminder mail read one set of dates", async () => {
+  // One band for the whole test, because that is the only cut the mail's own filter can make: with a
+  // single subject the four exits are looking at exactly the same rows, so their answers are comparable.
+  const band = "mygo";
+  await report("lottery_end", "2026-10-02T23:59", { subject: band }); // inside the 48-hour mail window
+  await report("sale_start", "2026-10-06", { subject: band });
+
+  const center = await actionCenter(NOW, { subject: band });
+  const buckets = [...center.liveToday, ...center.dueToday, ...center.onSale, ...center.upcoming];
+  const radar = await upcomingDeadlines(NOW, { horizonDays: 14, subject: band });
+  // The month calendar and /calendar.ics build every event they show from this one function.
+  const calendar = await deadlineRange(NOW, { from: center.from, to: center.to, subject: band });
+  // The reminder mail reads the radar again over the same fourteen days, then keeps the reader's bands.
+  const mail = await deadlineData({ id: -1, email: "reader@example.org", token: "tok", bands: [band] }, NOW);
+  assert.ok(mail, "a date closing inside 48 hours is worth a reminder");
+
+  // The mail prints a date and a title and keeps no item id, so title plus instant is the one key all four share.
+  const key = (row: { at: string; title: string }) => `${row.at}|${row.title}`;
+  const keys = (rows: Array<{ at: string; title: string }>) => [...new Set(rows.map(key))].sort();
+  const expected = keys(buckets);
+  assert.ok(expected.length >= 2, "both of this test's rows are inside the window");
+  assert.deepEqual(keys(radar.days.flatMap((d) => d.items)), expected, "the radar's rows are the same rows");
+  assert.deepEqual(keys(calendar), expected, "so are the calendar's");
+  assert.deepEqual(keys(mail.days.flatMap((d) => d.items)), expected, "and so are the reminder mail's");
 });
