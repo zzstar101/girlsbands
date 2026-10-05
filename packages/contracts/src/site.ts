@@ -918,6 +918,24 @@ export interface LiveEventView extends LiveEventSummary {
   rounds: TicketRoundView[];
   /** The event page its reports are grouped under, when they are grouped under one. */
   story: { publicId: string; title: string } | null;
+  /**
+   * 散场之后的曲目单：现场报道里抽到的在前，读者补的在后，各自按顺序。演出还没结束或还没找到就是空数组。
+   */
+  setlist: SetlistEntryView[];
+  /** 散场之后有没有问过原文 —— 用来区分「还没找过」与「找过，原文里确实没有」。 */
+  setlistScanned: boolean;
+}
+
+/** 曲目单的一行。曲名照原文留着（不中译）；`itemId` 是它出自哪篇公告，取不到就没有链接。 */
+export interface SetlistEntryView {
+  /** 从 1 开始的显示顺序，来源不同各排各的。 */
+  position: number;
+  title: string;
+  isEncore: boolean;
+  isCover: boolean;
+  /** `article`：现场报道里抽到的；`reader`：读者补的，管理员采纳后进库。 */
+  source: "article" | "reader";
+  itemId: string | null;
 }
 
 // Ticket rounds (一场演出的一条受理)

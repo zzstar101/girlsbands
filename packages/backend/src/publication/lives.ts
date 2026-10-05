@@ -2,10 +2,11 @@
 // 和报告里的日期读出来，所以它不落库 —— 存下来的阶段过一夜就会过时。
 //
 // 可见性跟其它公开出口一套：一条报告被下架就不算它的报告，报告全都下架后演出页跟着 404（下架不漏）。
-import type { DeadlineKind, DeadlineView, LiveEventSummary, LiveEventView, LiveRef, LiveStage, LiveStatus, StoryReportView, Timezone } from "@girlsbands/contracts/site";
+import type { DeadlineView, LiveEventSummary, LiveEventView, LiveRef, LiveStatus, SetlistEntryView, StoryReportView, Timezone } from "@girlsbands/contracts/site";
 import { addDays, beijingDate, timezoneDate } from "@girlsbands/contracts/time";
 import { ENTITIES } from "@girlsbands/industry/taxonomy";
 import { sql } from "../db.ts";
+import { isFinished, stageOf } from "../lives/stage.ts";
 import { deadlineRange } from "./deadlines.ts";
 import { storyReportCondition } from "./scope.ts";
 import { ROUND_SLOTS, roundSlotKind, roundsOf } from "./tickets.ts";
@@ -15,9 +16,6 @@ import { coverOfItems, coversOfItems } from "./covers.ts";
 /** The dates of a live's own reports, wide enough to hold a lottery that opened long before the show. */
 const DATE_WINDOW_DAYS = 400;
 const MAX_SUBJECT_LIVES = 40;
-
-/** 这些日期说明票务已经开始过：抽选开始/截止、一般发售。 */
-const TICKET_KINDS = new Set<DeadlineKind>(["lottery_start", "lottery_end", "sale_start"]);
 
 interface LiveRow {
   id: number;
@@ -34,18 +32,6 @@ interface LiveRow {
   story_title: string | null;
   report_count: number;
   item_ids: string[];
-}
-
-/** 读者看到的阶段：公告只是它的一个输入，开演日与票务日期说了算。 */
-function stageOf(row: Pick<LiveRow, "status" | "starts_on" | "ends_on" | "timezone">, dates: DeadlineView[], now: Date): LiveStage {
-  if (row.status === "cancelled") return "cancelled";
-  if (row.status === "postponed") return "postponed";
-  const today = timezoneDate(row.timezone, now);
-  if ((row.ends_on ?? row.starts_on) < today) return "finished";
-  if (row.starts_on <= today) return "live_day";
-  if (dates.some((d) => d.kind === "sale_start" && d.day <= today)) return "on_sale";
-  if (dates.some((d) => TICKET_KINDS.has(d.kind))) return "ticketing";
-  return "announced";
 }
 
 /** 演出自己的报告：与 story 页同一套可见性，只是把范围换成这场演出名下的全部 fact。 */
@@ -126,7 +112,7 @@ export async function livesForSubject(subject: string, now: Date, limit = 12): P
   const dates = await datesByLive(rows, now);
   const ordered = rows.map((row) => ({ row, dates: dates.get(row.id) ?? [] }));
   ordered.sort((a, b) => {
-    const done = (x: typeof a) => ((x.row.ends_on ?? x.row.starts_on) < timezoneDate(x.row.timezone, now) ? 1 : 0);
+    const done = (x: typeof a) => (isFinished(x.row, now) ? 1 : 0);
     const [ad, bd] = [done(a), done(b)];
     if (ad !== bd) return ad - bd;
     return ad === 0 ? a.row.starts_on.localeCompare(b.row.starts_on) : b.row.starts_on.localeCompare(a.row.starts_on);
@@ -164,20 +150,57 @@ export async function liveRefs(ids: number[], now: Date): Promise<Map<number, Li
   return new Map(rows.map((row) => [row.id, refOf(row, dates.get(row.id) ?? [], now)]));
 }
 
+interface SetlistRow {
+  position: number;
+  title: string;
+  is_encore: boolean;
+  is_cover: boolean;
+  source: "article" | "reader";
+  item_id: string | null;
+}
+
+/**
+ * 一场演出的曲目单，与页面其它部分同一道门：来自公告的行要求那篇公告还在（下架就跟着不显示），读者
+ * 补的行没有出处可下架，就一直显示。现场报道抽到的在前，读者补的在后。
+ */
+async function setlistOf(liveEventId: number, now: Date): Promise<SetlistEntryView[]> {
+  const rows = await sql<SetlistRow[]>`
+    SELECT se.position, se.title, se.is_encore, se.is_cover, se.source, v.item_id
+    FROM setlist_entries se
+    LEFT JOIN LATERAL (
+      SELECT p.article_id AS item_id
+      FROM publications p
+      JOIN sources s ON s.id = p.source_id
+      WHERE p.article_id = se.article_id AND ${storyReportCondition(now)}
+      LIMIT 1
+    ) v ON true
+    WHERE se.live_event_id = ${liveEventId} AND (se.source = 'reader' OR v.item_id IS NOT NULL)
+    ORDER BY (se.source = 'article') DESC, se.position`;
+  return rows.map((row) => ({
+    position: row.position,
+    title: row.title,
+    isEncore: row.is_encore,
+    isCover: row.is_cover,
+    source: row.source,
+    itemId: row.item_id ?? null,
+  }));
+}
+
 /** 一场演出的页面：报告、它自己的日期、以及它挂在哪个事件页下。报告全下架了就是 404。 */
 export async function loadLive(publicId: string, now = new Date()): Promise<LiveEventView | null> {
   const rows = await sql<LiveRow[]>`SELECT ${LIVE_SELECT(now)} WHERE le.public_id = ${publicId}`;
   const [row] = rows;
   if (!row || row.report_count === 0) return null;
-  const [dates, facts, rounds, cover] = await Promise.all([
+  const [dates, facts, rounds, cover, setlist] = await Promise.all([
     datesOf(row.item_ids, now),
     sql<{ id: number }[]>`SELECT id FROM facts WHERE live_event_id = ${row.id}`,
     roundsOf(row.id, now),
     coverOfItems(row.item_ids, now),
+    setlistOf(row.id, now),
   ]);
   const reports: StoryReportView[] = await liveReports(facts.map((f) => f.id), now);
-  const [seen] = await sql<{ first_seen_at: Date; updated_at: Date }[]>`
-    SELECT first_seen_at, updated_at FROM live_events WHERE id = ${row.id}`;
+  const [seen] = await sql<{ first_seen_at: Date; updated_at: Date; setlist_scanned_at: Date | null }[]>`
+    SELECT first_seen_at, updated_at, setlist_scanned_at FROM live_events WHERE id = ${row.id}`;
   // 页面上票务日期由轮次那一栏负责，雷达里那些同样的行就不再重复列一遍。
   const covered = new Set(rounds.flatMap((r) => ROUND_SLOTS.flatMap((slot) => {
     const date = r[slot];
@@ -196,6 +219,8 @@ export async function loadLive(publicId: string, now = new Date()): Promise<Live
     rounds,
     dates: dates.filter((d) => d.day >= today && !covered.has(`${d.kind}|${d.day}`)),
     story: row.story_public_id === null ? null : { publicId: row.story_public_id, title: row.story_title ?? row.title },
+    setlist,
+    setlistScanned: seen?.setlist_scanned_at != null,
     cover,
   };
 }

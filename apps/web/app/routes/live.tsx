@@ -6,7 +6,7 @@ import { timezoneDate } from "@girlsbands/contracts/time";
 import { SITE } from "@girlsbands/industry/site";
 import type { Route } from "./+types/live";
 import { edgeTtl, loadOr404 } from "../lib/api.server";
-import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
+import { breadcrumbLd, pageMeta, siteUrl, titled } from "../lib/seo";
 import { monthDay, relativeTime, weekdayShort } from "../lib/format";
 import { DEADLINE_KINDS, clockText, dayName, md } from "../features/feed/deadlines";
 import { ROUND_KINDS, ROUND_STATUS, roundDates } from "../features/feed/tickets";
@@ -194,6 +194,49 @@ export default function LiveRoute() {
           ))}
         </ol>
       </section>
+
+      {/* 散场之后才有的那一层：曲目单是从原文里找出来的，不是我们猜的；读者可以补，管理员采纳后进库。 */}
+      {live.stage === "finished" && (
+        <section className="card mt-5 p-5 lg:p-6">
+          <div>
+            <h2 className="text-[17px] font-[650] leading-[1.5] text-ink">曲目单</h2>
+            <p className="mt-0.5 text-[12.5px] text-ink-4">
+              {live.setlist.length > 0
+                ? "曲名照原文，顺序也照原文 —— 原文没写的不会替演出补上"
+                : live.setlistScanned
+                  ? "问过这场演出的报道了，原文里没有写曲目单"
+                  : "等现场报道出来，这里会去原文里找"}
+            </p>
+          </div>
+          {live.setlist.length > 0 && (
+            <ol className="mt-3.5 divide-y divide-line-soft">
+              {live.setlist.map((song, index) => (
+                <li key={`${song.source}-${song.position}`}>
+                  {song.isEncore && !live.setlist[index - 1]?.isEncore && (
+                    <p className="mt-3 text-[12px] font-semibold tracking-[0.06em] text-ink-4">安可</p>
+                  )}
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2.5">
+                    <span className="num w-[26px] shrink-0 text-[13px] text-ink-4">{index + 1}</span>
+                    <span className="text-[14.5px] font-[650] text-ink">{song.title}</span>
+                    {song.isCover && <span className="text-[12px] text-ink-4">翻唱</span>}
+                    {song.source === "reader" && <span className="text-[12px] text-ink-4">读者补充</span>}
+                    {song.itemId && (
+                      <Link to={`/items/${song.itemId}`} prefetch="intent" className="text-[12.5px] text-ink-3 transition-colors hover:text-accent">出处</Link>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+          <p className="mt-4 text-[12.5px] leading-[1.75] text-ink-4">
+            {live.setlist.length > 0 ? "漏了或者写错了？" : "你要是在现场？"}
+            <Link to={`/feedback?from=${encodeURIComponent(`${siteUrl()}/live/${live.publicId}`)}`} className="mx-0.5 text-band hover:underline">
+              补一条曲目单
+            </Link>
+            一行一首，本站核对之后收进这一页。
+          </p>
+        </section>
+      )}
 
       <p className="mt-6 text-[12px] leading-[1.75] text-ink-4">
         这一页把同一场演出的多条公告收到一起：它们可能在信息流里归给了不同的事件，但读者问的是同一件事。

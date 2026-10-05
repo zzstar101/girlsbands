@@ -8,6 +8,7 @@ import { scheduleMpReconcile } from "@girlsbands/backend/sources/mp";
 import { refreshSourceIcons } from "@girlsbands/backend/sources/icons";
 import { computeHotRanking, snapshotHeat } from "@girlsbands/backend/events/hot";
 import { linkRelatedStories } from "@girlsbands/backend/events/consolidate";
+import { sweepSetlists } from "@girlsbands/backend/lives/setlists";
 import { composeDueReports } from "@girlsbands/backend/reports/compose";
 import { dailyRetention } from "@girlsbands/backend/operations/retention";
 import { submitIndexNow } from "@girlsbands/backend/operations/indexnow";
@@ -34,6 +35,8 @@ export const SCHEDULES: Scheduled[] = [
   { name: "hot.rank", cron: "*/5 * * * *", run: () => computeHotRanking() },
   { name: "hot.snapshot", cron: "2 * * * *", run: () => snapshotHeat() },
   { name: "stories.links", cron: "12 * * * *", run: linkRelatedStories },
+  // 散场之后的曲目单：一小时一轮，只对已经结束、还没问过原文的演出跑（模型调用，见 MODEL_CALLS_ENABLED）。
+  { name: "lives.setlist", cron: "23 * * * *", missed: "once", run: () => sweepSetlists() },
   // Every issue that is due and not written yet: a daily from 08:00, a weekly from Monday 10:00, a monthly
   // from the 1st 10:30, each on the half hour it falls due; a missed or failed one at the next run.
   { name: "reports.compose", cron: "0,30 * * * *", missed: "once", run: () => composeDueReports() },

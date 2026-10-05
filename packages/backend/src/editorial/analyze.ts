@@ -244,18 +244,31 @@ export const STRUCTURE_SYSTEM = promptText("structure", {
 /** What the show itself is, for Live and ticket material (industry/prompts/live-ticket.md). */
 export const LIVE_SYSTEM = promptText("live-ticket");
 
-/** Keep only quotes present both in the original material and in the text the structure model saw. */
-export function normalizeStructure(data: z.infer<typeof StructureSchema>, a: AnalyzeInputArticle) {
-  const visible = collapseWhitespace(buildMaterial(a));
-  const originals = (a.xPost
+/** The article's own words, as the source wrote them: a post's text and the post it quotes. */
+function originalTexts(a: AnalyzeInputArticle): string[] {
+  return (a.xPost
     ? [String(a.xPost.text ?? a.title), String(a.xPost.quoted?.text ?? "")]
     : [a.bodyText ?? a.excerpt ?? ""]).map(collapseWhitespace);
-  // A title is not the unseen contents of a video/article, regardless of the model's confidence.
-  const scope = originals.some(Boolean) ? data.scope : "unknown";
-  const grounded = (quote: string | null | undefined) => {
+}
+
+/**
+ * Keep only quotes present both in the original material and in the text the structure model saw: a very
+ * long body is truncated for the model, and a title is not the unseen contents of a video or article,
+ * regardless of the model's confidence. The setlist step (editorial/setlist.ts) checks its lines here too.
+ */
+export function groundedFor(a: AnalyzeInputArticle): (quote: string | null | undefined) => string | null {
+  const visible = collapseWhitespace(buildMaterial(a));
+  const originals = originalTexts(a);
+  return (quote) => {
     const text = collapseWhitespace(quote ?? "");
     return text && visible.includes(text) && originals.some((original) => original.includes(text)) ? text : null;
   };
+}
+
+export function normalizeStructure(data: z.infer<typeof StructureSchema>, a: AnalyzeInputArticle) {
+  const originals = originalTexts(a);
+  const scope = originals.some(Boolean) ? data.scope : "unknown";
+  const grounded = groundedFor(a);
   const fact = !originals.some(Boolean) || scope === "composite" || !data.fact ? null : {
     ...data.fact,
     evidence: grounded(data.fact.evidence),

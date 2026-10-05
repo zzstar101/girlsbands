@@ -258,6 +258,13 @@ export default function StoryPage() {
             <IconChevronRight size={14} className="shrink-0 text-ink-4" />
           </Link>
         )}
+        {story.live && story.live.stage === "finished" && (
+          <p className="mt-2 text-[12.5px] leading-[1.75] text-ink-4">
+            这场演出已经结束 ——
+            <Link to={`/live/${story.live.publicId}`} prefetch="intent" className="mx-0.5 text-band hover:underline">演出页</Link>
+            有曲目单、配信截止与这场演出的全部公告。
+          </p>
+        )}
         {story.release && (
           <Link viewTransition to={`/release/${story.release.publicId}`} prefetch="intent" className="mt-3.5 inline-flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 rounded-full border border-line px-3.5 py-1.5 text-[12.5px] text-ink-2 transition-colors hover:border-band hover:text-band">
             <IconDisc size={14} className="shrink-0 text-ink-4" />

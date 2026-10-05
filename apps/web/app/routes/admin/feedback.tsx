@@ -61,6 +61,18 @@ function FeedbackCard({ f }: { f: AdminFeedbackRow }) {
           <Button size="md" disabled={note === (f.note ?? "")} busy={pending === "note"} onClick={() => run("PATCH", base, { note: note || null, version }, { label: "note", success: "备注已保存" })}>
             保存备注
           </Button>
+          {/* 读者从演出页或事件页补的「一行一首」：采纳之后进那场演出的曲目单，正文照抄，不改一个字。 */}
+          {f.page_url && /\/(?:live|story)\//.test(f.page_url) && (
+            <Button
+              tone="ghost"
+              disabled={!!pending}
+              busy={pending === "setlist"}
+              title="把这条反馈里的「一行一首」采纳成那场演出的曲目单"
+              onClick={() => run("POST", `${base}/setlist`, undefined, { label: "setlist", success: "已采纳为曲目单" })}
+            >
+              采纳为曲目单
+            </Button>
+          )}
           <Button tone="ghost" onClick={() => setDialog(f.banned ? null : "ban")} disabled={f.banned} title="拒绝这个来源的后续反馈">封禁来源</Button>
           <Button tone="ghost" onClick={() => setDialog("erase")} title="按隐私说明删除提交者的资料">删除资料</Button>
         </div>

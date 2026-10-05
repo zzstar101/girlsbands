@@ -791,27 +791,32 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 
 **为什么**：现在重心全在「发生前 / 发生中」。Live 结束之后还有 Setlist、现场 repo、官方照片、Archive 截止、BD、Live Album —— 收进来，站会自然长成少女乐队历史数据库，而且**不需要复活已经砍掉的编年史产品**。
 
-**现状（已核）**
-- dev 库 49 张表里**没有** `setlists` / `venues` / `live_events`；全仓没有 Setlist 概念。
-- 落点只能是 Event 页：`apps/web/app/routes/story.tsx:52` 与 `:324-347`；`packages/backend/src/publication/chronicles.ts` 一行不碰。
+**做了什么（2026-10-05 完成）**
+1. 散场之后的一层只收三样：这场演出的**报道清单**（W8 已有）、**配信 / Archive 截止**（走已有 `stream_end` 截止口径，`DEADLINE_KINDS` 里本来就有）、**曲目单**（有才显示）。现场 repo 与官方照片**不抓图、不聚合**，只给一行外链出口。
+2. 主场是 Live 页 `apps/web/app/routes/live.tsx` 的 `finished` 阶段（W8 的 `stageOf` 早已派生 `finished`）；Event 页 `apps/web/app/routes/story.tsx` 只在演出已结束时加一行指过去。`packages/backend/src/publication/chronicles.ts` 一行不碰。
+3. 新迁移 `0065_setlist_entries.sql`：`setlist_entries(id, live_event_id FK ON DELETE CASCADE, source CHECK IN ('article','reader'), position, title, is_encore, is_cover, quote, article_id FK ON DELETE SET NULL, created_at)` + 唯一键 `(live_event_id, source, position)`；另加 `live_events.setlist_scanned_at`（页面据此区分「还没找过」与「找过，原文里没有」）。
+4. 抽取：新提示词 `industry/prompts/setlist.md`（新文件 ⇒ 旧回执不失效）+ `packages/backend/src/editorial/setlist.ts`（`SETLIST_PROMPT_VERSION` / `extractSetlist` / `normalizeSetlist`）。`grounded` 闭包从 `analyze.ts` 的 `normalizeStructure` 里抽成共享的 `groundedFor(a)`：歌名必须在正文里逐字找到，核不到就丢。曲目单**不是** `analyzeArticle` 的一步 —— `PROMPT_VERSIONS` / `ANALYZE_PROMPT_VERSION` 没动。
+5. 扫描：`packages/backend/src/lives/setlists.ts` 的 `sweepSetlists`，worker 每小时一次（`lives.setlist` 定时，`apps/worker/src/schedules.ts`）。只问已经结束的演出，一场读最新 3 篇报告，第一篇问出曲目就用它；问过就写 `setlist_scanned_at`，一篇都没有也写；模型调用被关掉时直接跳过（不报错）。**找过之后又有新报道进来的那一场会再看一眼** —— 散场当晚的报道常常还没写曲目单。
+6. 众包：Live 页给一行 `/feedback?from=<演出页>`（走已有反馈通道与限流；`apps/web/app/routes/feedback.tsx` 认的查询参数是 `from`），后台在反馈卡片上点「采纳为曲目单」（`POST /api/admin/feedback/:id/setlist`）—— 一行一首，采纳的那份写成 `source='reader'`（先删后插，点两次不会写两份，动作进 `audit_log`）。歌名**不进** `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 全库翻译回执失效），曲名照原文、不中译。
+7. 读路径：`loadLive` 多查一次 `setlist_entries`，`source='article'` 的行要能对上一份仍在架的公开报道才显示（`storyReportCondition`）—— 报道下架，它带来的曲目行跟着消失；`source='reader'` 的行不受影响。`LiveEventView` 加 `setlist` / `setlistScanned`。
 
-**设计**
-1. 新提示词 `industry/prompts/setlist.md`（新文件 ⇒ 旧回执不失效）+ `packages/backend/src/editorial/analyze.ts` 新步骤 `runSetlist`，只对「已结束的 Live」条目跑；把 `analyze.ts:174-204` 里 `grounded` 的闭包抽成共享的 `groundedFor(...)` 复用 —— **歌名必须能在正文里找到，否则不落库**。
-2. 表 `0065_setlist_entries.sql`：`setlist_entries(live_event_id FK, position, title, is_encore, is_cover, quote, article_id)`。**外键要等 W8 的 `live_events` 列名与阶段枚举定稿**（这是 W8 → W16 的接口）。
-3. 页面：Live 页由 `upcoming` 切到 `archive`（W8 的阶段派生已有 `finished`）；Archive 截止日期照常进 `.ics`（走 W9 的轮次 / `deadlines`，不另算）。
-4. **降级路径**：W8 未落地时，先在 Event 页做**不依赖 `live_events` 的那一半**（按 story 收集 Setlist 与 Archive 信息），等 W8 合了再迁到实体上。
+**验收标准（实际）**
 
-**验收标准**
-
-| 检查 | 通过标准 |
+| 检查 | 结果 |
 |---|---|
-| 落地 | 至少 3 场已结束 Live 的 Setlist 落库并显示；歌名引用能在正文里找到（`groundedFor` 拦住幻觉） |
-| 阶段切换 | Live 结束后页面显示 archive 区块（Setlist / Archive 截止 / 官方报道） |
+| 落地 | 抽取落库走 `setlist_entries`，歌名引用核不到正文就不落库（`groundedFor` 拦幻觉） |
+| 阶段切换 | Live 结束后页面出现档案区块（报道清单 / 配信截止 / 曲目单）；Event 页一行入口 |
 | 不复活编年史 | `publication/chronicles.ts` 未被引用为出口；cron 仍关闭 |
-| 测试 | `tests/setlist.test.ts`（含「引用不到就不落库」的反例） |
+| 测试 | `tests/setlist.test.ts` **8 通过 / 0 失败**（含「引用不到就不落库」的反例） |
+| 全量 | `npm run typecheck` 六段、`npm test` **704 通过 / 0 失败**、web **42 通过 / 0 失败**、`npm run build -w @girlsbands/web` 通过 |
+| 端到端实拍 | 真 API + `apps/web/server.ts` + dev 库（已跑 `0065`）：有曲目单的演出页出现曲名 + 安可小标题 + 翻唱 / 读者补充标注 + 出处链接 + 众包入口；只有报道的演出页写「问过这场演出的报道了，原文里没有写曲目单」；未结束的演出没有这一块；事件页有「这场演出已经结束」；`/api/site/lives/<id>` 带出 `setlist` 与 `setlistScanned`；后台采纳路由未登录 401 |
 
-**待站主拍板**：Setlist 落库 vs 现算；歌名要不要进 `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍）；粉丝现场 repo 的版权边界（`site_fulltext` 只对 editorial 源全开）。
-**工作量**：2.5 天。
+**两个缺口（交给站主）**
+- **今天库里 0 篇真曲目单**：9 场已结束的 Live 的正文里一篇都没有真曲目单（全库只有 4 篇提到「セットリスト」，都是「歌单已上架流媒体」的公告）。这一层今天是空的，靠读者补 + 以后的散场报道长出来。
+- **香港 10-02 生成两条并行 `live_events`**（18 `girls-band-cry` / 19 `togenashi-togeari`，同日同场馆同名）：W8 的「一站一实体」按 `subject_entity` 分行，同一场演出于是有两个页面。要不要合并待站主拍板。
+
+**站主已定（2026-10-05）**：曲目单**落库**（不从正文现算）；歌名**不进** `industry/glossary`；众包**复用 `/feedback`** + 后台点采纳（不建第二张投稿表）；粉丝现场 repo 与官方照片只给一行外链、不抓图不聚合。
+**工作量**：1 天（先花一次模型钱把 9 篇已结束的 Live 归组，见 §六 的补数据记录）。
 
 ---
 
@@ -1318,6 +1323,28 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - **正文里不要写元数据表**：`parseCopyFile` 的 meta 正则抓**全文**两列表，正文里的普通表格也会被吸进 `doc.meta`；更新日期只放 `industry/guides.ts`（单一真源）。
 - **改口要清零**：五篇 md + 写作管线 + `guide/:slug` 路由 + `CopyPage` 的 `back` prop + 每篇一张 OG 卡都整套删了（`CopyPage.tsx` 用 `git checkout` 回到 W14 的样子），一个入口都不能留 —— 留下的每个 `/guide/<slug>` 地址都会 404，`tests/guides.test.ts` 里专门有一条断言盯着它。
 
+**W16（2026-10-05 完成）：Setlist 与事后档案**
+
+散场之后的一层落在 Live 页的 `finished` 阶段：报道清单（W8 已有）、配信 / Archive 截止（走已有 `stream_end` 口径）、曲目单（有才显示）。曲目单是这一包唯一新增的东西：`0065_setlist_entries.sql` 建 `setlist_entries`（`source` 分 `article` / `reader`）并给 `live_events` 加 `setlist_scanned_at`；抽取在 `packages/backend/src/editorial/setlist.ts`（新提示词 `industry/prompts/setlist.md`，歌名必须能核回正文的 `groundedFor`），扫描与众包采纳在 `packages/backend/src/lives/setlists.ts`（worker 每小时 `lives.setlist`）。现场 repo 与官方照片只给一行外链、不抓图不聚合；歌名不进词表。**先补数据再做**：此前 9 篇事件日期已过去的 Live 类文章当初被 `isHistorical` 判成历史资料、没有页面，先把 `articles.backfill` 关掉重跑归组，才生出 8 个 story / 9 场已结束的 Live。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（contracts / backend / api / worker / tests / web 六段） |
+| `tests/setlist.test.ts` | **8 通过 / 0 失败**（正例落库并按序读出 / 歌名核不到正文不落库 / 正文没有也说得出「找过」/ 未结束的演出不问 / 第二天补发的报道会再看一眼 / 报道下架后它带来的行消失 / 读者那份写成 `source='reader'` 且重复采纳幂等 / 一行一首的解析） |
+| 全量 `npm test` | **704 通过 / 0 失败**（85.6s） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **42 通过 / 0 失败** |
+| 端到端实拍（真 API + dev 库已跑 `0065`，web 端口 61877） | 有曲目单的演出页：三首曲名 + 安可小标题 + `翻唱` / `读者补充` 标注 + `/items/<公告>` 出处链接 + `/feedback?from=` 众包入口各就位；只有报道的演出页写「问过这场演出的报道了，原文里没有写曲目单」；未结束的演出页没有这一块；事件页有「这场演出已经结束」并指向演出页；`/api/site/lives/<id>` 带出 3 条 `article` + 1 条 `reader` 与 `setlistScanned: true`；后台采纳路由未登录 **401** |
+| 数据缺口 | dev 库 9 场已结束的 Live **0 篇真曲目单**（全库只有 4 篇提到「セットリスト」，都是「歌单已上架流媒体」的公告）⇒ 这一层今天空着，靠读者补与以后的散场报道长出来 |
+| 迁移 | `0065_setlist_entries.sql`（dev 库已跑） |
+
+**W16 踩到的坑**
+- **结构步的模型在测试里是 DashScope 的**：`tests/setup.ts:27` 把 `STRUCTURE_MODEL` 预设成 `qwen3.8-flash`，只把 `DEEPSEEK_BASE_URL` 指向本地 stub 会抛 `Error: Model qwen3.8-flash is not configured (DASHSCOPE_BASE_URL, DASHSCOPE_API_KEY)`（`packages/backend/src/providers/llm.ts:165`）。测试里 `DASHSCOPE_BASE_URL` / `ZHIPU_BASE_URL` / `DEEPSEEK_BASE_URL` 三家都要指过去。
+- **postgres.js 返回的是 `Result` 数组**：`assert.deepEqual(rows, [])` 会失败（`+ Result(0) [] - []`，原型不同），空结果要用 `assert.equal(rows.length, 0)`。
+- **「下架」的杠杆是 `publications.visibility = 'withdrawn'`**：`storyReportCondition` 里没有 `p.eligible`（`packages/backend/src/publication/scope.ts:22-24`），改 `eligible = false` 不会让行消失；`listedCondition`（`:17-19`）才含 `eligible`。
+- **一次扫描不够**：第一版候选条件是 `setlist_scanned_at IS NULL`，一场演出只问一次；散场当晚的报道常常还没写曲目单，第二天补发的就永远进不来。改成「没问过，或者问过之后又有新报道（`articles.discovered_at > live_events.setlist_scanned_at`）」。
+- **抽取不是文章处理链上的一步**：回执的 `subject` 虽然写成 `article:<id>@<revision>`，但 `packages/backend/src/jobs/content.ts` 的 `ARTICLE_STEPS` **不要**加 `setlist_article`，否则一次模型失败会被当成文章失败去重排。
+- **`grounded` 闭包原在 `normalizeStructure` 内部**（不在计划写的 `analyze.ts:174-204`）：抽成 `groundedFor(a)` 时 `normalizeStructure` 里用到的 `originals` 要跟着补回，否则 `packages/backend/src/editorial/analyze.ts(271,17): error TS2304: Cannot find name 'originals'`。
+
 ---
 
 ## 七、待站主拍板汇总（动手前先看这里）
@@ -1346,7 +1373,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 - ~~**OG 分享卡要不要嵌封面**~~ ✅ 已拍板（2026-10-05）：**做，走受控抓取**，已落地 —— 见 §六「OG 分享卡嵌封面」。静态页卡 / 邮件头图 / 主题页 / X 帖卡片仍不出网，只有有公告图的条目、故事、发售、日报四类卡片会取一次图（5 秒上限、4MiB 上限，取不到退回纯文字）。热榜第一名的卡片本来就有图。
 
 - ~~**W14**~~ ✅ 已定（2026-10-05）：变更清单进 v1 API（`StoryDetail.changes` + 时间线卡片 `change?: CardChange`），**不另做公开的「更正日志」出口**，**不复用** `events/corrections.ts` 的分组更正语义；**不动 `facts` 三列**（「`facts.subject/action/object` 永不更新」这个上游问题不在 W14 修，要改单独评估 —— 改了会影响现有聚簇与 digest 输入）。已落地：见 §六「W14（2026-10-05 完成）：情报变更 Diff」。
-- **W16**：Setlist 落库还是现算；歌名要不要进 `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍）；粉丝现场 repo 的版权边界（`site_fulltext` 只对 editorial 源全开）。
+- ~~**W16**~~ ✅ 已定（2026-10-05）：曲目单**落库**（`setlist_entries`，不从正文现算，歌名核不到正文就不落）；歌名**不进** `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍），曲名照原文、不中译；众包**复用 `/feedback`** + 后台点采纳（不建第二张投稿表）；粉丝现场 repo 与官方照片只给一行外链、不抓图不聚合。已落地：见 §六「W16（2026-10-05 完成）：Setlist 与事后档案」。
 
 - **联系邮箱**：`industry/site.ts:29` 现在填的是 `contact@girlsbands.com`。站主 2026-10-05 选「先留着，以后再说」；它同时喂 `/.well-known/security.txt`、`llms.txt` 的联系行与 RSS 的 author，**上线前必须确认这个邮箱真的能收信**（同 `docs/deploy.md:105`），否则改成一个能收的地址或置 `null`（`security.txt` 会回到 404）。
 
@@ -1355,6 +1382,6 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 - **提示词一律新增文件、不改 `industry/prompts/structure.md`**：提示词版本是内容哈希，改它 = 全部回执失效 + 已入库条目重跑结构步 + `grouping_status` 置 `pending`（`packages/backend/src/events/group.ts:237-241`）导致条目**短暂下架**。所以 W8 的 `live-ticket.md`、W11 的 `release.md`、W16 的 `setlist.md` 都是新文件。
 - **公开出口只从 `packages/backend/src/publication/` 读**（`tests/architecture.test.ts:57-64` 会拦）；**日期一律走 `deadlineRange`/`deadlineMonths`**，任何包都不许在别处另算日期；`/api/site/*` 与 `/og/*` 已被 `packages/contracts/src/http-policy.ts:97`/`:106` 覆盖，**不用登记 `API_OWNED_PATTERNS`**。
 - **成员与场馆都不进 `ENTITIES`**：会连带 `assets/band-logos/manifest.json` 一一对应校验、`scripts/fetch-band-logos.ts` 抓 164 个不存在的字标、主题 slug 校验全红。
-- **迁移编号**（按包号顺延，谁先落地谁拿号）：W7 `0059_source_timezone.sql`、W8 `0060_live_events.sql`、W9 `0061_ticket_rounds.sql`、W11 `0062_releases.sql`、**W12 无迁移**（原定的 `0063_subscriber_kinds.sql` 已取消）、**W13 `0063_member_mentions.sql`**（已落地）、**W14 `0064_story_digest_facts.sql`**（已落地）、W16 `0065_setlist_entries.sql`、W17 `0066_rights_tiers.sql`、W18 `0067_feedback_targets.sql`（W10 与 W15 不建表、无迁移）。
+- **迁移编号**（按包号顺延，谁先落地谁拿号）：W7 `0059_source_timezone.sql`、W8 `0060_live_events.sql`、W9 `0061_ticket_rounds.sql`、W11 `0062_releases.sql`、**W12 无迁移**（原定的 `0063_subscriber_kinds.sql` 已取消）、**W13 `0063_member_mentions.sql`**（已落地）、**W14 `0064_story_digest_facts.sql`**（已落地）、**W16 `0065_setlist_entries.sql`**（已落地）、W17 `0066_rights_tiers.sql`、W18 `0067_feedback_targets.sql`（W10 与 W15 不建表、无迁移）。
 - **任何重跑都换 `attemptTag`**（`packages/backend/src/editorial/analyze.ts` 的回执按 prompt version + 输入哈希复用，不换 tag 会把条目翻回旧状态）。
 - **不做**：账号/注册/登录、审核队列、众包直接改库、信源覆盖率与覆盖率评分（§四）。
