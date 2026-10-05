@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { Link, useLoaderData, useLocation } from "react-router";
 import type { Route } from "./+types/story";
 import type { StoryDetail, StoryReportView } from "@girlsbands/contracts/site";
+import { isLoudChange } from "@girlsbands/contracts/site";
 import { SITE } from "@girlsbands/industry/site";
 import { edgeTtl, loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled } from "../lib/seo";
@@ -17,7 +18,7 @@ import { Badge, SelectedBadge } from "../components/ui/Badge";
 import { CoverImage } from "../components/ui/CoverImage";
 import { PillTabs } from "../components/ui/Tabs";
 import { Select } from "../components/ui/Controls";
-import { IconArrowLeft, IconChevronRight, IconClock, IconDisc, IconDoc, IconTicket, IconUsers } from "../components/icons";
+import { IconArrowLeft, IconChevronRight, IconClock, IconDisc, IconDoc, IconHistory, IconTicket, IconUsers } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import type { Screen } from "../components/shell/screens";
 
@@ -269,6 +270,44 @@ export default function StoryPage() {
           </Link>
         )}
       </header>
+
+      {/* 情报变更（W14）：同一件事的后续报道改了开演时间、换了会场或直接取消时，最要紧的就是这一句。
+          只显示「上一版 → 这一版」这一次变化，旧版本留在库里不铺开；票价、轮次这类没有警钟意义的变化
+          照列，但不点红。 */}
+      {story.changes && (
+        <section
+          aria-label="情报变更"
+          className={`mt-4 max-w-[960px] rounded-card border px-4 py-3.5 ${
+            story.changes.kinds.length > 0 ? "border-amber/40 bg-amber-soft" : "border-line bg-surface"
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px]">
+            <IconHistory size={15} className={story.changes.kinds.length > 0 ? "text-amber-ink" : "text-ink-4"} />
+            <span className={`font-semibold ${story.changes.kinds.length > 0 ? "text-amber-ink" : "text-ink-2"}`}>
+              {story.changes.kinds.length > 0 ? "情报有变更" : "情报有更新"}
+            </span>
+            <span className="text-ink-4" suppressHydrationWarning>
+              上次更新 {relativeTime(story.changes.at)}
+            </span>
+          </div>
+          <ul className="mt-2 space-y-1">
+            {story.changes.items.map((c, i) => (
+              <li key={`${i}-${c.kind}`} className="flex flex-wrap items-baseline gap-x-2 text-[13.5px] leading-[1.7]">
+                <span className={isLoudChange(c.kind) ? "font-semibold text-amber-ink" : "text-ink-2"}>{c.text}</span>
+                {c.itemId && (
+                  <Link
+                    viewTransition
+                    to={`/items/${c.itemId}`}
+                    className="text-[12px] text-ink-4 underline decoration-dotted transition-colors hover:text-accent"
+                  >
+                    来自哪篇报道
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="bleed sticky top-[var(--bar-h)] z-20 mt-5 bg-bg/90 py-2 backdrop-blur-md lg:mx-0 lg:px-0">
         <PillTabs

@@ -734,7 +734,24 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 | 兼容 | `inputs_hash` 定义未变 → 现有 `tests/events*.test.ts` 全绿 |
 | 测试 | `tests/change-diff.test.ts` |
 
-**待站主拍板**：变更 Diff 是否进 v1 API；要不要做公开的「更正日志」出口；要不要顺手修「`facts` 三列永不更新」这个上游问题（改了会影响现有聚簇与 digest 输入，风险要单独评估）。
+**站主拍板（2026-10-05，开工前）**
+1. **变更只出现在两处**：事件页 `/story/:id` 首屏 + 时间线卡片的小 ⚠️ 角标；Live 页、邮件日报、热点榜都不做。
+2. **检测范围**：结构化字段（开演日与时刻、会场、状态、票价、出演者、票务轮次）**＋ 自由文本（注意事项 / 条件）也参与**，自由文本的变化用模型措辞（有新变更才花一次调用）。
+3. **只有四类标醒目 ⚠️**：取消、延期、会场变更、开演时间变更；票价 / 出演者 / 轮次照列不标红。
+4. **事件页只显示「上一版 → 当前」这一次变化**，旧版本留在 `story_digests` 不展示。
+5. **时间线角标只在最近 7 天内有变更时显示**。
+6. **被取消 / 中止的演出从首页截止卡、`/deadlines`、`.ics` 里去掉**；延期用新日期。
+
+**我替站主定的小事（不同意就说）**：`StoryDetail.changes` 与时间线卡片 `change?: CardChange` 进 v1 契约，**不另做公开「更正日志」出口**，**不复用** `events/corrections.ts` 的分组更正语义；**不动 `facts` 那三列**（W14 不做上游修复，要改单独评估）；快照只取 `analyses.output->'fact'/'live'/'release'`；`inputs_hash` 定义一字不改（只改日期 ⇒ 多一版快照、`receipt_id` 不变、模型调用 0 次）；上一版没有快照（迁移前的存量行）视为「无变更」且不回填；模型措辞失败或模型关闭 ⇒ 模板降级，绝不让这一版写不下去。
+
+**实现与验证（2026-10-05 完成）**
+1. **迁移** `database/migrations/0064_story_digest_facts.sql`：`story_digests` 加 `facts jsonb`、`facts_hash text`、`changes jsonb`、`change_kinds text[]`，31 行注释讲清「为什么把快照存进版本行 / 为什么读 `analyses.output` 而不是 `facts` 三列 / 存量行 `facts_hash IS NULL` 怎么办 / 谁读它」。
+2. **快照与 diff** `packages/backend/src/events/change-diff.ts`：`changeSnapshot(reports)` 每篇报道一条（`conditions[].text`、`deadlines[].kind/at`、`live.{status,venue,startsTime,endsOn,rounds}`、`release.{releaseOn,editions[].priceYen}`），`changeSnapshotHash` 是它的指纹；`diffChangeSnapshots(previous, next)` 每项取「最新一篇说出它的报道」当当前值（新报道没提就沿用上一篇说过的，不算变化），类别 `cancelled | postponed | venue | time | rounds | release | text`，只有前四类进 `change_kinds`。**抽取结果里没有 cast（出演者）字段** ⇒ 出演者变化只能走自由文本那条路（文档里说明，不假装能做结构化比较）。
+3. **措辞**：新提示词 `industry/prompts/story-changes.md`（新文件、不动 `structure.md`、不使旧回执失效）+ `wordTextChanges()`，`purpose: "story_changes"`、模型复用 `digest` 能力；**只在「结构化字段一处没变、又有结构化锚点」时调用** ⇒ 只改日期的那一版 0 次调用；模型挂了或 `MODEL_CALLS_ENABLED=false` ⇒ 降级成 `新增注意：…` / `取消注意：…`。
+4. **接入** `packages/backend/src/events/digest.ts`：门加 `facts_hash`（`inputs_hash` 定义一字未改 ⇒ 现有 `tests/events*.test.ts` 语义不变），事务里的竞态重查同时比 `digestInputsHash` 与 `changeSnapshotHash`，INSERT 带上四列。
+5. **读取与页面**：`publication/story-text.ts`（`StoryChanges` 逐条校验 kind，认不出的丢掉）、`publication/stories.ts` 的 `StoryDetail.changes`、`publication/timeline.ts` 的 7 天角标（`CardChange { kinds, at, storyPublicId }`，fact 经 `facts.story_id` 找 story）、`apps/web/app/routes/story.tsx` 的「情报变更」块（醒目四类走 amber，每条带「来自哪篇报道」链 + 一行「上次更新 X 前」）、`FeedItem.tsx` 的角标（**要 `relative z-10`** 才盖得住整张卡片的 `after:absolute after:inset-0` 标题链接）。
+6. **截止雷达与 `.ics`**：`publication/deadlines.ts` 的 `changeWindow(now)` CTE（`changed` / `retired` / `restated` / `newest`）+ `notRetired()` / `latestOnly()` 接进 `deadlineWindow` 与 `deadlineMonths` 的全部四个分支；`.ics` 走 `calendarIcs → deadlineRange`，雷达改完它自动跟着改。
+
 **工作量**：2.5 天（含一次小范围模型调用）。
 
 ---
@@ -1253,6 +1270,33 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - **担当 85/88（2026-10-05 补齐）**：`role` 只有官方写明的才有，16 支乐队的官网逐条查过，来源写在 `.data/glossary-members.tsv` 的备注列（`.data/` 不进仓库）。只剩ダイヤモンドダスト的奈奈 / 凛 / 爱 —— 官方角色页没标乐器，非官方来源不采用 ⇒ 这 3 页不显示这一行。以后重跑 `.data/build-glossary-tables.ts` 即可（生成物进仓库）。
 - Canna Lily / F-272 的 10 位角色在现有语料里 **0 篇提及**（页面可达、不进 sitemap），等有报道提到自然长出内容。
 
+**W14（2026-10-05 完成）：情报变更 Diff**
+
+事件页首屏出「上一版 → 当前」的变更清单、时间线卡片挂 7 天内的小 ⚠️ 角标；被取消的演出从首页截止卡 / `/deadlines` / `.ics` 里消失，改期 / 延期的只按最新一次公告的日期算。快照与变更清单存在 `story_digests` 的版本行上（迁移 `0064_story_digest_facts.sql`），**`inputs_hash` 的定义一字未改** ⇒ 只改日期的那种更新零模型调用，也不会让全库事件重写综述。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（contracts / backend / api / worker / tests / web 六段） |
+| `tests/change-diff.test.ts` | **6 通过 / 0 失败**（新文件；连跑三次都 0 失败 —— 第一次连跑才暴露下面第 1 个坑） |
+| 全量 `npm test` | **692 通过 / 0 失败**（W13 基线 686，新增 6 条） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **42 通过 / 0 失败**（契约只加了可选字段，无新增用例） |
+| 零成本路径 | 只改开演日与时刻的那一版：`provider.hits()` 不变（**0 次模型调用**）、`story_digests` 多一版、`change_kinds = ["time"]` |
+| 快照来源 | 手工改 `facts.subject` 不影响 diff（快照取的是 `analyses.output`） |
+| 取消 / 改期 | 取消后同一故事的 `deadlineRange` 从 1 条掉到 0 条（`change_kinds = ["cancelled"]`）；改期后只留最新一篇公告的日期（`["time"]`） |
+| 角标 | 7 天内出现（`change.kinds = ["time"]` + `storyPublicId` + `at`），把版本行 `created_at` 挪到 30 天前 ⇒ 角标消失 |
+| 存量兼容 | `facts` / `facts_hash` 为 NULL 的旧版本行 ⇒ `changes = []`、`StoryDetail.changes = null`（不误报「全变了」） |
+| 端到端实拍（真 API + 另建 `_test` 库 + `apps/web/server.ts`） | 先跑 `0064`、再造两个真事件（走真正的 `composeStoryDigest`，模型指向本地 stub）：`/story/<改期>` 200，首屏有「情报有变更」+「演出当天 2026-10-25 → 2026-10-29」+「来自哪篇报道」；`/story/<取消>` 200，同一个块用醒目配色并写「演出已取消」；`/api/site/timeline?channel=all&tag=…` 两张卡各自带 `change`（`time` / `cancelled`），网页时间线渲染出角标；`/api/site/deadlines?horizon=60` 只剩改期后的 `2026-10-29` 一条（旧日期与取消故事的行都不在了），`/deadlines` 页面与 `/calendar.ics` 的数字与它一致（`20261029` 有、旧日期与取消日期 0） |
+| 模型花费 | 只改结构化字段零调用；只有「结构化一处没变、此前又有锚点」的纯文本变化才花一次措辞调用 |
+
+**W14 踩到的坑**
+- **事务里重查的快照必须与门外那次同序**：`digestReports` 本身没写 `ORDER BY`，门外那次是调用方排过 `at` 的，而事务里重查出来的 `currentReports` 没排 ⇒ `changeSnapshotHash` 的数组顺序不同 ⇒ 竞态判定永远不成立、`updated` 恒为 `false`。因为 `article_id` 是随机 UUID，排序结果时对时错，单跑一次看不出、连跑三次才稳定重现。修法：事务里也 `.sort((a, b) => a.at.getTime() - b.at.getTime())`。
+- **回执按输入去重**：`paidRequest` 按 `[service, purpose, model, sha256(identity)]` 复用已完成的 receipt，identity 含 user 的 sha256 ⇒ 两件不同的事如果写成逐字相同的注意事项（连 `事件：<标题>` 都一样），第二次不发 HTTP。测试里断言「这次多了一次措辞调用」必须让两件事的输入真的不同。
+- **注意事项的形状是 `{ text, quote }`**：`digestFactEvidence` 与 `changeSnapshot` 都只读 `.text`，夹具里写成 `{ added: … }` 会让快照的 `conditions` 恒为空 ⇒ `diff.text` 恒为 null ⇒ 表现成「措辞没变」（诊断时看到措辞调用数是 0）。
+- **模板降级一次会列两条**：措辞模型失败时 `wordTextChanges` 把 `added` 与 `removed` 各降级成一条（`新增注意：…` / `取消注意：…`）。
+- **抽取结果里没有 cast（出演者）**：`output.live` 与 `output.fact` 都没有出演者字段 ⇒ 站主要的「出演者变化」只能走自由文本那条路，别指望结构化比较。
+- **角标要 `relative z-10`**：卡片标题链接带 `after:absolute after:inset-0` 覆盖整张卡片，角标不加 `relative z-10` 会被压住点不到。
+- **`composeStoryDigest` 会把 `stories.title` 改成综述模型给的标题**：端到端夹具里两个事件因此都变成「标题」——按标题找库里的行会找错，要按 `public_id` 找（测试里也一样，别拿标题当断言锚点）。
+
 ---
 
 ## 七、待站主拍板汇总（动手前先看这里）
@@ -1280,7 +1324,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 
 - ~~**OG 分享卡要不要嵌封面**~~ ✅ 已拍板（2026-10-05）：**做，走受控抓取**，已落地 —— 见 §六「OG 分享卡嵌封面」。静态页卡 / 邮件头图 / 主题页 / X 帖卡片仍不出网，只有有公告图的条目、故事、发售、日报四类卡片会取一次图（5 秒上限、4MiB 上限，取不到退回纯文字）。热榜第一名的卡片本来就有图。
 
-- **W14**：变更 Diff 是否进 v1 API；要不要做公开的「更正日志」出口；要不要顺手修「`facts` 三列永不更新」这个上游问题（改了会影响现有聚簇与 digest 输入，风险要单独评估）。
+- ~~**W14**~~ ✅ 已定（2026-10-05）：变更清单进 v1 API（`StoryDetail.changes` + 时间线卡片 `change?: CardChange`），**不另做公开的「更正日志」出口**，**不复用** `events/corrections.ts` 的分组更正语义；**不动 `facts` 三列**（「`facts.subject/action/object` 永不更新」这个上游问题不在 W14 修，要改单独评估 —— 改了会影响现有聚簇与 digest 输入）。已落地：见 §六「W14（2026-10-05 完成）：情报变更 Diff」。
 - **W16**：Setlist 落库还是现算；歌名要不要进 `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍）；粉丝现场 repo 的版权边界（`site_fulltext` 只对 editorial 源全开）。
 
 - **联系邮箱**：`industry/site.ts:29` 现在填的是 `contact@girlsbands.com`。站主 2026-10-05 选「先留着，以后再说」；它同时喂 `/.well-known/security.txt`、`llms.txt` 的联系行与 RSS 的 author，**上线前必须确认这个邮箱真的能收信**（同 `docs/deploy.md:105`），否则改成一个能收的地址或置 `null`（`security.txt` 会回到 404）。
@@ -1290,6 +1334,6 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 - **提示词一律新增文件、不改 `industry/prompts/structure.md`**：提示词版本是内容哈希，改它 = 全部回执失效 + 已入库条目重跑结构步 + `grouping_status` 置 `pending`（`packages/backend/src/events/group.ts:237-241`）导致条目**短暂下架**。所以 W8 的 `live-ticket.md`、W11 的 `release.md`、W16 的 `setlist.md` 都是新文件。
 - **公开出口只从 `packages/backend/src/publication/` 读**（`tests/architecture.test.ts:57-64` 会拦）；**日期一律走 `deadlineRange`/`deadlineMonths`**，任何包都不许在别处另算日期；`/api/site/*` 与 `/og/*` 已被 `packages/contracts/src/http-policy.ts:97`/`:106` 覆盖，**不用登记 `API_OWNED_PATTERNS`**。
 - **成员与场馆都不进 `ENTITIES`**：会连带 `assets/band-logos/manifest.json` 一一对应校验、`scripts/fetch-band-logos.ts` 抓 164 个不存在的字标、主题 slug 校验全红。
-- **迁移编号**（按包号顺延，谁先落地谁拿号）：W7 `0059_source_timezone.sql`、W8 `0060_live_events.sql`、W9 `0061_ticket_rounds.sql`、W11 `0062_releases.sql`、**W12 无迁移**（原定的 `0063_subscriber_kinds.sql` 已取消）、**W13 `0063_member_mentions.sql`**（已落地）、W14 `0064_story_digest_facts.sql`、W16 `0065_setlist_entries.sql`、W17 `0066_rights_tiers.sql`、W18 `0067_feedback_targets.sql`（W10 与 W15 不建表、无迁移）。
+- **迁移编号**（按包号顺延，谁先落地谁拿号）：W7 `0059_source_timezone.sql`、W8 `0060_live_events.sql`、W9 `0061_ticket_rounds.sql`、W11 `0062_releases.sql`、**W12 无迁移**（原定的 `0063_subscriber_kinds.sql` 已取消）、**W13 `0063_member_mentions.sql`**（已落地）、**W14 `0064_story_digest_facts.sql`**（已落地）、W16 `0065_setlist_entries.sql`、W17 `0066_rights_tiers.sql`、W18 `0067_feedback_targets.sql`（W10 与 W15 不建表、无迁移）。
 - **任何重跑都换 `attemptTag`**（`packages/backend/src/editorial/analyze.ts` 的回执按 prompt version + 输入哈希复用，不换 tag 会把条目翻回旧状态）。
 - **不做**：账号/注册/登录、审核队列、众包直接改库、信源覆盖率与覆盖率评分（§四）。

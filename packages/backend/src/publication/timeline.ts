@@ -1,6 +1,7 @@
 // Selected news timeline: one card per fact, or per standalone article. Only duplicate reports
 // fold together. Each fact stays at its first appearance; other news in its story never moves it.
-import type { GroupInfo, TimelineCard, TimelineFilters, TimelineResponse } from "@girlsbands/contracts/site";
+import type { ChangeKind, GroupInfo, TimelineCard, TimelineFilters, TimelineResponse } from "@girlsbands/contracts/site";
+import { isLoudChange } from "@girlsbands/contracts/site";
 import { attachFeedDates } from "./feed-dates.ts";
 import { beijingDate, beijingMidnight } from "@girlsbands/contracts/time";
 import { sql } from "../db.ts";
@@ -18,6 +19,9 @@ export interface TimelineQuery extends TimelineFilters {
   limit?: number;
   now?: Date;
 }
+
+/** 时间线角标只提醒最近 7 天内的变化：更早的变化读者在事件页上看得见，不值得天天挂个 ⚠️。 */
+const CHANGE_BADGE_MS = 7 * 86_400_000;
 
 interface GroupRow {
   gk: string;
@@ -121,11 +125,37 @@ export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineRespo
       : Promise.resolve([] as Member[]),
     groupPool(q, now, factIds),
   ]);
-  const factInfo = new Map(
-    factIds.length ? (await sql<{ id: number; public_id: string }[]>`SELECT id, public_id FROM facts WHERE id IN ${sql(factIds)}`).map((f) => [f.id, f]) : [],
+  // 变更角标要顺着事实找到它所属的事件（facts.story_id → stories.public_id），所以这一读比原先多两列。
+  type FactInfo = { id: number; public_id: string; story_id: number | null; story_public_id: string | null };
+  const factInfo = new Map<number, FactInfo>(
+    factIds.length
+      ? (await sql<FactInfo[]>`
+        SELECT f.id, f.public_id, f.story_id, st.public_id AS story_public_id FROM facts f
+        LEFT JOIN stories st ON st.id = f.story_id WHERE f.id IN ${sql(factIds)}`).map((f) => [f.id, f] as [number, FactInfo])
+      : [],
   );
 
-  const planned: Array<{ key: string; anchorAt: string; id: string; group: GroupInfo | null }> = [];
+  // 情报变更（W14）：只给最近 7 天内有醒目变化的事件挂角标 —— 角标是提醒，不是日志。
+  const storyIds = [...new Set([...factInfo.values()].flatMap((f) => (f.story_id === null ? [] : [Number(f.story_id)])))];
+  const changed = new Map<number, { kinds: ChangeKind[]; at: Date }>();
+  if (storyIds.length) {
+    const rows = await sql<{ story_id: number; change_kinds: string[] | null; created_at: Date }[]>`
+      SELECT DISTINCT ON (story_id) story_id, change_kinds, created_at FROM story_digests
+      WHERE story_id = ANY(${storyIds}::bigint[]) ORDER BY story_id, version DESC`;
+    for (const row of rows) {
+      const kinds = (row.change_kinds ?? []).filter((kind): kind is ChangeKind => isLoudChange(kind as ChangeKind));
+      if (kinds.length > 0) changed.set(Number(row.story_id), { kinds, at: row.created_at });
+    }
+  }
+  const badgeFor = (factId: number): TimelineCard["change"] => {
+    const info = factInfo.get(factId);
+    if (!info || info.story_id === null || !info.story_public_id) return undefined;
+    const change = changed.get(Number(info.story_id));
+    if (!change || now.getTime() - change.at.getTime() > CHANGE_BADGE_MS) return undefined;
+    return { kinds: change.kinds, at: change.at.toISOString(), storyPublicId: info.story_public_id };
+  };
+
+  const planned: Array<{ key: string; anchorAt: string; id: string; group: GroupInfo | null; change?: TimelineCard["change"] }> = [];
   for (const g of page) {
     if (g.gk.startsWith("a")) {
       planned.push({ key: g.gk, anchorAt: g.anchor_at.toISOString(), id: g.gk.slice(1), group: null });
@@ -143,17 +173,17 @@ export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineRespo
       reportCount: new Set(reports.map((r) => r.article_id)).size,
     };
     const showGroup = group.reportCount > 1;
-    planned.push({ key: g.gk, anchorAt: g.anchor_at.toISOString(), id: rep.id, group: showGroup ? group : null });
+    planned.push({ key: g.gk, anchorAt: g.anchor_at.toISOString(), id: rep.id, group: showGroup ? group : null, change: badgeFor(factId) });
   }
 
   // Recheck scope when hydrating: a withdrawal may commit after the narrow representative read.
   const rows = new Map(planned.length ? (await sql<ItemRow[]>`
     SELECT ${ITEM_COLUMNS} ${ITEM_FROM} WHERE p.article_id IN ${sql(planned.map((p) => p.id))}
       AND ${selectedCondition(now)} ${filterSql(q)}`).map((row) => [row.id, row]) : []);
-  const cards: TimelineCard[] = planned.flatMap(({ id, key, anchorAt, group }) => {
+  const cards: TimelineCard[] = planned.flatMap(({ id, key, anchorAt, group, change }) => {
     const row = rows.get(id);
     if (!row) return [];
-    return [{ key, anchorAt, item: toFeedItemSummary(row), group }];
+    return [{ key, anchorAt, item: toFeedItemSummary(row), group, ...(change ? { change } : {}) }];
   });
 
   await attachFeedDates(cards.map((c) => c.item), now);

@@ -135,6 +135,7 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
     latestAt: latestAt.toISOString(),
     digest: text.digest,
     digestUpdatedAt: text.digestUpdatedAt?.toISOString() ?? null,
+    changes: text.changes,
     summary: text.summary,
     excerpt: !text.digest && !text.summary && origin?.summary ? { text: origin.summary, sourceName: publicSourceName(origin.source_name) } : null,
     latest: text.latest?.title ?? null,

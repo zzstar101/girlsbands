@@ -224,7 +224,7 @@ export function Timeline({ initial, filters, dates }: { initial: TimelineRespons
                     const delay = fresh ? Math.min(order++, 10) * 40 : 0;
                     return (
                       <TimelineSlot key={c.key} dataKey={c.key} at={c.anchorAt} fresh={fresh} delay={delay}>
-                        <FeedItem item={c.item} group={c.group} filters={filters} read={readSet.has(c.item.id)} onOpen={markRead} at={c.anchorAt} deadline={dates?.days.flatMap((d) => d.items).find((d) => d.itemId === c.item.id)} deadlineFrom={dates?.from} headliner={c.headliner} />
+                        <FeedItem item={c.item} group={c.group} filters={filters} read={readSet.has(c.item.id)} onOpen={markRead} at={c.anchorAt} deadline={dates?.days.flatMap((d) => d.items).find((d) => d.itemId === c.item.id)} deadlineFrom={dates?.from} headliner={c.headliner} change={c.change} />
                       </TimelineSlot>
                     );
                   })}

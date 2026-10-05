@@ -17,7 +17,7 @@ import { timezoneDate } from "@girlsbands/contracts/time";
 import { sql } from "../db.ts";
 import { deadlineInstant, isTimezone, splitDeadlineAt, timezoneOf } from "../sources/timezone.ts";
 import { entityIds, entityTags, publicSourceName, hasItemPage } from "./rules.ts";
-import { listedCondition } from "./scope.ts";
+import { evidenceCondition, listedCondition } from "./scope.ts";
 import { roundNote, roundSlotKind, type RoundSlot } from "./tickets.ts";
 
 const JST_OFFSET_MS = 9 * 3600 * 1000;
@@ -38,6 +38,41 @@ const ACTION_DAYS = 14;
 /** `YYYY-MM-DD` of the instant on the Japan calendar. */
 export function jstDate(instant: Date): string {
   return new Date(instant.getTime() + JST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * 情报变更（W14）落在雷达上的那句话：取消的演出不该再挂着等人抢票；延期或改期的演出只按最新一次
+ * 公告的日期算，否则旧公告里的原定日期会跟新日期一起列出来。两个窗口查询（按天、按月份）共用这组
+ * CTE 与下面两个条件，免得两边各写一份慢慢走散。
+ */
+function changeWindow(now: Date) {
+  return sql`changed AS (
+      SELECT DISTINCT ON (sd.story_id) sd.story_id, sd.change_kinds
+      FROM story_digests sd
+      WHERE sd.change_kinds && ARRAY['cancelled', 'postponed', 'time']
+      ORDER BY sd.story_id, sd.version DESC
+    ), retired AS (
+      SELECT story_id FROM changed WHERE 'cancelled' = ANY(change_kinds)
+    ), restated AS (
+      SELECT story_id FROM changed
+      WHERE NOT ('cancelled' = ANY(change_kinds)) AND change_kinds && ARRAY['postponed', 'time']
+    ), newest AS (
+      SELECT DISTINCT ON (f.story_id) f.story_id, p.article_id
+      FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
+      WHERE f.story_id IN (SELECT story_id FROM restated) AND ${evidenceCondition()} AND ${listedCondition(now)}
+      ORDER BY f.story_id, coalesce(p.published_at, p.discovered_at) DESC, p.article_id
+    )`;
+}
+
+/** 取消掉的演出：公告与轮次两支都要整条去掉。 */
+function notRetired() {
+  return sql`AND NOT EXISTS (SELECT 1 FROM retired r WHERE r.story_id = p.story_id)`;
+}
+
+/** 延期 / 改期过的演出：公告那一支只留最新一次公告，轮次那一支本来就是按演出重算的。 */
+function latestOnly() {
+  return sql`AND (p.story_id IS NULL OR NOT EXISTS (SELECT 1 FROM restated r WHERE r.story_id = p.story_id)
+      OR EXISTS (SELECT 1 FROM newest n WHERE n.story_id = p.story_id AND n.article_id = p.article_id))`;
 }
 
 /** A JST day shifted by whole days — month arithmetic for the calendar and the export. */
@@ -85,7 +120,7 @@ async function deadlineWindow(
   const storyFilter = opts.storyId === undefined ? sql`` : sql`AND p.story_id = ${opts.storyId}`;
   const subjectFilter = opts.subject === undefined ? sql`` : sql`AND p.tags && ${entityTags(opts.subject)}::text[]`;
   const rows = await sql<Row[]>`
-    WITH dated AS (
+    WITH ${changeWindow(now)}, dated AS (
       SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at,
              s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
              d.value->>'kind' AS kind, d.value->>'at' AS at, d.value->>'note' AS note,
@@ -101,6 +136,8 @@ async function deadlineWindow(
         ${storyFilter}
         ${subjectFilter}
         AND d.value->>'at' >= ${opts.from} AND d.value->>'at' < ${addDays(opts.to, 1)}
+        ${notRetired()}
+        ${latestOnly()}
         -- 这一天已经由轮次接管时不再重复列出：报告自己写出的票务日期与 ticket_rounds 说的是同一天。
         AND NOT EXISTS (
           SELECT 1 FROM ticket_rounds tr
@@ -127,6 +164,7 @@ async function deadlineWindow(
         ${itemFilter}
         ${storyFilter}
         ${subjectFilter}
+        ${notRetired()}
         AND e.slot_at IS NOT NULL
         AND e.slot_at >= ${opts.from} AND e.slot_at < ${addDays(opts.to, 1)}
     )
@@ -250,7 +288,7 @@ export async function deadlineRange(
 export async function deadlineMonths(now: Date, opts: { from: string; to: string; subject?: string }): Promise<string[]> {
   const subjectFilter = opts.subject === undefined ? sql`` : sql`AND p.tags && ${entityTags(opts.subject)}::text[]`;
   const rows = await sql<{ month: string }[]>`
-    WITH months AS (
+    WITH ${changeWindow(now)}, months AS (
       SELECT substring(d.value->>'at' FROM 1 FOR 7) AS month
       FROM publications p
       JOIN analyses an ON an.id = p.analysis_id
@@ -260,6 +298,8 @@ export async function deadlineMonths(now: Date, opts: { from: string; to: string
         AND jsonb_typeof(an.output->'fact'->'deadlines') = 'array'
         ${subjectFilter}
         AND d.value->>'at' >= ${opts.from} AND d.value->>'at' < ${addDays(opts.to, 1)}
+        ${notRetired()}
+        ${latestOnly()}
         -- 这一天已经由轮次接管时不再重复列出：报告自己写出的票务日期与 ticket_rounds 说的是同一天。
         AND NOT EXISTS (
           SELECT 1 FROM ticket_rounds tr
@@ -279,6 +319,7 @@ export async function deadlineMonths(now: Date, opts: { from: string; to: string
       ) AS e(slot_at)
       WHERE ${listedCondition(now)}
         ${subjectFilter}
+        ${notRetired()}
         AND e.slot_at IS NOT NULL
         AND e.slot_at >= ${opts.from} AND e.slot_at < ${addDays(opts.to, 1)}
     )

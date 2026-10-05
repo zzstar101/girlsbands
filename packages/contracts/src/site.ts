@@ -114,6 +114,48 @@ export interface GroupInfo {
   reportCount: number;
 }
 
+/**
+ * 情报变更（W14）：同一件事的后续报道改了哪一项。页面只在两处说这件事 —— 事件页首屏与时间线的
+ * ⚠️ 角标。四类醒目（取消 / 延期 / 会场 / 开演时间）：只有它们可能让读者白跑一趟；票价、票务轮次、
+ * 发售日与措辞的变化照列，不敲警钟。抽取里没有出演者字段，所以「换人」只能走 `text` 这条路 ——
+ * 它由模型从注意事项的原文里措辞，不猜。
+ */
+export const CHANGE_KINDS = ["cancelled", "postponed", "venue", "time", "rounds", "release", "text"] as const;
+
+export type ChangeKind = (typeof CHANGE_KINDS)[number];
+
+/** 只有这四类在页面上标醒目。事件页与时间线角标读同一个集合，免得两处各写一份。 */
+export const LOUD_CHANGE_KINDS: readonly ChangeKind[] = ["cancelled", "postponed", "venue", "time"];
+
+export function isLoudChange(kind: ChangeKind): boolean {
+  return LOUD_CHANGE_KINDS.includes(kind);
+}
+
+export interface StoryChange {
+  kind: ChangeKind;
+  /** 已经写成读者语言的一行（「开演时间 17:00 → 16:30」）；措辞在服务端，网页只负责显示。 */
+  text: string;
+  /** 说出新值的那篇报道；链到它。整条变更说不出处时是 null。 */
+  itemId: string | null;
+}
+
+export interface StoryChanges {
+  /** 「上一版 → 当前」这一次的变化，一项一条。没有可比的一版时是空数组。 */
+  items: StoryChange[];
+  /** 其中属于醒目四类的那些 —— 页面的 ⚠️ 与时间线角标按它显示。 */
+  kinds: ChangeKind[];
+  /** 当前这一版是什么时候写的。 */
+  at: string;
+}
+
+export interface CardChange {
+  kinds: ChangeKind[];
+  /** 这一版是什么时候写的。 */
+  at: string;
+  /** 变化所属的事件页；角标点进去看「上一版 → 这一版」。 */
+  storyPublicId: string;
+}
+
 export interface TimelineCard {
   key: string;
   anchorAt: string;
@@ -121,6 +163,10 @@ export interface TimelineCard {
   group: GroupInfo | null;
   /** The highest-scoring representative of this full day, independent of pagination. */
   headliner?: boolean;
+  /**
+   * 这件新闻所属的事件最近变了什么。只在 7 天内、且属于醒目四类时才有：角标是提醒，不是日志。
+   */
+  change?: CardChange;
 }
 
 export interface HotStripEntry {
@@ -453,6 +499,8 @@ export interface StoryDetail {
   latestAt: string | null;
   digest: string | null;
   digestUpdatedAt: string | null;
+  /** 上一版报道 → 当前的变化，只在事件页首屏出现一次；没有可比版本时为 null。 */
+  changes: StoryChanges | null;
   /** The story's own factual summary, when it has one. */
   summary: string | null;
   /** Without a digest or summary: the summary of the report the story started from. */

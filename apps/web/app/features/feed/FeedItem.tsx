@@ -9,7 +9,7 @@ import { memo, useEffect, useRef, type CSSProperties } from "react";
 import { Link } from "react-router";
 import { IntentLink } from "../../components/ui/IntentLink";
 import { CoverImage } from "../../components/ui/CoverImage";
-import type { GroupInfo, FeedItemSummary, TimelineFilters, DeadlineView } from "@girlsbands/contracts/site";
+import type { CardChange, GroupInfo, FeedItemSummary, TimelineFilters, DeadlineView } from "@girlsbands/contracts/site";
 import { SameEventBadge, SelectedBadge } from "../../components/ui/Badge";
 import { ArtistLine } from "../../components/ui/ArtistBadge";
 import { EventTypeBadge } from "../../components/ui/EventTypeBadge";
@@ -38,9 +38,11 @@ export interface FeedItemProps {
   deadline?: DeadlineView;
   deadlineFrom?: string;
   headliner?: boolean;
+  /** 这件事最近变了什么（W14）：角标只在 7 天内、且属于醒目四类时由服务端给。 */
+  change?: CardChange;
 }
 
-export const FeedItem = memo(function FeedItem({ item, group, filters, read = false, onOpen, showTags = false, at, deadline, deadlineFrom, headliner = false }: FeedItemProps) {
+export const FeedItem = memo(function FeedItem({ item, group, filters, read = false, onOpen, showTags = false, at, deadline, deadlineFrom, headliner = false, change }: FeedItemProps) {
   deadline ??= item.dates?.[0];
   deadlineFrom ??= item.datesFrom;
   const ref = useRef<HTMLElement>(null);
@@ -81,6 +83,19 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
           <span className="hidden lg:inline-flex">
             {item.sameEvent ? <SameEventBadge /> : <SelectedBadge />}
           </span>
+        )}
+        {/* 情报变更（W14）：这件事的后续报道改了开演时间、换了会场或干脆取消时，卡片自己先说一声。
+            只在 7 天内显示（服务端按 change_kinds 判），点进去是事件页的变更块。 */}
+        {change && (
+          <Link
+            viewTransition
+            to={`/story/${change.storyPublicId}`}
+            className="relative z-10 inline-flex shrink-0 items-center gap-1 rounded-full border border-amber/40 bg-amber-soft px-2 py-[1px] text-[11.5px] font-semibold text-amber-ink transition-colors hover:border-amber"
+          >
+            <span aria-hidden="true">⚠</span>
+            <span className="hidden lg:inline">情报有变更</span>
+            <span className="lg:hidden">有变更</span>
+          </Link>
         )}
         <span className="ml-auto flex shrink-0 items-center gap-1 pl-2 lg:gap-1.5">
           <span className="hidden lg:inline-flex">
