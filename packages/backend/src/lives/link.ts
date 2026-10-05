@@ -12,6 +12,10 @@
 // 推不出主体或日期就不建实体：一场演出宁可没有页面，也不能把两场演出并成一个。会场只认「恰好一个」
 // 命中 —— 巡演公告里同时写着几个会场时留 null，让键退化成 `(主体, 开演日, 开演时刻)`。
 //
+// 反过来，同一场演出也不能被拆成两页：两家分别报道时，一家可能把主体标成企划、会场又写成另一种写法，
+// 键就错开了（香港 2026-10-02 的 `girls-band-cry` / `togenashi-togeari` 两页）。所以新建之前先按
+// `sameShow()` 找一遍同一天同一开演时刻、演出名一致、会场对得上的行 —— 有就补空，不新建。
+//
 // 「有日期的活动」不等于演出：生放送（`stream`）、展览与快闪店（`collab`）也会被 structure 抽成
 // `kind='event'` 的日期。所以一条事实底下至少得有一个 `publications.category` 是 `live` 或 `ticket` 的
 // 条目，才认它是演出（dev 库实测：6 个候选里 `stream`/`collab` 三条是误建）。同一事实可能同时挂着
@@ -71,6 +75,31 @@ export function venueOf(text: string): string | null {
   return hits.length === 1 ? (hits[0]!.forms[0] ?? null) : null;
 }
 
+/**
+ * 比较用的形态：全半角、大小写、空白与标点都抹掉。`“凛音の理”` 与 `「凛音の理」`、`AsiaWorld-Summit`
+ * 与 `asiaworldsummit` 都是同一串字。
+ */
+function comparable(value: string): string {
+  return value.normalize("NFKC").toLowerCase().replace(/[\p{P}\p{S}\s]/gu, "");
+}
+
+/** 会场名去掉括号里的补充（`Hall 2`、`2号館` 这类）：同一座场馆的两种写法要对得上。 */
+function venueShape(venue: string | null): string {
+  return comparable((venue ?? "").replace(/[（(\[【][^)）\]】]*[)）\]】]/g, ""));
+}
+
+/**
+ * 同一场演出：同一天、同一开演时刻、演出名一致、会场对得上（去掉括号补充后相等，或者一侧没写）。
+ * 同一场演出被两家分别报道时，一家可能把主体标成企划、会场也写成另一种写法 —— 那种情况下键会推成
+ * 两行，页面就拆成两页了（香港 2026-10-02 就是这么裂成 `girls-band-cry` 与 `togenashi-togeari` 两页的）。
+ */
+function sameShow(row: { title: string; venue: string | null }, key: LiveKey, title: string): boolean {
+  if (!key.startsTime || comparable(row.title) !== comparable(title)) return false;
+  const a = venueShape(row.venue);
+  const b = venueShape(key.venue);
+  return a === "" || b === "" || a === b;
+}
+
 export function deriveLiveKey(material: LiveMaterial, timezone: Timezone): LiveKey | null {
   const subjectEntity = material.subjects.find((s) => s in ENTITIES);
   if (!subjectEntity) return null;
@@ -102,6 +131,16 @@ export async function upsertLiveEvent(
   key: LiveKey,
   opts: { title: string; storyId: number | null; at: Date },
 ): Promise<number> {
+  // 先看同一场是不是已经有一行：键推成两行的时候（主体、会场写法不同），名字与开演时刻对得上就不新建。
+  if (key.startsTime) {
+    const twins = await db<{ id: string; title: string; venue: string | null }[]>`
+      SELECT id, title, venue FROM live_events WHERE starts_on = ${key.startsOn} AND starts_time = ${key.startsTime}`;
+    const twin = twins.find((row) => sameShow(row, key, opts.title));
+    if (twin) {
+      await patchLiveEvent(db, Number(twin.id), key, opts.at, null, opts.storyId);
+      return Number(twin.id);
+    }
+  }
   const rows = await db<{ id: string }[]>`
     INSERT INTO live_events (public_id, title, subject_entity, venue, timezone, starts_on, ends_on, starts_time, status, story_id, first_seen_at, updated_at)
     VALUES (
@@ -119,9 +158,10 @@ export async function upsertLiveEvent(
 
 /**
  * 已经挂好身份的 fact 再来一条报告：只补空，不覆盖。开演时刻与会场可能撞上另一行已经占住的同一个键
- * （唯一索引），那时保持原样 —— 同一场演出被拆成两页，比丢掉一条已经挂上的事实轻。
+ * （唯一索引），那时保持原样 —— 补不上空比丢掉一条已经挂上的事实轻。
  *
  * `modelTitle` 是阶段 B 给的演出名：它比阶段 A 的临时标题（站内中文标题）准，来了就换掉。
+ * `storyId` 只在原来没挂事件时补上（一场演出被两条事件分别报道时，页面至少指得回一条）。
  */
 export async function patchLiveEvent(
   db: Db,
@@ -129,6 +169,7 @@ export async function patchLiveEvent(
   key: LiveKey,
   at: Date,
   modelTitle: string | null = null,
+  storyId: number | null = null,
 ): Promise<void> {
   try {
     await db`
@@ -137,6 +178,7 @@ export async function patchLiveEvent(
         venue = COALESCE(live_events.venue, ${key.venue}),
         starts_time = COALESCE(live_events.starts_time, ${key.startsTime}),
         ends_on = COALESCE(live_events.ends_on, ${key.endsOn}),
+        story_id = COALESCE(live_events.story_id, ${storyId}),
         status = CASE WHEN live_events.status = 'scheduled' THEN ${key.status} ELSE live_events.status END,
         updated_at = ${at}
       WHERE id = ${id}`;
@@ -199,7 +241,7 @@ export async function linkFactLiveEvent(db: Db, factId: number, articleId: strin
     const [current] = await db<{ subject_entity: string; starts_on: string }[]>`
       SELECT subject_entity, starts_on::text AS starts_on FROM live_events WHERE id = ${liveId}`;
     const same = current ? keys.filter((k) => k.subjectEntity === current.subject_entity && k.startsOn === current.starts_on) : [];
-    if (same.length > 0) await patchLiveEvent(db, liveId, mergeKeys(same), new Date(), modelTitleOf(rows));
+    if (same.length > 0) await patchLiveEvent(db, liveId, mergeKeys(same), new Date(), modelTitleOf(rows), fact.story_id === null ? null : Number(fact.story_id));
     return liveId;
   }
   if (liveRows.length === 0) return null;

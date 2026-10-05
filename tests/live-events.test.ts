@@ -135,6 +135,48 @@ test("同一场演出只有一行：同一条事实挂两次、再来一份报�
   assert.equal(rows!.n, 1);
 });
 
+test("同一场演出被两家分别报道（主体标成企划、会场写法不同）也只留一页", async () => {
+  // 香港 2026-10-02 实测的裂法：一篇把主体标成企划 `girls-band-cry`（企划的公告先出现），另一篇标成
+  // 乐队 `togenashi-togeari`；会场一处写 `AsiaWorld-Summit（アジアワールド・エキスポ Hall 2）`，另一处
+  // 写 `AsiaWorld-Summit (アジア・ワールド・エキスポ 2号館)`。词表里没有这座场馆，键于是错开成两行。
+  const show = `アジアツアー 香港公演 ${T}`;
+  const one = await liveFact({
+    category: "live",
+    subjects: ["girls-band-cry", "togenashi-togeari"],
+    title: show,
+    deadlines: [{ kind: "event", at: "2026-10-02T19:00" }],
+    live: { venue: "AsiaWorld-Summit（アジアワールド・エキスポ Hall 2）", startsTime: "19:00", status: "scheduled" },
+    text: "会場：AsiaWorld-Summit（アジアワールド・エキスポ Hall 2） 19:00 開演",
+  });
+  const two = await liveFact({
+    category: "ticket",
+    subjects: ["togenashi-togeari"],
+    title: show,
+    deadlines: [{ kind: "event", at: "2026-10-02T19:00" }],
+    live: { venue: "AsiaWorld-Summit (アジア・ワールド・エキスポ 2号館)", startsTime: "19:00", status: "scheduled" },
+    text: "会場：AsiaWorld-Summit (アジア・ワールド・エキスポ 2号館) 19:00 開演",
+  });
+  const id = await linkLiveEvent(one.factId, one.articleId);
+  assert.notEqual(id, null);
+  assert.equal(await linkLiveEvent(two.factId, two.articleId), id, "同一天同一开演时刻、演出名一致、会场写法对得上 ⇒ 同一页");
+  const [kept] = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM live_events WHERE starts_on = '2026-10-02' AND starts_time = '19:00' AND title = ${show}`;
+  assert.equal(kept!.n, 1, "只留一行");
+  const facts = await sql<{ live_event_id: string }[]>`SELECT live_event_id FROM facts WHERE id IN (${one.factId}, ${two.factId})`;
+  assert.deepEqual(facts.map((f) => Number(f.live_event_id)), [id, id], "两条事实挂的是同一行");
+
+  // 反过来：同一天同一时刻、同一个会场，但演出名不同 —— 对盘时各乐队各一页，这条规则没有被合并掉。
+  const other = await liveFact({
+    category: "live",
+    subjects: ["mygo"],
+    title: `別の対バン ${T}`,
+    deadlines: [{ kind: "event", at: "2026-10-02T19:00" }],
+    live: { venue: "AsiaWorld-Summit（アジアワールド・エキスポ Hall 2）", startsTime: "19:00", status: "scheduled" },
+    text: "会場：AsiaWorld-Summit（アジアワールド・エキスポ Hall 2） 19:00 開演",
+  });
+  assert.notEqual(await linkLiveEvent(other.factId, other.articleId), id, "名字不同就是另一场");
+});
+
 test("日期取自条目自己的那一次分析，标题取演出类报告的中文标题", async () => {
   // 一篇 live（写着演出名，没有日期）与一篇 ticket（写着日期）同属一条事实。
   const named = await report({ category: "live", deadlines: [], subjects: ["girls-band-cry"], title: `ガールズバンドクライ Special LIVE “赤色の響祭” ${T}` });
