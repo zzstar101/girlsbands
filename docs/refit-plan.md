@@ -473,10 +473,13 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 | 库里的三场 | `kuzumimizuku 2026-10-18`（会场留空：`代官山SPACE ODD` 不在场馆词表里，宁缺勿错的降级）、`girls-band-cry ぴあアリーナMM 2026-11-03`、`mygo 2026-11-14` |
 | 出口 | 三个 public_id 的 `/api/site/lives/<id>` 全 200（阶段 ticketing、`reportCount` 2/2/3）；`/live/<id>` 200 / 未知 id 404；`/topics/girls-band-cry` 的 Live 区块链到演出页；`/story/<id>` 有「这场演出」胶囊；`/sitemap.xml` 含 3 条 `/live/<id>` |
 | 检查 | `npm run typecheck` 全绿；`tests/live-events.test.ts` 8/8、`tests/analyze.test.ts` 12/12、`tests/deadlines-time.test.ts` 8/8；全量 `npm test` 见「六、验证记录」 |
-| 阶段 B 重跑 | **还没跑**：`scripts/reanalyze-live-tickets.ts --dry` → `candidates: 28`（Live/票务、有开演日期、还没有 `output.live`）。换 tag 会让每条约 6 次调用（≈170 次）失效重问，等站主开窗口、打开 `MODEL_CALLS_ENABLED` |
-| 已知缺口 | `publications.category='live'/'ticket'` 的条目大多还没进 facts，所以「一场 Live 一条时间线」目前只在少数条目上成立；`代官山SPACE ODD` 等会场补进词表会改 `GLOSSARY_VERSION` → 全站重译，**要单独一次决定** |
+| 阶段 B 重跑 | **已完成（2026-10-05）**：`scripts/reanalyze-live-tickets.ts --tag live-ticket-v1` → `queued: 28`（换 tag 后约 170 次调用）。跑完 `analyses WHERE output ? 'live'` = **24**（其中 13 条抽到轮次、共 14 个轮次窗口），`articles.processing_state='failed'` 全程 0 |
+| 重跑为什么不建演出（重要） | `packages/backend/src/events/group.ts` 的 `decide()` 有多条提前返回，而 `linkLiveEvent` 只挂在「写事实」那条路径上：24 条里 **21 条是历史条目**（`isHistorical(a) = a.backfill && (!a.published_at \|\| a.discovered_at - a.published_at > 48h)`，`packages/backend/src/content/materials.ts:95-97`）→ `verdict: "historical"`、只 `markGrouped`、**永远不建 fact**（`.data/w8-probe.ts` 逐条验证过：这 21 条 `fact_articles` 行数为 0）；剩下 3 条本来就有事实，但归组走 `if (kept && !recheckSelection)` 提前返回（重分析后 `grouping_status` 已是 `complete`）也没到钩子。结论：**重跑过的条目不会再归组**，新抽到的轮次只能由回填脚本补 |
+| 回填收尾 | `scripts/backfill-live-events.ts` 的候选条件放宽成 `(f.live_event_id IS NULL OR an.output ? 'live') AND an.output->'fact'->'deadlines' @> '[{"kind":"event"}]'`，再跑得到 `candidates: 5, linked: 2, no identity: 3`（被拒的仍是生放送 / 展览 / 快闪店），写入 2 条轮次 —— `tNasiklIqz44` general（kuzumimizuku，`2026-10-03T20:00`）、`tqJ5udF6TwO8` fc · チケットぴあ（girls-band-cry，`2026-10-03T20:00` → `2026-10-12T23:59`）+ 3 条 `ticket_round_events` |
+| 已知缺口 | `publications.category='live'/'ticket'` 的条目大多还没进 facts，所以「一场 Live 一条时间线」目前只在少数条目上成立；三场里 mygo `2026-11-14` 是 0 轮次（它的事实 14 从没重分析过、没有 `output.live`）；`代官山SPACE ODD` 等会场补进词表会改 `GLOSSARY_VERSION` → 全站重译，**要单独一次决定** |
+| 模型质量问题（照实记） | 事实 4 的引文里明明有 `受付期間:2026年10月3日(土)20:00〜10/10(土)23:59`，模型却把 `applyEnd` 写成 `null`（没把 `10/10` 归一成年份）。这是提示词/模型的问题，不是 `normalizeRounds` 的校验漏洞 —— 校验只做「引文里真的出现了吗」，不替模型补年份 |
 
-**待站主拍板**：Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结的 Live 页要不要长期保留；阶段 B 灰度重跑愿意花多少模型钱 / 接受多长的短暂下架。
+**待站主拍板**：Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结的 Live 页要不要长期保留。（阶段 B 灰度重跑已跑完，见上表。）
 **工作量**：2.5 天（阶段 A 约 1 天，阶段 B 与页面 1.5 天），阶段 A 零模型成本。
 
 ---
@@ -1099,7 +1102,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 | **W17** | 官方判据用 `owner_entity_id IS NOT NULL`（12 个 T1_5 官方 X 也算官方，含 5 个成员个人 X）还是 `tier = 'T1'`（`first_party` 只认 T1，见 `packages/backend/src/publication/publish.ts:294`） | 前者更准，后者更保守 |
 | **W12** | 关注 → 邮件的 token 方案：**不做**读者端自生成 token（它同时是 `List-Unsubscribe` 凭据，自生成会把 `subscribers.token` 变成可猜面），改成 `/subscriptions/:token` 短链别名 | 按建议做 |
 | ~~**W7**~~ ✅ | ~~`.ics` 用当地时刻（日本 18:30 / 中国 15:30）还是统一北京时间；北京时间 21:00 之后的场次在「今天截止」里算哪天~~ | **已拍板 2026-10-05**：用当地时刻 + `TZID`、按当地日历（已完成） |
-| **W8** | Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留 | **代码按「一站一实体」落地了**（键 = 主体 + 会场 + 开演日 + 开演时刻，同一场取信息最全的那篇报告），要改粒度只需动唯一键与 `mergeKeys`；已完结页现在照常保留。**阶段 B 灰度重跑还没跑**：`candidates: 28`，换 tag 后每条约 6 次调用（≈170 次），要开窗口并接受短暂下架 |
+| **W8** | Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留 | **代码按「一站一实体」落地了**（键 = 主体 + 会场 + 开演日 + 开演时刻，同一场取信息最全的那篇报告），要改粒度只需动唯一键与 `mergeKeys`；已完结页现在照常保留。**阶段 B 灰度重跑 2026-10-05 已跑完**（`candidates: 28`，`tag live-ticket-v1`，约 170 次调用）：24 条抽到 `output.live`，但**没有新建演出、也没有轮次** —— 重跑过的条目不会再归组（21 条是历史条目、不建事实；其余走提前返回），新轮次改由回填脚本补进 `ticket_rounds`（2 条）。详见 §六 W8 的「实现与验证」 |
 | ~~**W9**~~ ✅ | ~~`deadlines` 与 `ticket_rounds` 哪个权威；`status` 要不要含**个人**当落；`platform` 要不要中文化~~ | **已拍板 2026-10-05**：轮次权威、`deadlines` 只是投影；不含个人当落（站不持有账号）；平台名**照原文**、不做中文显示名映射（`industry/glossary.ts` 一个字不改 —— 改任何 `forms` 都会让 `GLOSSARY_VERSION` 变、全站重译）。已落地：见上面「实现与验证（2026-10-05 完成）」 |
 | ~~**W10**~~ ✅ | ~~首页 horizon 取 14 还是 30 天；「即将开售」是否包含周边开订（`merch_start`）与 CD/BD 发售日（`release_start`）~~ | **已拍板 2026-10-05**：首页 **14 天**（30 天全量留在 `/deadlines`）；「即将开售」= `sale_start` + `release_start` + `merch_start`。已落地：见 §六「W10 · 行动中心」的「实现与验证（2026-10-05 完成）」 |
 | **W11** | 店铺特典真源（公告通常只写「対象店舗」）：开人工 `industry/releases/{slug}.json` 还是接受「模型只抽公告写了的」；粒度是 1 个 `releases` + 3 个 editions 还是 3 行；存量 21 条 `other` 要不要花钱重抽 | 先只抽公告、粒度取前者；重抽等 W7 落地后一起做 |
