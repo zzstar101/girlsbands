@@ -223,7 +223,7 @@ export default function StoryPage() {
       </nav>
 
       {/* 事件的主视觉取自它自己那些报道里第一张能用的图；没有就整页还是纯文字。 */}
-      <CoverImage cover={story.cover} className="max-w-[960px] shadow-sm" priority />
+      <CoverImage cover={story.cover} className="h-auto w-full max-w-[960px] rounded-lg shadow-sm" priority />
 
       <header className="max-w-[960px] pt-3 lg:pt-0">
         <div className="flex items-center gap-2 text-[12px] text-ink-4">

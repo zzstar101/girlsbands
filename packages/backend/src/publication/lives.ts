@@ -10,7 +10,7 @@ import { deadlineRange } from "./deadlines.ts";
 import { storyReportCondition } from "./scope.ts";
 import { ROUND_SLOTS, roundSlotKind, roundsOf } from "./tickets.ts";
 import { liveReports } from "./report-views.ts";
-import { coverOfItems } from "./covers.ts";
+import { coverOfItems, coversOfItems } from "./covers.ts";
 
 /** The dates of a live's own reports, wide enough to hold a lottery that opened long before the show. */
 const DATE_WINDOW_DAYS = 400;
@@ -131,11 +131,15 @@ export async function livesForSubject(subject: string, now: Date, limit = 12): P
     if (ad !== bd) return ad - bd;
     return ad === 0 ? a.row.starts_on.localeCompare(b.row.starts_on) : b.row.starts_on.localeCompare(a.row.starts_on);
   });
-  return ordered.slice(0, limit).map(({ row, dates: own }) => ({
+  // 图上只留实际会显示的那几场：先切出 limit，再一次性把它们的图取回来。
+  const shown = ordered.slice(0, limit);
+  const covers = await coversOfItems(shown.flatMap(({ row }) => row.item_ids), now);
+  return shown.map(({ row, dates: own }) => ({
     ...refOf(row, own, now),
     endsOn: row.ends_on,
     daysLeft: daysLeftOf(row, now),
     reportCount: row.report_count,
+    cover: row.item_ids.map((id) => covers.get(id)).find((cover) => cover !== undefined) ?? null,
   }));
 }
 

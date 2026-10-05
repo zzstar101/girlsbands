@@ -70,7 +70,7 @@ export default function ReleaseRoute() {
         <CoverImage
           cover={release.cover}
           sizes="(min-width: 1024px) 280px, calc(100vw - 32px)"
-          className="max-w-[280px] shadow-sm"
+          className="h-auto w-full max-w-[280px] rounded-lg shadow-sm"
           priority
         />
         <header className="min-w-0 flex-1 pb-5">

@@ -94,6 +94,12 @@ export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "sum
     quoted: Omit<NonNullable<XPostView["quoted"]>, "url"> | null;
   }) | null;
   /**
+   * The small picture a list card shows at its left, in the 336-wide rendition (card set, so the
+   * caller must give `sizes`); null when the announcement carries no usable picture. An X post
+   * shows its own media instead — this one is the announcement's, not the post's.
+   */
+  cover: CoverView | null;
+  /**
    * A selected report whose fact is represented by another report (全部动态 and search): that report,
    * so the card can say "同一新闻，精选展示《…》" instead of claiming a seat of its own.
    */
@@ -781,6 +787,8 @@ export interface LiveEventSummary extends LiveRef {
   /** Days from today to `startsOn` on the event's own calendar; negative once past. */
   daysLeft: number | null;
   reportCount: number;
+  /** 这场演出的主视觉：它自己报告里的第一张能用的图，没有就是 null（列表用 336 档，页面用 1200 档）。 */
+  cover: CoverView | null;
 }
 
 export interface LiveEventView extends LiveEventSummary {
@@ -796,8 +804,6 @@ export interface LiveEventView extends LiveEventSummary {
   rounds: TicketRoundView[];
   /** The event page its reports are grouped under, when they are grouped under one. */
   story: { publicId: string; title: string } | null;
-  /** The lead picture of its reports; null when none of them carries one. */
-  cover: CoverView | null;
 }
 
 // Ticket rounds (一场演出的一条受理)
@@ -979,4 +985,6 @@ export interface ReleaseSummary {
   daysLeft: number | null;
   editionCount: number;
   hasSerial: boolean;
+  /** 说出这张碟的那篇公告的图（列表用 336 档，页面用 1200 档）；公告没图就是 null。 */
+  cover: CoverView | null;
 }

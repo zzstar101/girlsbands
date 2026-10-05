@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 import { SITE } from "@girlsbands/industry/site";
 import { Link, redirect, useLoaderData, useRouteLoaderData } from "react-router";
 import type { Route } from "./+types/topic";
-import type { CalendarResponse, TopicPage, TopicScope } from "@girlsbands/contracts/site";
+import type { CalendarResponse, CoverView, TopicPage, TopicScope } from "@girlsbands/contracts/site";
 import { tracksAsSubject } from "@girlsbands/contracts/site";
 import { edgeTtl, loadOr404 } from "../lib/api.server";
 import { breadcrumbLd, pageMeta, titled, topicLd } from "../lib/seo";
@@ -18,6 +18,7 @@ import { MonthCalendar } from "../features/topic/Calendar";
 import { EmptyState } from "../components/ui/Page";
 import { IconArrowLeft } from "../components/icons";
 import { Badge } from "../components/ui/Badge";
+import { CoverImage } from "../components/ui/CoverImage";
 import { LIVE_STAGES, openStage } from "../features/feed/lives";
 import { RELEASE_KINDS } from "../features/feed/releases";
 import { beijingDate } from "@girlsbands/contracts/time";
@@ -100,6 +101,11 @@ export function meta({ loaderData }: Route.MetaArgs) {
   });
 }
 
+/** 列表行首的小图：44×32 裁切；公告没图就什么都不画（不占位）。 */
+function RowCover({ cover }: { cover: CoverView | null }) {
+  return <CoverImage cover={cover} sizes="44px" className="h-[32px] w-[44px] shrink-0 rounded object-cover" />;
+}
+
 /**
  * 这个企划/乐队接下来的演出。月历回答「这个月有什么」，这一段回答「哪一场、到哪一步、还剩几天」——
  * 两处读的是同一批日期（api 的 lives 与 calendar 都出自 facts 的 deadlines），不会各算各的。
@@ -116,6 +122,7 @@ function LiveSection({ lives }: { lives: TopicPage["lives"] }) {
           const stage = LIVE_STAGES[l.stage];
           return (
             <li key={l.publicId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+              <RowCover cover={l.cover} />
               <span className="num w-[104px] shrink-0 text-[13px] text-ink-2">{monthDay(l.startsOn)}（{weekdayShort(l.startsOn)}）</span>
               <Link viewTransition to={`/live/${l.publicId}`} prefetch="intent" className="min-w-0 flex-1 truncate text-[14.5px] font-[650] text-ink transition-colors hover:text-accent">
                 {l.title}
@@ -148,6 +155,7 @@ function ReleaseSection({ releases }: { releases: TopicPage["releases"] }) {
           const kind = RELEASE_KINDS[r.kind];
           return (
             <li key={r.publicId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+              <RowCover cover={r.cover} />
               <span className="num w-[104px] shrink-0 text-[13px] text-ink-2">
                 {r.releaseOn ? `${monthDay(r.releaseOn)}（${weekdayShort(r.releaseOn)}）` : "日期未定"}
               </span>

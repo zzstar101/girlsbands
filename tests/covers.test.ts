@@ -12,8 +12,10 @@ import { publishArticle } from "@girlsbands/backend/publication/publish";
 import { firstPicture, pickPicture } from "@girlsbands/backend/lib/image-url";
 import { loadItemDetail } from "@girlsbands/backend/publication/detail";
 import { loadStoryDetail } from "@girlsbands/backend/publication/stories";
-import { loadLive } from "@girlsbands/backend/publication/lives";
-import { loadRelease } from "@girlsbands/backend/publication/releases";
+import { loadLive, livesForSubject } from "@girlsbands/backend/publication/lives";
+import { loadRelease, releasesForSubject } from "@girlsbands/backend/publication/releases";
+import { coversOfItems } from "@girlsbands/backend/publication/covers";
+import { loadPool } from "@girlsbands/backend/publication/pool";
 
 const T = `cov-${tag()}`;
 // JST 2026-10-01 12:00。
@@ -134,4 +136,51 @@ test("没有图的公告就保持纯文字：cover 是 null，不是空壳", asy
   assert.equal(detail.kind, "found");
   assert.equal(detail.kind === "found" ? detail.item.cover : "missing", null);
   assert.equal((await loadStoryDetail(storyId, NOW))?.cover ?? null, null);
+});
+
+// 列表里的小图：跟页面主视觉读同一张画，只是换成 336 那档（card 的两级 srcSet），
+// 而且一场演出 / 一张碟各归各的 —— 列表一次查一批，不能把别人的图贴到自己身上。
+test("列表出口用 336 档，并按条目各归各的图", async () => {
+  const title = `一覧の告知 ${T}`;
+  const article = await material({
+    title,
+    tags: [T],
+    media: [
+      { kind: "image", url: FAVICON },
+      { kind: "image", url: KEY, width: 1024, height: 576 },
+    ],
+  });
+  const { factId } = await publish(article, title);
+  const [live] = await sql<{ id: string; public_id: string }[]>`
+    INSERT INTO live_events (public_id, title, subject_entity, timezone, starts_on)
+    VALUES (${`l2${T}`}, ${title}, 'mygo', 'Asia/Tokyo', '2026-12-21') RETURNING id, public_id`;
+  await sql`UPDATE facts SET live_event_id = ${live!.id} WHERE id = ${factId}`;
+  const [release] = await sql<{ public_id: string; subject_entity: string }[]>`
+    SELECT public_id, subject_entity FROM releases WHERE first_article_id = ${article}`;
+  assert.ok(release, "这条公告建出了一行碟");
+
+  const feed = (await loadPool({ tag: T, now: NOW })).items.find((i) => i.id === article);
+  assert.ok(feed, "条目出现在列表里");
+  assert.match(feed.cover?.url ?? "", /mode=image-336/, "列表用 336 那一档");
+  assert.equal(feed.cover?.srcSet?.split(", ").length, 2, "card 的两级 srcSet 都在");
+  assert.equal(feed.cover?.width, 1024);
+
+  const liveSummary = (await livesForSubject("mygo", NOW)).find((l) => l.publicId === live!.public_id);
+  assert.equal(liveSummary?.cover?.url, feed.cover?.url, "主题页的演出行用同一个列表档");
+  const releaseSummary = (await releasesForSubject(release!.subject_entity, NOW)).find((r) => r.publicId === release!.public_id);
+  assert.equal(releaseSummary?.cover?.url, feed.cover?.url, "主题页的发售行用同一个列表档");
+
+  // 同一张画在两个出口：签名只对自己的查询串有效，所以比的是那串上游地址，外加各自该有的档位。
+  const upstream = (u: string) => new URL(u, "https://site.test").searchParams.get("u");
+  const detail = await loadItemDetail(article, "zh", NOW);
+  const detailCover = detail.kind === "found" ? detail.item.cover : null;
+  assert.match(detailCover?.url ?? "", /mode=image-1200/);
+  assert.equal(upstream(detailCover!.url), upstream(feed.cover!.url), "页面与列表读的是同一张画");
+
+  // 批量归位：没图的条目不在 Map 里，不会拿邻居的图顶上。
+  const plain = await material({ title: `図のない一覧 ${T}`, media: [] });
+  await publish(plain, `図のない一覧 ${T}`);
+  const covers = await coversOfItems([article, plain], NOW);
+  assert.equal(covers.get(article)?.url, feed.cover?.url);
+  assert.equal(covers.get(plain) ?? null, null);
 });

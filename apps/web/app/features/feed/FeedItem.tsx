@@ -8,6 +8,7 @@
 import { memo, useEffect, useRef, type CSSProperties } from "react";
 import { Link } from "react-router";
 import { IntentLink } from "../../components/ui/IntentLink";
+import { CoverImage } from "../../components/ui/CoverImage";
 import type { GroupInfo, FeedItemSummary, TimelineFilters, DeadlineView } from "@girlsbands/contracts/site";
 import { SameEventBadge, SelectedBadge } from "../../components/ui/Badge";
 import { ArtistLine } from "../../components/ui/ArtistBadge";
@@ -55,6 +56,8 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
     return () => observer.disconnect();
   }, [item.id]);
   const isX = item.channel === "x" && !!item.x;
+  // X 帖的图由帖子自己带（MediaThumbs），卡片左侧这一张只给别的公告用。
+  const cover = isX ? null : item.cover;
   const open = () => {
     rememberPreview(item);
     onOpen?.(item.id);
@@ -99,14 +102,18 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
           </IntentLink>
         </p>
       ) : (
-        <>
-          <h3 className={`mt-1.5 line-clamp-2 text-[16.5px] font-extrabold leading-[1.45] tracking-[-0.01em] lg:mt-2 lg:line-clamp-none lg:text-[19px] lg:leading-[1.4] ${read ? "text-ink-4" : "text-ink"}`}>
-            <IntentLink viewTransition to={`/items/${item.id}`} onClick={open} className="after:absolute after:inset-0 after:content-['']">
-              {item.title}
-            </IntentLink>
-          </h3>
-          {item.summary && <p className="mt-1 line-clamp-2 text-[14.5px] leading-[1.7] text-ink-3 lg:mt-2 lg:line-clamp-3 lg:text-[15px] lg:leading-[1.75]">{item.summary}</p>}
-        </>
+        // 公告自己带图时，标题与摘要缩到左边一条缩略图旁边；没图时这一层不产生任何样式。
+        <div className={cover ? "mt-1.5 flex items-start gap-3 lg:mt-2 lg:gap-4" : undefined}>
+          {cover && <CoverImage cover={cover} sizes="(min-width: 1024px) 120px, 84px" className="h-[60px] w-[84px] shrink-0 rounded-md object-cover lg:h-[84px] lg:w-[120px]" />}
+          <div className={cover ? "min-w-0 flex-1" : undefined}>
+            <h3 className={`${cover ? "" : "mt-1.5 lg:mt-2 "}line-clamp-2 text-[16.5px] font-extrabold leading-[1.45] tracking-[-0.01em] lg:line-clamp-none lg:text-[19px] lg:leading-[1.4] ${read ? "text-ink-4" : "text-ink"}`}>
+              <IntentLink viewTransition to={`/items/${item.id}`} onClick={open} className="after:absolute after:inset-0 after:content-['']">
+                {item.title}
+              </IntentLink>
+            </h3>
+            {item.summary && <p className="mt-1 line-clamp-2 text-[14.5px] leading-[1.7] text-ink-3 lg:mt-2 lg:line-clamp-3 lg:text-[15px] lg:leading-[1.75]">{item.summary}</p>}
+          </div>
+        </div>
       )}
 
       {isX && item.x!.media.length > 0 && <MediaThumbs media={item.x!.media} className="mt-2.5" />}

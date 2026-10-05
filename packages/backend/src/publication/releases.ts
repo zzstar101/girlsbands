@@ -3,12 +3,12 @@
 // 可见性跟其它公开出口一套：公告被下架或还没到发布时间，这张碟的页面跟着 404（与 live_events 同一条
 // 规则）。日期也不在这里造第三份 —— 发售日就是行上的 `release_on`（原文那一地的日历），序列号的应募
 // 期间属于它指向的那场演出的轮次，这里只把那个轮次的入口给出去。
-import type { ReleaseBonusView, ReleaseEditionView, ReleaseKind, ReleaseSerialView, ReleaseSummary, ReleaseView, Timezone } from "@girlsbands/contracts/site";
+import type { CoverView, ReleaseBonusView, ReleaseEditionView, ReleaseKind, ReleaseSerialView, ReleaseSummary, ReleaseView, Timezone } from "@girlsbands/contracts/site";
 import { timezoneDate } from "@girlsbands/contracts/time";
 import { ENTITIES } from "@girlsbands/industry/taxonomy";
 import { sql } from "../db.ts";
 import { liveRefs } from "./lives.ts";
-import { coverOfItems } from "./covers.ts";
+import { coverOfItems, coversOfItems } from "./covers.ts";
 import { storyReportCondition } from "./scope.ts";
 
 const MAX_SUBJECT_RELEASES = 40;
@@ -58,7 +58,11 @@ function daysLeftOf(row: Pick<ReleaseRow, "release_on" | "timezone">, now: Date)
   return Math.round((Date.parse(row.release_on) - Date.parse(timezoneDate(row.timezone, now))) / 86400000);
 }
 
-function summaryOf(row: ReleaseRow & { edition_count: number; has_serial: boolean }, now: Date): ReleaseSummary {
+function summaryOf(
+  row: ReleaseRow & { edition_count: number; has_serial: boolean },
+  now: Date,
+  cover: CoverView | null,
+): ReleaseSummary {
   return {
     publicId: row.public_id,
     subject: row.subject_entity,
@@ -69,6 +73,7 @@ function summaryOf(row: ReleaseRow & { edition_count: number; has_serial: boolea
     daysLeft: daysLeftOf(row, now),
     editionCount: row.edition_count,
     hasSerial: row.has_serial,
+    cover,
   };
 }
 
@@ -80,7 +85,9 @@ export async function releasesForSubject(subject: string, now: Date, limit = 12)
     WHERE r.subject_entity = ${subject} AND ${visibleCondition(now)}
     ORDER BY r.release_on DESC NULLS LAST, r.announced_on DESC NULLS LAST, r.id DESC
     LIMIT ${MAX_SUBJECT_RELEASES}`;
-  return rows.slice(0, limit).map((row) => summaryOf(row, now));
+  const shown = rows.slice(0, limit);
+  const covers = await coversOfItems(shown.map((row) => row.first_article_id ?? ""), now);
+  return shown.map((row) => summaryOf(row, now, covers.get(row.first_article_id ?? "") ?? null));
 }
 
 /** 这一条 story 讲的是哪张碟（它自己的页面上那一行「这张碟」）。 */
@@ -93,7 +100,8 @@ export async function releaseOfStory(storyId: number, now: Date): Promise<Releas
     LIMIT 1`;
   const [row] = rows;
   if (!row) return null;
-  return summaryOf(row, now);
+  const covers = await coversOfItems([row.first_article_id ?? ""], now);
+  return summaryOf(row, now, covers.get(row.first_article_id ?? "") ?? null);
 }
 
 /** 一张碟的页面：版本、店铺特典、序列号指向哪场演出。公告不公开了就是 404。 */

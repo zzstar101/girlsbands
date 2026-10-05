@@ -1119,6 +1119,27 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 
 **为什么原本没图**：`articles.media` 里本来就有图（439 条公告 285 条有图，公开的 438 条里 285 条有、153 条没有），但公开读取层只有 X 帖与正文里的 `<img>` 会渲染，四个详情页的头部都没有取过 `media`。**挑图规则**只有一处：`packages/backend/src/lib/image-url.ts` 的 `pickPicture` —— 只认 `kind: "image"`、跳过追踪像素与 Hatena 的 favicon（**67 条公告的第一张正是那个 64px 图标**）、跳过声明宽度 < 480 的缩略图、把属性里残留的 `&amp;` 还原成 `&`；排序与可见性在 `packages/backend/src/publication/covers.ts`（第一方 > 已选中 > 分数高，可见性沿用 `storyReportCondition`，所以公告下架图跟着消失）。条目页在正文已经排过图时不重复放封面（dev 里 91/438 条正文自带 `<img>`）。
 
+**列表页配图（2026-10-05 完成，站主接着拍板）**
+
+站主拍板两条：**做**（首页与「全部」的卡片、主题页的演出与发售列表）；版式取**左侧小缩略图** —— 桌面 120×84、手机 84×60，横版裁切（`object-cover`），文字一行不动；**没图的卡片与之前完全一样**（不占位）。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（含 web） |
+| `tests/covers.test.ts` | **4 通过 / 0 失败**（新增「列表出口用 336 档，并按条目各归各的图」） |
+| `tests/architecture.test.ts` | **8 通过 / 0 失败** |
+| 全量 `npm test` | **666 通过 / 0 失败**（详情页配图后基线 665） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **29 通过 / 0 失败** |
+| dev 实测 | `/api/site/pool?page=1` 40 条里 16 条带 `mode=image-336` + card 两级 `srcSet`；`/`、`/all`、`/topics/mygo` 的 SSR HTML 里缩略图分别是 20 / 64 / 36 张；主题页行首是 `h-[32px] w-[44px]`、卡片是 `h-[60px] w-[84px] lg:h-[84px] lg:w-[120px]` |
+| 模型花费 | 零 |
+
+- 档位：`packages/backend/src/publication/covers.ts` 多了 `CoverSize = "detail" | "card"` —— `detail` = `image-1200` + hero（720/1200/1600），`card` = `image-336` + card（336/720）。列表用 `card`，页面用 `detail`，读的是同一张画、同一套可见性条件。
+- 一次查一批：新增 `coversOfItems(itemIds, now, size = "card")` 返回 `Map<公告 id, CoverView>`，`livesForSubject` / `releasesForSubject` 先切出会显示的那几行再一次性取图（一场演出 / 一张碟各查一次会把主题页变成几十条查询）。**只有真挑到图的条目才进 Map**，没图的条目不会拿到邻居的图。
+- `ITEM_COLUMNS`（`packages/backend/src/publication/items.ts`）加上了 `a.media`，于是 `toFeedItemSummary` 也带 `cover`；`apps/web/app/features/feed/FeedItem.tsx` 在非 X 帖且有图时把标题与摘要缩进一条缩略图旁边（**没图时这一层 `div` 不带任何 class**，版式与之前逐字节一致）；X 帖仍用自己的 `x.media`。
+- `apps/web/app/components/ui/CoverImage.tsx` 的尺寸与圆角改由调用方给（组件只留底色），详情页四处照旧，列表两处用小图。
+- 一个真 bug：`coverOfStory` / `coverOfItems` 一度写成 `coverOfMedia(firstPicture(...))`，而 `pickPicture` 只吃 media **数组**，传单个 `Picture` 会一律返回 null（story 页封面整片消失，测试第 2 例直接红）。改成 `coverView(firstPicture(...), size)`。
+- 还没定：**OG 分享卡要不要嵌封面** —— `/og/items|stories|releases` 现在只有文字，嵌图要在渲染期出网，与 `apps/api/src/og/hero.ts` 的「OG 只读磁盘、不出网」那条既有决定冲突（可选复用 `produceImage` 的受控抓取，或先不做）。
+
 ---
 
 ## 七、待站主拍板汇总（动手前先看这里）
@@ -1144,7 +1165,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 
 ### 可以边做边定
 
-- **列表页要不要配图**（详情页已配：条目 / 演出 / story / 碟）：首页与「全部」的卡片、主题页的碟与演出列表、热榜。图已经取得到（`packages/backend/src/publication/covers.ts`），要定的是版式与首屏图片数量（每张卡一张图 ≈ 首页 40–50 张缩略图，`image-336` 那一档本来就是给卡片的）；`/og/items|stories|releases` 的分享卡现在只有文字，要不要把封面嵌进去是同一批。
+- **OG 分享卡要不要嵌封面**（列表页已配：见 §六「列表页配图」）：`/og/items|stories|releases` 的分享卡现在只有文字。嵌封面就要在渲染期出网，与 `apps/api/src/og/hero.ts` 的「OG 只读磁盘、不出网」那条既有决定冲突 —— 可选复用 `produceImage` 的受控抓取（有超时与大小上限），或先不做。热榜第一名的分享卡与卡片本来就有图。
 
 - **W14**：变更 Diff 是否进 v1 API；要不要做公开的「更正日志」出口；要不要顺手修「`facts` 三列永不更新」这个上游问题（改了会影响现有聚簇与 digest 输入，风险要单独评估）。
 - **W16**：Setlist 落库还是现算；歌名要不要进 `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍）；粉丝现场 repo 的版权边界（`site_fulltext` 只对 editorial 源全开）。

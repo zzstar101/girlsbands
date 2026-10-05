@@ -478,7 +478,7 @@ function ItemView({ item }: { item: SiteItemDetail }) {
 
           {leadCover && (
             <div className="mt-6 max-w-[620px]">
-              <CoverImage cover={leadCover} className="shadow-sm" priority />
+              <CoverImage cover={leadCover} className="h-auto w-full rounded-lg shadow-sm" priority />
             </div>
           )}
 

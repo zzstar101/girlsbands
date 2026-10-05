@@ -44,7 +44,7 @@ function withOutline(html: string): { html: string; outline: OutlineEntry[] } {
 
 async function loadRow(id: string): Promise<DetailRow | null> {
   const [row] = await sql<DetailRow[]>`
-    SELECT ${ITEM_COLUMNS}, a.body_html, a.body_text, a.body_status, a.media, tr.body_html AS tr_html, tr.complete AS tr_complete,
+    SELECT ${ITEM_COLUMNS}, a.body_html, a.body_text, a.body_status, tr.body_html AS tr_html, tr.complete AS tr_complete,
       ${topicMembership()} AS topics
     ${ITEM_FROM}
     WHERE p.article_id = ${id}`;

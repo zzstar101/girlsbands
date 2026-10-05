@@ -65,7 +65,7 @@ export default function LiveRoute() {
       </Link>
 
       {/* 演出的主视觉通常是横幅：有就摆在页面最上面，没有就整页还是纯文字。 */}
-      <CoverImage cover={live.cover} className="mt-3 shadow-sm lg:mt-1" priority />
+      <CoverImage cover={live.cover} className="mt-3 h-auto w-full rounded-lg shadow-sm lg:mt-1" priority />
 
       <header className="pb-5 pt-3 lg:pt-1">
         <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.1em] text-band">

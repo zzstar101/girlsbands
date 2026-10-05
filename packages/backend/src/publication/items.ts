@@ -5,6 +5,7 @@ import type { FeedItemSummary, ItemSummary, MediaView, XPostView } from "@girlsb
 import { sql, type Db } from "../db.ts";
 import { looksChinese } from "../lib/text.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
+import { coverOfMedia } from "./covers.ts";
 import { displayTags, entityIds, publicSourceName } from "./rules.ts";
 import { seatedCondition } from "./scope.ts";
 
@@ -35,6 +36,8 @@ export interface ItemRow {
   x_post: Record<string, any> | null;
   author: string | null;
   language: string | null;
+  /** 公告自己带的图；列表卡片左侧的小图从它里面挑（covers.ts 的 pickPicture）。 */
+  media: unknown;
   story_public_id: string | null;
   story_title: string | null;
   zh_text: string | null;
@@ -47,7 +50,7 @@ export const ITEM_COLUMNS = sql`
   p.article_id AS id, p.title, p.original_title, p.summary, p.reason, p.category, p.tags, p.score,
   p.selected, p.seat, p.channel, p.url, p.published_at, p.discovered_at, p.timeline_at, p.visibility,
   p.body_mode, p.indexable, p.fact_id, s.name AS source_name, s.participation_mode AS source_mode,
-  a.x_post, a.author, a.language,
+  a.x_post, a.author, a.language, a.media,
   st.public_id::text AS story_public_id, st.title AS story_title,
   CASE WHEN p.channel = 'x' THEN tr.body_text END AS zh_text, qt.text_zh AS quoted_zh`;
 
@@ -159,6 +162,8 @@ export function toFeedItemSummary(row: ItemRow): FeedItemSummary {
     id: item.id, title: item.title, summary: item.summary, reason: item.reason,
     source: item.source, publishedAt: item.publishedAt, timelineAt: item.timelineAt,
     category: item.category, tags: item.tags, subjects: item.subjects, score: item.score, selected: item.selected, channel: item.channel,
+    // 列表里的小图（336 档）。X 帖在自己的 `x.media` 里带图，卡片不会用这一张。
+    cover: coverOfMedia(row.media, "card"),
     x: x ? {
       authorName: x.authorName, handle: x.handle, avatarUrl: x.avatarUrl,
       ...(x.avatarSrcSet ? { avatarSrcSet: x.avatarSrcSet } : {}), media: x.media,
