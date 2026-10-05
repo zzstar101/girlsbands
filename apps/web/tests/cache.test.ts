@@ -28,6 +28,11 @@ const api = createServer((req, res) => {
     res.setHeader("Cache-Control", "public, max-age=30, s-maxage=30");
     return res.end(JSON.stringify({ filters, cards: [], nextCursor: null, dayCounts: [], hot: null }));
   }
+  if (url.pathname === "/api/site/actions") {
+    res.setHeader("X-Accel-Expires", `@${deadline}`);
+    res.setHeader("Cache-Control", "public, max-age=30, s-maxage=30");
+    return res.end(JSON.stringify({ computedAt: "2026-10-01T03:00:00.000Z", from: "2026-10-01", to: "2026-10-15", dueToday: [], onSale: [], liveToday: [], upcoming: [], total: 0 }));
+  }
   if (url.pathname === "/api/site/hot") return res.end(JSON.stringify({ entries: [] }));
   if (url.pathname === "/api/site/echo-client") return res.end(JSON.stringify({ forwarded: req.headers["x-forwarded-for"], real: req.headers["x-real-ip"] }));
   if (url.pathname === "/api/site/items/long-lived") return res.end(JSON.stringify({ id: "long-lived", title: "t" }));

@@ -1,8 +1,11 @@
 import { Link, useLoaderData } from "react-router";
-import type { DeadlineView, DeadlinesResponse } from "@girlsbands/contracts/site";
+import type { ReactNode } from "react";
+import type { Route } from "./+types/deadlines";
+import type { DeadlineKind, DeadlineView, DeadlinesResponse } from "@girlsbands/contracts/site";
+import { ENTITIES, FRANCHISES } from "@girlsbands/industry/taxonomy";
 import { subjectAfter, withSubject } from "@girlsbands/industry/site";
 import { edgeTtl, loadOr404 } from "../lib/api.server";
-import { pageMeta } from "../lib/seo";
+import { listPath, pageMeta } from "../lib/seo";
 import { weekdayShort } from "../lib/format";
 import { DayHeader } from "../features/feed/Timeline";
 import { Ticket, daysAway, Countdown } from "../features/feed/Ticket";
@@ -18,16 +21,26 @@ export const handle: Screen = { tab: "ticket", name: "截止雷达" };
 
 const HORIZON_DAYS = 30;
 
+/** The kinds worth a chip, in the order a ticket lives through them. Releases, merch and `other` stay reachable through 「全部」. */
+const KIND_FILTERS: DeadlineKind[] = ["lottery_start", "lottery_end", "result", "sale_start", "sale_end", "payment_deadline", "stream_end", "event"];
+
 export async function loader({ request }: { request: Request }) {
-  const path = `/api/site/deadlines?horizon=${HORIZON_DAYS}`;
-  return { deadlines: await loadOr404<DeadlinesResponse>(path, { signal: request.signal }) };
+  const url = new URL(request.url);
+  const subject = url.searchParams.get("subject")?.trim() || null;
+  const kinds = url.searchParams.get("kinds")?.trim() || null;
+  const path = listPath("/api/site/deadlines", { horizon: HORIZON_DAYS, subject, kinds });
+  return { deadlines: await loadOr404<DeadlinesResponse>(path, { signal: request.signal }), subject, kinds };
 }
 
-export function meta() {
+export function meta({ loaderData }: Route.MetaArgs) {
+  const subject = loaderData?.subject ?? null;
+  const kinds = loaderData?.kinds ?? null;
   return pageMeta({
     title: withSubject("截止雷达"),
     description: `${subjectAfter("未来 30 天", "圈")}所有会过期的日子：抽选与先行受理截止、一般发售开卖、演出当天、配信观看期限。`,
-    path: "/deadlines",
+    // A filtered list is the same dates in a different order: indexable only in its full form.
+    path: listPath("/deadlines", { subject, kinds }),
+    noindex: Boolean(subject || kinds),
     image: "/og/pages/deadlines.png",
   });
 }
@@ -72,10 +85,46 @@ function Row({ d, from }: { d: DeadlineView; from: string }) {
   );
 }
 
+function Chip({ to, active, children }: { to: string; active: boolean; children: ReactNode }) {
+  return (
+    <Link
+      to={to}
+      aria-current={active ? "true" : undefined}
+      className={`rounded-full border px-3 py-1 text-[12.5px] transition-colors ${active ? "border-band bg-band text-white" : "border-line text-ink-3 hover:border-band hover:text-band"}`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/** The two ways a reader narrows the radar: which franchise, and which kind of dated point. */
+function FilterBar({ subject, kinds }: { subject: string | null; kinds: string | null }) {
+  const href = (next: { subject?: string | null; kinds?: string | null }) =>
+    listPath("/deadlines", {
+      subject: next.subject === undefined ? subject : next.subject,
+      kinds: next.kinds === undefined ? kinds : next.kinds,
+    });
+  return (
+    <div className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[12px] text-ink-4">企划</span>
+        <Chip to={href({ subject: null })} active={!subject}>全部</Chip>
+        {FRANCHISES.map((id) => <Chip key={id} to={href({ subject: id })} active={subject === id}>{ENTITIES[id].name}</Chip>)}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[12px] text-ink-4">种类</span>
+        <Chip to={href({ kinds: null })} active={!kinds}>全部</Chip>
+        {KIND_FILTERS.map((k) => <Chip key={k} to={href({ kinds: k })} active={kinds === k}>{DEADLINE_KINDS[k].label}</Chip>)}
+      </div>
+    </div>
+  );
+}
+
 export default function DeadlinesPage() {
-  const { deadlines } = useLoaderData<typeof loader>();
+  const { deadlines, subject, kinds } = useLoaderData<typeof loader>();
   const { days, total, from, to } = deadlines;
   const soon = days.flatMap((d) => d.items.filter((i) => i.soon));
+  const filtered = Boolean(subject || kinds);
   return (
     <div className="pb-10">
       <PhoneBar
@@ -119,10 +168,14 @@ export default function DeadlinesPage() {
         </div>
       </header>
 
+      <FilterBar subject={subject} kinds={kinds} />
+
       {days.length > 0 && <div className="tickets mb-7">{days.flatMap((d) => d.items).slice(0, 3).map((d, i) => <Ticket key={i} item={d} from={from} />)}</div>}
       {days.length === 0 ? (
         <div className="card rounded-sheet">
-          <EmptyState title="未来 30 天没有已公布的截止日">等到有明确日期的公告时，这里会列出抽选、发售与演出当天。</EmptyState>
+          <EmptyState title={filtered ? "这个筛选下未来 30 天没有已公布的截止日" : "未来 30 天没有已公布的截止日"}>
+            {filtered ? "换一个企划或种类，或者看全部。" : "等到有明确日期的公告时，这里会列出抽选、发售与演出当天。"}
+          </EmptyState>
         </div>
       ) : (
         <div className="space-y-5">

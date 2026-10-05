@@ -57,13 +57,16 @@ export function edgeTtl(seconds: number): Record<string, string> {
 
 /**
  * Cache headers for a page of selected items: shared caches keep it at most `maxSeconds`, and never
- * past the absolute deadline the api gave a proxy or CDN in front for its data.
+ * past the absolute deadline the api gave a proxy or CDN in front for its data. A page built from more
+ * than one api answer passes each of them: it is only as fresh as the least fresh part of itself.
  */
-export function apiDeadlineCache(maxSeconds: number, now = Date.now(), upstream?: Headers): Record<string, string> {
+export function apiDeadlineCache(maxSeconds: number, now = Date.now(), ...upstreams: Array<Headers | undefined>): Record<string, string> {
   let deadline = Math.floor(now / 1000) + maxSeconds;
-  const sourceDeadline = upstream?.get("X-Accel-Expires");
-  if (sourceDeadline?.startsWith("@")) deadline = Math.min(deadline, Number(sourceDeadline.slice(1)));
-  if (sourceDeadline === "0" || /(?:no-cache|no-store)/i.test(upstream?.get("Cache-Control") ?? "")) deadline = Math.floor(now / 1000);
+  for (const upstream of upstreams) {
+    const sourceDeadline = upstream?.get("X-Accel-Expires");
+    if (sourceDeadline?.startsWith("@")) deadline = Math.min(deadline, Number(sourceDeadline.slice(1)));
+    if (sourceDeadline === "0" || /(?:no-cache|no-store)/i.test(upstream?.get("Cache-Control") ?? "")) deadline = Math.floor(now / 1000);
+  }
   const seconds = Math.max(0, Math.floor(deadline - now / 1000));
   return seconds > 0 ? { ...edgeTtl(seconds), "X-Accel-Expires": `@${deadline}` } : { "Cache-Control": "no-cache", "X-Accel-Expires": "0" };
 }

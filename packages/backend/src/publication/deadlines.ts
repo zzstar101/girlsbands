@@ -11,8 +11,9 @@
 // Scope: the listed set (public, pool eligible, released) rather than the selected set. A lottery closing
 // is something the reader cannot miss even when the announcement that carried it was not worth pushing as
 // news; the reports that did clear the bar carry `selected` and sort first within their day.
-import type { DeadlineKind, DeadlinesResponse, DeadlineView } from "@girlsbands/contracts/site";
+import type { ActionCenterResponse, DeadlineKind, DeadlinesResponse, DeadlineView } from "@girlsbands/contracts/site";
 import { DEADLINE_KINDS, TICKET_ROUND_KINDS, type TicketRoundKind } from "@girlsbands/contracts/site";
+import { timezoneDate } from "@girlsbands/contracts/time";
 import { sql } from "../db.ts";
 import { deadlineInstant, isTimezone, splitDeadlineAt, timezoneOf } from "../sources/timezone.ts";
 import { entityIds, entityTags, publicSourceName, hasItemPage } from "./rules.ts";
@@ -27,6 +28,12 @@ const MAX_LIMIT = 2_000;
 const KINDS: ReadonlySet<string> = new Set<string>(DEADLINE_KINDS);
 const ROUND_KINDS: ReadonlySet<string> = new Set<string>(TICKET_ROUND_KINDS);
 const SLOTS: ReadonlySet<string> = new Set<string>(["applyStart", "applyEnd", "resultOn", "paymentDueOn"]);
+/** Dates that close a window: miss one and the ticket, the stream or the payment is gone. */
+const CLOSING_KINDS: ReadonlySet<string> = new Set<string>(["lottery_end", "sale_end", "stream_end", "payment_deadline"]);
+/** Dates that open one: sales, releases and pre-orders, the things a reader puts on a calendar. */
+const OPENING_KINDS: ReadonlySet<string> = new Set<string>(["sale_start", "release_start", "merch_start"]);
+/** The action center is a glance, not the radar: it looks at the near days only. */
+const ACTION_DAYS = 14;
 
 /** `YYYY-MM-DD` of the instant on the Japan calendar. */
 export function jstDate(instant: Date): string {
@@ -170,14 +177,60 @@ async function deadlineWindow(
  */
 export async function upcomingDeadlines(
   now = new Date(),
-  opts: { horizonDays?: number; limit?: number; storyId?: number; subject?: string } = {},
+  opts: { horizonDays?: number; limit?: number; storyId?: number; subject?: string; kinds?: readonly DeadlineKind[] } = {},
 ): Promise<DeadlinesResponse> {
   const horizonDays = Math.min(Math.max(Math.trunc(opts.horizonDays ?? 30), 1), 730);
   const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 400), 1), MAX_LIMIT);
   const from = jstDate(now);
   const to = addDays(from, horizonDays);
   const { days, total } = await deadlineWindow(now, { from, to, limit, storyId: opts.storyId, subject: opts.subject });
-  return { computedAt: now.toISOString(), from, to, days, total };
+  if (opts.kinds === undefined) return { computedAt: now.toISOString(), from, to, days, total };
+  const wanted = new Set<string>(opts.kinds);
+  const kept = days
+    .map((d) => ({ date: d.date, items: d.items.filter((i) => wanted.has(i.kind)) }))
+    .filter((d) => d.items.length > 0);
+  return {
+    computedAt: now.toISOString(),
+    from,
+    to,
+    days: kept,
+    total: kept.reduce((n, d) => n + d.items.length, 0),
+  };
+}
+
+/**
+ * The radar's own rows, split by what the reader can still do about them — the home page's answer to
+ * 「现在该做什么」. Every row is one of `upcomingDeadlines`' rows for the same window, so the two can never
+ * disagree; each row lands in exactly one bucket, and nothing is inferred from a date the source did not
+ * state. `liveToday` and `dueToday` are the days of the announcement's own clock, not the Beijing one.
+ */
+export async function actionCenter(
+  now = new Date(),
+  opts: { horizonDays?: number; subject?: string } = {},
+): Promise<ActionCenterResponse> {
+  const horizonDays = Math.min(Math.max(Math.trunc(opts.horizonDays ?? ACTION_DAYS), 1), 730);
+  const from = jstDate(now);
+  const to = addDays(from, horizonDays);
+  const { days, total } = await deadlineWindow(now, { from, to, limit: 400, subject: opts.subject });
+  const out: ActionCenterResponse = {
+    computedAt: now.toISOString(),
+    from,
+    to,
+    dueToday: [],
+    onSale: [],
+    liveToday: [],
+    upcoming: [],
+    total,
+  };
+  for (const day of days) {
+    for (const item of day.items) {
+      if (item.day === timezoneDate(item.timezone, now) && item.kind === "event") out.liveToday.push(item);
+      else if (item.day === timezoneDate(item.timezone, now) && CLOSING_KINDS.has(item.kind)) out.dueToday.push(item);
+      else if (OPENING_KINDS.has(item.kind)) out.onSale.push(item);
+      else out.upcoming.push(item);
+    }
+  }
+  return out;
 }
 
 /**

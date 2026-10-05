@@ -318,6 +318,28 @@ export interface DeadlinesResponse {
 }
 
 /**
+ * The same rows as the radar, split by what the reader can still do about them — the home page's
+ * "现在该做什么". Every row is one of the radar's own rows, so nothing appears here that the radar and
+ * the calendar do not also carry; the buckets only decide which one the reader sees first. The window is
+ * the short one (14 days by default): the full horizon stays on /deadlines.
+ */
+export interface ActionCenterResponse {
+  computedAt: string;
+  /** The day the window opens on, and the last day it covers. */
+  from: string;
+  to: string;
+  /** Closing today: a lottery or sale that ends, a payment that is due, a stream that expires. */
+  dueToday: DeadlineView[];
+  /** Opening soon: general sales, CD/BD release days, merch pre-orders — the things to put on a calendar. */
+  onSale: DeadlineView[];
+  /** Dated today on the source's own calendar: a show, a stream, a shop opening — the date says it happens now. */
+  liveToday: DeadlineView[];
+  /** Everything else in the window, soonest first: future shows, result days, application openings. */
+  upcoming: DeadlineView[];
+  total: number;
+}
+
+/**
  * One JST month of dated events for a subject (a band, a project, or the whole site). It is the same
  * rows the radar reads — the dates laid out on a grid instead of a countdown — so a date never shows
  * up in one and not the other. `at` stays Japan wall-clock, exactly as on the radar.

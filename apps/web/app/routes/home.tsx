@@ -1,12 +1,13 @@
 import { data as withHeaders, redirect, useLoaderData, useRouteLoaderData, Link } from "react-router";
 import type { Route } from "./+types/home";
-import type { TimelineResponse } from "@girlsbands/contracts/site";
+import type { ActionCenterResponse, TimelineResponse } from "@girlsbands/contracts/site";
 import { FRANCHISES, ENTITIES } from "@girlsbands/industry/taxonomy";
 import type { loader as rootLoader } from "../root";
 import type { HomeResponse } from "@girlsbands/contracts/site";
 import { BandEqualizer } from "../features/feed/BandEqualizer";
 import { Ticket } from "../features/feed/Ticket";
-import { DeadlineRadar, SubscribeBlock } from "../features/feed/DeadlineRadar";
+import { ActionCenter } from "../features/feed/ActionCenter";
+import { SubscribeBlock } from "../features/feed/SubscribeBlock";
 import { Count } from "../components/ui/Count";
 import { IssueSeal } from "../components/ui/IssueSeal";
 import { Ticker } from "../components/shell/Ticker";
@@ -29,8 +30,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   if (q && q.trim()) throw redirect(`/all${url.search}`);
   const filters = readFilters(url.searchParams);
   const upstream = new Headers();
-  const data = await loadOr404<TimelineResponse>(listPath("/api/site/timeline", filterParams(filters)), { responseHeaders: upstream, signal: request.signal });
-  return withHeaders({ data, filters }, { headers: apiDeadlineCache(60, Date.now(), upstream) });
+  const actionsUpstream = new Headers();
+  // The action center reads the near window only; the timeline's 30 days of dates still come from the root loader.
+  const [data, actions] = await Promise.all([
+    loadOr404<TimelineResponse>(listPath("/api/site/timeline", filterParams(filters)), { responseHeaders: upstream, signal: request.signal }),
+    loadOr404<ActionCenterResponse>("/api/site/actions?horizon=14", { responseHeaders: actionsUpstream, signal: request.signal }),
+  ]);
+  return withHeaders({ data, filters, actions }, { headers: apiDeadlineCache(60, Date.now(), upstream, actionsUpstream) });
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -59,7 +65,7 @@ function HomeHero({ home }: { home: HomeResponse }) {
 }
 
 export default function Home() {
-  const { data, filters } = useLoaderData<typeof loader>();
+  const { data, filters, actions } = useLoaderData<typeof loader>();
   const home = useRouteLoaderData<typeof rootLoader>('root')?.home;
   const sliced = Boolean(filters.tag || filters.category || filters.channel !== "all");
   return <div className="pb-6 flyer-home">
@@ -74,7 +80,7 @@ export default function Home() {
         <div className="feed-filters"><CategoryTabs base="/" category={filters.category} channel={filters.channel} layoutId="home-cat-desk" className="min-w-0" /><SearchField keep={{ category: filters.category }} /></div>
         <Timeline initial={data} filters={data.filters} dates={home?.deadlines} />
       </section>
-      <aside className="feed-aside">{home && <DeadlineRadar data={home.deadlines} />}{data.hot && <HotTopics entries={data.hot} />}<SubscribeBlock /></aside>
+      <aside className="feed-aside"><ActionCenter data={actions} />{data.hot && <HotTopics entries={data.hot} />}<SubscribeBlock /></aside>
     </div>
   </div>;
 }

@@ -541,8 +541,17 @@ Source ──► Article ──► evidence ──► 上面这些实体的状�
 | 时区 | 国内场次显示「北京时间」、日本场次显示 JST（W7 之后才有） |
 | 测试 | `tests/action-center.test.ts` |
 
-**待站主拍板**：horizon 取 14 还是 30 天；「即将开售」是否包含周边开订与 CD/BD 发售日。
-**工作量**：2 天，无模型成本。
+**站主已拍板（2026-10-05）**：首页行动中心看 **14 天**（30 天全量留在 `/deadlines`）；「即将开售」包含 **`sale_start` + `release_start` + `merch_start`**。
+
+**实现与验证（2026-10-05 完成）**
+- 契约：`packages/contracts/src/site.ts` 在 `DeadlinesResponse` 之后新增 `ActionCenterResponse { computedAt; from; to; dueToday; onSale; liveToday; upcoming; total }`，四组都是 `DeadlineView[]`。
+- 数据层：`packages/backend/src/publication/deadlines.ts` 新增 `actionCenter(now = new Date(), { horizonDays = 14, subject? })`，**复用同一个 `deadlineWindow`**（`from = jstDate(now)`、`to = addDays(from, horizonDays)`），逐行分桶且**每行恰好落一组**：当天（`item.day === timezoneDate(item.timezone, now)`，用演出/公告自己那一地的钟）且 `kind = event` → `liveToday`；当天且 ∈ `CLOSING_KINDS`（`lottery_end` / `sale_end` / `stream_end` / `payment_deadline`）→ `dueToday`；∈ `OPENING_KINDS`（`sale_start` / `release_start` / `merch_start`）→ `onSale`；其余 → `upcoming`。`upcomingDeadlines` 另加可选 `kinds`（`undefined` = 不过滤；空数组 = 匹配不到任何行，`total` 跟着重算）。**没有第二个日期算法**。
+- API：新增 `GET /api/site/actions?horizon=&subject=`（`etagPrefix: "actions"`、`public, max-age=60, s-maxage=60`）；`/api/site/deadlines` 增加 `subject` 与 `kinds`（逗号分隔，认不出的写法直接丢掉），只带 `horizon` 的旧调用走原路径、行为不变。
+- 界面：新增 `apps/web/app/features/feed/ActionCenter.tsx`（四组 今天有活动 / 今天截止 / 即将开售 / 接下来，空组不渲染），在 `apps/web/app/routes/home.tsx` 里取代截止雷达 —— 邮件区块搬到 `apps/web/app/features/feed/SubscribeBlock.tsx`、删掉 `DeadlineRadar.tsx`（两个日期区块叠在同一个 aside 里更糟）；`apps/web/app/lib/api.server.ts` 的 `apiDeadlineCache` 改成吃多份上游响应头并取最小新鲜度；`/deadlines` 加企划与种类筛选（URL 参数，过滤态 `noindex`），空态在过滤态改写。
+- 验收：`npm run typecheck` 全绿；`tests/action-center.test.ts` **6/6**（分桶唯一性与总数、行动中心 ⊂ 雷达同窗口、时区「今天」按演出自己的钟、`subject` 按 `entityTags` 展开、`kinds` 不改窗口、API 形状）；全量 `npm test` **654/654**（W9 基线 648，+6）；`npm run build -w @girlsbands/web` + `node --test apps/web/tests/*.test.ts` **29/29**。
+- **已知边界（共用窗口，不是分组逻辑的 bug）**：窗口起点与雷达一样是 `jstDate(now)`，所以北京时间 23:30 的国内场次在日本日切后的那一小时会落在窗口外；`tests/action-center.test.ts` 里显式断言了这条。
+- dev 实测（2026-10-05）：`/api/site/actions?horizon=14` → `from 2026-10-05 / to 2026-10-19 / total 23`，`dueToday 0`、`onSale 5`、`liveToday 3`、`upcoming 15`，与 `/api/site/deadlines?horizon=14` 的 `total 23` 同一批行；`?kinds=lottery_end` → 2 行（10-10 抽選受付截止、10-12 FC 先行 · チケットぴあ）。首页渲染出行动中心；`/deadlines?kinds=lottery_end` 的过滤态带 `noindex`，且页面里出现的那条 `sale_start` 来自 root loader 的全站雷达数据，不是漏过筛选的行（已用 `/_.data?_routes=root` 对照确认）。
+**工作量**：2 天（实际约半天，无模型成本）。
 
 ---
 
@@ -1092,6 +1101,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 | ~~**W7**~~ ✅ | ~~`.ics` 用当地时刻（日本 18:30 / 中国 15:30）还是统一北京时间；北京时间 21:00 之后的场次在「今天截止」里算哪天~~ | **已拍板 2026-10-05**：用当地时刻 + `TZID`、按当地日历（已完成） |
 | **W8** | Live 粒度（昼/夜两场、对盘多出演者、巡演一站一实体还是巡演一实体）；已完结 Live 页要不要长期保留 | **代码按「一站一实体」落地了**（键 = 主体 + 会场 + 开演日 + 开演时刻，同一场取信息最全的那篇报告），要改粒度只需动唯一键与 `mergeKeys`；已完结页现在照常保留。**阶段 B 灰度重跑还没跑**：`candidates: 28`，换 tag 后每条约 6 次调用（≈170 次），要开窗口并接受短暂下架 |
 | ~~**W9**~~ ✅ | ~~`deadlines` 与 `ticket_rounds` 哪个权威；`status` 要不要含**个人**当落；`platform` 要不要中文化~~ | **已拍板 2026-10-05**：轮次权威、`deadlines` 只是投影；不含个人当落（站不持有账号）；平台名**照原文**、不做中文显示名映射（`industry/glossary.ts` 一个字不改 —— 改任何 `forms` 都会让 `GLOSSARY_VERSION` 变、全站重译）。已落地：见上面「实现与验证（2026-10-05 完成）」 |
+| ~~**W10**~~ ✅ | ~~首页 horizon 取 14 还是 30 天；「即将开售」是否包含周边开订（`merch_start`）与 CD/BD 发售日（`release_start`）~~ | **已拍板 2026-10-05**：首页 **14 天**（30 天全量留在 `/deadlines`）；「即将开售」= `sale_start` + `release_start` + `merch_start`。已落地：见 §六「W10 · 行动中心」的「实现与验证（2026-10-05 完成）」 |
 | **W11** | 店铺特典真源（公告通常只写「対象店舗」）：开人工 `industry/releases/{slug}.json` 还是接受「模型只抽公告写了的」；粒度是 1 个 `releases` + 3 个 editions 还是 3 行；存量 21 条 `other` 要不要花钱重抽 | 先只抽公告、粒度取前者；重抽等 W7 落地后一起做 |
 | **W13** | 索引门槛（建议 `total >= 5`，比主题页宽松）；成员页要不要显示「中之人」真名与所属乐队（真人隐私）；成员要不要进 `/starred` 与订阅 `bands[]` | 门槛 5；只显示角色 ↔ 声优关系；不进订阅 |
 | **W15** | 索引门槛（建议有 `officialUrl` 或有 `live_events` 记录才进 sitemap）；要不要做「东京 11 月」地区聚合页；三条未核实规范化名；闭馆场馆要不要收录 | 门槛按建议；聚合页做（远征信息的入口）；收闭馆馆并标 `closedOn` |
@@ -1099,7 +1109,6 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 
 ### 可以边做边定
 
-- **W10**：首页 horizon 取 14 还是 30 天；「即将开售」是否包含周边开订（`merch_start`）与 CD/BD 发售日（`release_start`）。
 - **W14**：变更 Diff 是否进 v1 API；要不要做公开的「更正日志」出口；要不要顺手修「`facts` 三列永不更新」这个上游问题（改了会影响现有聚簇与 digest 输入，风险要单独评估）。
 - **W16**：Setlist 落库还是现算；歌名要不要进 `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍）；粉丝现场 repo 的版权边界（`site_fulltext` 只对 editorial 源全开）。
 

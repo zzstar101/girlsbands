@@ -2,6 +2,7 @@
 // Reads through the same public read layer as v1; no cookies are read or set.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { isCategoryKey, isChannelKey, type CategoryKey, type ChannelKey } from "@girlsbands/contracts/taxonomy";
+import { DEADLINE_KINDS, type DeadlineKind } from "@girlsbands/contracts/site";
 import type { ReportIndexResponse, ReportLatestPage, ReportNavigationResponse, SiteContact, TopicScope } from "@girlsbands/contracts/site";
 import { InvalidCursorError } from "@girlsbands/backend/lib/cursor";
 import { exportMarkdown, loadItemDetail } from "@girlsbands/backend/publication/detail";
@@ -11,7 +12,7 @@ import { loadTimeline } from "@girlsbands/backend/publication/timeline";
 import { loadStoryFollowups } from "@girlsbands/backend/publication/followups";
 import { loadGroupReports } from "@girlsbands/backend/publication/groups";
 import { loadHotStrip } from "@girlsbands/backend/publication/hot";
-import { upcomingDeadlines } from "@girlsbands/backend/publication/deadlines";
+import { upcomingDeadlines, actionCenter } from "@girlsbands/backend/publication/deadlines";
 import { loadChangelog, siteMeta } from "@girlsbands/backend/site/meta";
 import { loadContact, loadMakerAvatar } from "@girlsbands/backend/site/contact";
 import { loadSiteStats } from "@girlsbands/backend/site/stats";
@@ -58,6 +59,12 @@ export function parseFilters(q: Record<string, string>): FilterParams {
   if (category !== null && !isCategoryKey(category)) throw new BadRequest("invalid category");
   const tag = q.tag?.trim() ? q.tag.trim().slice(0, 60) : null;
   return { channel, category: category as CategoryKey | null, tag };
+}
+
+/** `?kinds=sale_start,lottery_end` — unknown names are dropped; a value with none left matches nothing. */
+function kindsParam(value: string): DeadlineKind[] {
+  const names = value.split(",").map((v) => v.trim()).filter(Boolean);
+  return names.filter((n): n is DeadlineKind => (DEADLINE_KINDS as readonly string[]).includes(n));
 }
 
 export function registerSite(app: FastifyInstance) {
@@ -169,9 +176,26 @@ export function registerSite(app: FastifyInstance) {
   }));
 
   app.get("/api/site/deadlines", siteHandler(async (req, reply) => {
-    const horizon = Number(looseQuery(req).horizon);
-    const data = await upcomingDeadlines(new Date(), { horizonDays: Number.isFinite(horizon) && horizon > 0 ? horizon : undefined });
+    const q = looseQuery(req);
+    const horizon = Number(q.horizon);
+    const kinds = q.kinds;
+    const data = await upcomingDeadlines(new Date(), {
+      horizonDays: Number.isFinite(horizon) && horizon > 0 ? horizon : undefined,
+      subject: q.subject?.trim() || undefined,
+      kinds: kinds ? kindsParam(kinds) : undefined,
+    });
     return sendJsonWithEtag(req, reply, data, { etagPrefix: "deadlines", cacheControl: "public, max-age=60, s-maxage=60" });
+  }));
+
+  // The home page's action center: the radar's rows for the near days, split by what to do about them.
+  app.get("/api/site/actions", siteHandler(async (req, reply) => {
+    const q = looseQuery(req);
+    const horizon = Number(q.horizon);
+    const data = await actionCenter(new Date(), {
+      horizonDays: Number.isFinite(horizon) && horizon > 0 ? horizon : undefined,
+      subject: q.subject?.trim() || undefined,
+    });
+    return sendJsonWithEtag(req, reply, data, { etagPrefix: "actions", cacheControl: "public, max-age=60, s-maxage=60" });
   }));
 
   app.get("/api/site/stories/:publicId", siteHandler(async (req, reply) => {
