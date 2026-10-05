@@ -1138,7 +1138,28 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 - `ITEM_COLUMNS`（`packages/backend/src/publication/items.ts`）加上了 `a.media`，于是 `toFeedItemSummary` 也带 `cover`；`apps/web/app/features/feed/FeedItem.tsx` 在非 X 帖且有图时把标题与摘要缩进一条缩略图旁边（**没图时这一层 `div` 不带任何 class**，版式与之前逐字节一致）；X 帖仍用自己的 `x.media`。
 - `apps/web/app/components/ui/CoverImage.tsx` 的尺寸与圆角改由调用方给（组件只留底色），详情页四处照旧，列表两处用小图。
 - 一个真 bug：`coverOfStory` / `coverOfItems` 一度写成 `coverOfMedia(firstPicture(...))`，而 `pickPicture` 只吃 media **数组**，传单个 `Picture` 会一律返回 null（story 页封面整片消失，测试第 2 例直接红）。改成 `coverView(firstPicture(...), size)`。
-- 还没定：**OG 分享卡要不要嵌封面** —— `/og/items|stories|releases` 现在只有文字，嵌图要在渲染期出网，与 `apps/api/src/og/hero.ts` 的「OG 只读磁盘、不出网」那条既有决定冲突（可选复用 `produceImage` 的受控抓取，或先不做）。
+- ~~还没定：OG 分享卡要不要嵌封面~~ → 站主拍板**做**，见下一节。
+
+**OG 分享卡嵌封面（2026-10-05 完成，站主拍板「做，走受控抓取」）**
+
+站主拍板：OG 分享卡**嵌封面**，做法取**受控抓取** —— 复用 `packages/backend/src/media/images.ts` 的 `produceImage`，它本来就是抓信源图的那条路（`guardedFetch` + 20s 超时 + 15MB 上限 + 磁盘缓存）。于是 `apps/api/src/og/hero.ts` 的「OG 渲染期不出网」从**绝对规则**收紧成**默认**：静态页卡、邮件头图、主题页、X 帖卡片仍然完全不出网，只有「有公告图的条目 / 故事 / 发售 / 日报」这四类卡片会去取一次图，取不到就退回纯文字卡。
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 全绿（含 web） |
+| `tests/og-cards.test.ts` | **5 通过 / 0 失败**（新文件） |
+| `tests/publication.test.ts` | **19 通过 / 0 失败** |
+| `tests/architecture.test.ts` | 8 通过 / 0 失败 |
+| 全量 `npm test` | **671 通过 / 0 失败**（列表页配图后基线 666） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **29 通过 / 0 失败**（本轮没动 web） |
+| dev 实测 | `/og/items/<id>.png` 200 image/png 84–89KB（0.9–2.5s，含取图）、`/og/posters/<id>.png` 200 204KB、`/og/stories/<uuid>.png` 200 46–88KB、`/og/releases/<id>.png` 200 44–48KB |
+| 模型花费 | 零 |
+
+- 新增的三个东西：`proxySource(path)`（`packages/backend/src/media/imgproxy.ts`）把签名代理地址里的 `u` 还原成上游地址 —— OG 手上是读者看的那个代理地址，取字节必须回到原图（直接抓代理等于自己抓自己）；`apps/api/src/og/cover.ts` 的 `ogImage(cover, size)` = `proxySource` → `produceImage(source, "image-720")` → `data:` URL，**5 秒上限**（`Promise.race`，输掉的那个 promise 自己 `.catch` 掉，否则未处理拒绝）与 4MiB 上限，任何异常/超时/过大一律返回 `null`；`OgCard.image` / `CARD_IMAGE`（390×260）与 `Poster.image` / `POSTER_IMAGE`（904×320）。
+- **有图的卡片**：标题与摘要缩在左栏（标题最多 30 字、20 字以上 44 号否则 52 号；摘要 34 字），右边 390×260 的图（`object-cover`、圆角 20、1px 描边）；原本的圆环评分改成页脚右侧的小药丸（有图时圆环的位置让给了图）。海报头图占满内容宽（904×320），标题/摘要的截断长度与字号同步收紧。**没图的卡片逐字节与之前一样**（同一棵树的另一支）。
+- ETag：图片内容先 sha256 成 32 字节再进指纹，否则每次算 ETag 都要哈希几百 KB base64。`OG_TEMPLATE_VERSION` → `og-2026-10-05.4`、`POSTER_TEMPLATE_VERSION` → `poster-2026-10-05.4`（模板变了，旧磁盘缓存键自然失效）。`packages/backend/src/publication/og.ts` 的 `loadItemShare` 也补上了 `JOIN articles a` 与 `a.media`（分享图的元数据一直是从 publications 出的，这次才带图）。
+- 视觉核对：项目里**没有能看图的通道** —— `read_image` 报 `model "deepseek-flash" does not declare image input`，换声明了视觉的模型（`workflow` 里指定 `gpt-5.6-luna`）也回「image input isn’t available」。所以版式改用**像素断言**核对：`tests/og-cards.test.ts` 拿纯色 data URL 当图，渲染后逐像素找包围盒 —— 卡片红区 388×258（390×260 的框减去 1px 描边），右、下都在内边距内，左栏没被盖住；海报蓝区 x 88..991、904×320，正文最靠下的深色像素 1256 < 1368（没被挤出底部内边距）。**最终版式还得站主亲眼看一下**渲染出的 PNG —— dev 里 `/og/items/<id>.png`、`/og/posters/<id>.png` 直接可开。
+- `tests/publication.test.ts` 里那两条 `card` / `poster` 字面量补了 `image: null`：路由现在总会带上这个键，不补的话 ETag 对不上（304 那条断言会红）。
 
 ---
 
@@ -1165,7 +1186,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 
 ### 可以边做边定
 
-- **OG 分享卡要不要嵌封面**（列表页已配：见 §六「列表页配图」）：`/og/items|stories|releases` 的分享卡现在只有文字。嵌封面就要在渲染期出网，与 `apps/api/src/og/hero.ts` 的「OG 只读磁盘、不出网」那条既有决定冲突 —— 可选复用 `produceImage` 的受控抓取（有超时与大小上限），或先不做。热榜第一名的分享卡与卡片本来就有图。
+- ~~**OG 分享卡要不要嵌封面**~~ ✅ 已拍板（2026-10-05）：**做，走受控抓取**，已落地 —— 见 §六「OG 分享卡嵌封面」。静态页卡 / 邮件头图 / 主题页 / X 帖卡片仍不出网，只有有公告图的条目、故事、发售、日报四类卡片会取一次图（5 秒上限、4MiB 上限，取不到退回纯文字）。热榜第一名的卡片本来就有图。
 
 - **W14**：变更 Diff 是否进 v1 API；要不要做公开的「更正日志」出口；要不要顺手修「`facts` 三列永不更新」这个上游问题（改了会影响现有聚簇与 digest 输入，风险要单独评估）。
 - **W16**：Setlist 落库还是现算；歌名要不要进 `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍）；粉丝现场 repo 的版权边界（`site_fulltext` 只对 editorial 源全开）。

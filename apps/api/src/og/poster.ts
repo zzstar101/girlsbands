@@ -3,11 +3,16 @@
 import { createHash } from "node:crypto";
 import { renderSVG } from "uqr";
 import { SITE } from "@girlsbands/industry/site";
-import { clamp, h, nameMark, renderPng, SITE_HOST, type Node } from "./render.ts";
+import { clamp, h, nameMark, renderPng, SITE_HOST, type Node, type OgImage } from "./render.ts";
 
-export const POSTER_TEMPLATE_VERSION = "poster-2026-10-05.3";
+export const POSTER_TEMPLATE_VERSION = "poster-2026-10-05.4";
 const WIDTH = 1080;
 const HEIGHT = 1440;
+/** The hero picture's box when the article has one (the poster's full content width). */
+const IMAGE_WIDTH = 904;
+const IMAGE_HEIGHT = 320;
+/** The same box, for callers that fetch the bytes (see og/cover.ts). */
+export const POSTER_IMAGE = { width: IMAGE_WIDTH, height: IMAGE_HEIGHT } as const;
 
 export interface Poster {
   url: string;
@@ -17,17 +22,22 @@ export interface Poster {
   source: string;
   date: string;
   score: number | null;
+  /** The announcement's own picture, inline as a data URL (see og/cover.ts). */
+  image?: OgImage | null;
 }
 
 const INK = "#0e191b";
 const ACCENT = "#176b75";
 
 async function tree(p: Poster): Promise<Node> {
-  const title = clamp(p.title, 72);
+  const image = p.image ?? null;
+  // With a picture the poster gives it 320 of its 1284 content pixels, so the title and the summary
+  // clamp earlier and the QR block at the bottom keeps its room.
+  const title = clamp(p.title, image ? 30 : 72);
   const len = [...title].length;
-  const titleSize = len > 48 ? 58 : len > 30 ? 66 : 76;
+  const titleSize = image ? 58 : len > 48 ? 58 : len > 30 ? 66 : 76;
   // The summary takes the room the title leaves.
-  const summary = p.summary ? clamp(p.summary, len > 48 ? 120 : len > 30 ? 150 : 180) : null;
+  const summary = p.summary ? clamp(p.summary, image ? (len > 24 ? 48 : 56) : len > 48 ? 120 : len > 30 ? 150 : 180) : null;
   const qr = `data:image/svg+xml;base64,${Buffer.from(renderSVG(p.url, { border: 0, ecc: "M", blackColor: INK, whiteColor: "#ffffff" })).toString("base64")}`;
   return h(
     "div",
@@ -47,7 +57,10 @@ async function tree(p: Poster): Promise<Node> {
         nameMark(60, INK, ACCENT),
         h("div", { display: "flex", fontSize: 26, color: "#66757a" }, p.date),
       ]),
-      h("div", { display: "flex", alignItems: "center", marginTop: 96 }, [
+      image
+        ? h("img", { marginTop: 44, width: IMAGE_WIDTH, height: IMAGE_HEIGHT, objectFit: "cover", borderRadius: 32 }, undefined, { src: image.data, width: IMAGE_WIDTH, height: IMAGE_HEIGHT })
+        : null,
+      h("div", { display: "flex", alignItems: "center", marginTop: image ? 44 : 96 }, [
         h("div", { width: 12, height: 12, borderRadius: 999, backgroundColor: ACCENT, marginRight: 16 }),
         h("div", { display: "flex", fontSize: 30, fontWeight: 700, color: ACCENT, letterSpacing: 1 }, clamp(p.kicker, 20)),
         p.score !== null
@@ -55,7 +68,7 @@ async function tree(p: Poster): Promise<Node> {
           : null,
       ].filter(Boolean)),
       h("div", { display: "flex", marginTop: 30, fontSize: titleSize, fontWeight: 700, lineHeight: 1.3, color: INK }, title),
-      summary ? h("div", { display: "flex", marginTop: 36, fontSize: 34, lineHeight: 1.7, color: "#3a484c" }, summary) : null,
+      summary ? h("div", { display: "flex", marginTop: image ? 30 : 36, fontSize: image ? 32 : 34, lineHeight: 1.7, color: "#3a484c" }, summary) : null,
       h("div", { display: "flex", marginTop: 36, fontSize: 28, color: "#66757a" }, clamp(`来源：${p.source}`, 34)),
       h("div", { display: "flex", flex: 1 }),
       h(
@@ -76,7 +89,9 @@ async function tree(p: Poster): Promise<Node> {
 }
 
 export function posterEtag(p: Poster): string {
-  return createHash("sha256").update(POSTER_TEMPLATE_VERSION).update(SITE.name).update(SITE_HOST).update(JSON.stringify(p)).digest("hex").slice(0, 24);
+  // Same rule as the cards: the picture's digest stands in for its hundreds of KB of base64.
+  const image = p.image ? createHash("sha256").update(p.image.data).digest("hex") : null;
+  return createHash("sha256").update(POSTER_TEMPLATE_VERSION).update(SITE.name).update(SITE_HOST).update(JSON.stringify({ ...p, image })).digest("hex").slice(0, 24);
 }
 
 /** PNG bytes for a poster, from the disk cache when this exact poster was rendered before. */

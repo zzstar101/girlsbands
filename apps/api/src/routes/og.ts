@@ -9,8 +9,9 @@ import { loadRelease } from "@girlsbands/backend/publication/releases";
 import { loadReport, type ReportKind } from "@girlsbands/backend/publication/reports";
 import { findPageTopic, TOPIC_GROUPS } from "@girlsbands/backend/publication/topics";
 import { loadStoryDetail, resolveStory } from "@girlsbands/backend/publication/stories";
-import { ogEtag, renderOg, type OgCard } from "../og/render.ts";
-import { posterEtag, renderPoster, type Poster } from "../og/poster.ts";
+import { CARD_IMAGE, ogEtag, renderOg, type OgCard } from "../og/render.ts";
+import { POSTER_IMAGE, posterEtag, renderPoster, type Poster } from "../og/poster.ts";
+import { ogImage } from "../og/cover.ts";
 import { renderHero } from "../og/hero.ts";
 import { parseDateFile, parseTitleFile, renderDate, renderTitle } from "../og/title.ts";
 import { decodeHero } from "@girlsbands/industry/email/hero";
@@ -153,7 +154,8 @@ export function registerOg(app: FastifyInstance) {
     return reply.type("image/png").send(png);
   });
 
-  app.get("/og/items/:file", async (req, reply) => {    const file = (req.params as { file: string }).file;
+  app.get("/og/items/:file", async (req, reply) => {
+    const file = (req.params as { file: string }).file;
     if (!file.endsWith(".png")) return notFound(reply);
     const d = await loadItemShare(file.slice(0, -4));
     if (!d) return notFound(reply);
@@ -164,6 +166,7 @@ export function registerOg(app: FastifyInstance) {
       subtitle: d.summary,
       meta: `${d.source.name} · ${beijingDate(d.timelineAt)}`,
       badge: d.selected && d.score !== null ? { value: String(Math.round(d.score)), label: "精选评分" } : null,
+      image: await ogImage(d.cover, CARD_IMAGE),
     }, 3600, CONTENT_IMAGE_CACHE);
   });
 
@@ -181,6 +184,7 @@ export function registerOg(app: FastifyInstance) {
       source: d.source.name,
       date: beijingDate(d.timelineAt),
       score: d.selected ? d.score : null,
+      image: await ogImage(d.cover, POSTER_IMAGE),
     };
     const tag = `"poster-${posterEtag(poster)}"`;
     reply.header("ETag", tag).header("Cache-Control", CONTENT_IMAGE_CACHE).header("X-Accel-Expires", CONTENT_IMAGE_ORIGIN_SECONDS);
@@ -198,6 +202,7 @@ export function registerOg(app: FastifyInstance) {
       title: r.lead?.title ?? r.title,
       subtitle: r.lead?.leadParagraph ?? r.overview,
       meta: `${r.sections.reduce((n, s) => n + s.items.length, 0)} 条核心新闻 · 约 ${r.readingMinutes} 分钟读完`,
+      image: await ogImage(r.cover, CARD_IMAGE),
     }, 86400);
   });
 
@@ -222,6 +227,7 @@ export function registerOg(app: FastifyInstance) {
       subtitle: s.latest ?? s.digest,
       meta: `${s.sourceCount} 个来源 · ${s.reportCount} 篇报道`,
       accent: s.whyHot.rank ? "hot" : "teal",
+      image: await ogImage(s.cover, CARD_IMAGE),
     }, 3600, CONTENT_IMAGE_CACHE);
   });
 
@@ -245,6 +251,7 @@ export function registerOg(app: FastifyInstance) {
       title: r.title,
       subtitle: `${RELEASE_KIND_LABELS[r.kind]}${r.releaseOn ? ` · ${r.releaseOn} 发售` : " · 发售日未定"}`,
       meta: extras || null,
+      image: await ogImage(r.cover, CARD_IMAGE),
     }, 3600, CONTENT_IMAGE_CACHE);
   });
 }

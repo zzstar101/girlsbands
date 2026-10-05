@@ -47,6 +47,19 @@ export function proxiedImageSet(url: string | null | undefined, kind: Responsive
   return RESPONSIVE_MODES[kind].map((mode) => `${proxiedImage(url, mode, absolute, nowMs, lifetimeSeconds)} ${IMAGE_WIDTHS[mode]}w`).join(", ");
 }
 
+/**
+ * The upstream address inside a signed proxy URL. The share-image renderer works from a page's cover
+ * (a signed URL meant for the browser) but needs the bytes, and the `u` parameter is exactly them.
+ */
+export function proxySource(path: string | null | undefined): string | null {
+  if (!path) return null;
+  try {
+    return new URL(path, config.siteUrl).searchParams.get("u");
+  } catch {
+    return null;
+  }
+}
+
 export type VerifyResult = { ok: true; url: string; mode: string } | { ok: false; reason: "missing" | "expired" | "bad-signature" | "bad-url" };
 
 export function verifyProxyRequest(params: { u?: string; mode?: string; exp?: string; sig?: string }, nowMs = Date.now()): VerifyResult {

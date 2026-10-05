@@ -8,10 +8,22 @@ import sharp from "sharp";
 import { config, REPO_ROOT } from "@girlsbands/backend/config";
 import { SITE } from "@girlsbands/industry/site";
 
-export const OG_TEMPLATE_VERSION = "og-2026-10-05.3";
+export const OG_TEMPLATE_VERSION = "og-2026-10-05.4";
 const WIDTH = 1200;
 const HEIGHT = 630;
 const CACHE_DIR = path.join(config.dataDir, "ogcache");
+/** The right-hand picture's box on a card (3:2, cropped by satori). */
+const IMAGE_WIDTH = 390;
+const IMAGE_HEIGHT = 260;
+/** The same box, for callers that fetch the bytes (see og/cover.ts). */
+export const CARD_IMAGE = { width: IMAGE_WIDTH, height: IMAGE_HEIGHT } as const;
+
+/** A picture already inline as a data URL: satori never fetches, and the card renders with no network. */
+export interface OgImage {
+  data: string;
+  width: number;
+  height: number;
+}
 
 export interface OgCard {
   kicker: string;
@@ -21,6 +33,8 @@ export interface OgCard {
   /** Small emphasised figure on the right (e.g. an item score). */
   badge?: { value: string; label: string } | null;
   accent?: "teal" | "hot" | "amber";
+  /** The announcement's own picture; a card without one is exactly the card it was before. */
+  image?: OgImage | null;
 }
 
 /** 简体字族：中文标签走它。 */
@@ -84,8 +98,27 @@ export function clamp(text: string, max: number) {
 
 async function tree(card: OgCard): Promise<Node> {
   const accent = ACCENTS[card.accent ?? "teal"];
-  const title = clamp(card.title, 64);
-  const titleSize = [...title].length > 40 ? 50 : [...title].length > 24 ? 58 : 66;
+  const image = card.image ?? null;
+  // With a picture the text column keeps about half the width, so the title clamps earlier: three lines
+  // at 44px are what fits beside the image and above the footer.
+  const title = clamp(card.title, image ? 30 : 64);
+  const titleSize = image
+    ? [...title].length > 20 ? 44 : 52
+    : [...title].length > 40 ? 50 : [...title].length > 24 ? 58 : 66;
+  const subtitle = card.subtitle
+    ? clamp(card.subtitle, image ? 34 : [...title].length > 40 ? 26 : [...title].length > 24 ? 50 : 78)
+    : null;
+  // The badge has no room beside the picture, so it moves into the footer as a pill.
+  const footer = image
+    ? card.meta || card.badge
+      ? h("div", { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, fontSize: 24, color: "#82939a", borderTop: "1px solid rgba(230,237,237,0.12)", paddingTop: 22 }, [
+          card.meta ? h("div", { display: "flex" }, clamp(card.meta, 70)) : null,
+          card.badge ? h("div", { display: "flex", alignItems: "center", padding: "2px 16px", borderRadius: 999, border: `2px solid ${accent}`, color: "#ffffff" }, `${card.badge.label} ${card.badge.value}`) : null,
+        ].filter(Boolean))
+      : null
+    : card.meta
+      ? h("div", { display: "flex", fontSize: 24, color: "#82939a", borderTop: "1px solid rgba(230,237,237,0.12)", paddingTop: 22 }, clamp(card.meta, 70))
+      : null;
   return h(
     "div",
     {
@@ -112,16 +145,18 @@ async function tree(card: OgCard): Promise<Node> {
         h("div", { display: "flex", flexDirection: "column", flex: 1 }, [
           h("div", { display: "flex", fontSize: titleSize, fontWeight: 700, lineHeight: 1.25, color: "#ffffff" }, title),
           // Long titles take three lines; the summary then gets one line so nothing reaches the footer.
-          card.subtitle ? h("div", { display: "flex", marginTop: 22, fontSize: 28, lineHeight: 1.5, color: "#b1bec0" }, clamp(card.subtitle, [...title].length > 40 ? 26 : [...title].length > 24 ? 50 : 78)) : null,
+          subtitle ? h("div", { display: "flex", marginTop: image ? 18 : 22, fontSize: image ? 26 : 28, lineHeight: 1.5, color: "#b1bec0" }, subtitle) : null,
         ].filter(Boolean)),
-        card.badge
-          ? h("div", { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: 170, height: 170, borderRadius: 999, border: `6px solid ${accent}` }, [
-              h("div", { display: "flex", fontSize: 58, fontWeight: 700, color: "#ffffff" }, card.badge.value),
-              h("div", { display: "flex", fontSize: 22, color: "#82939a" }, card.badge.label),
-            ])
-          : null,
+        image
+          ? h("img", { width: IMAGE_WIDTH, height: IMAGE_HEIGHT, objectFit: "cover", borderRadius: 20, border: "1px solid rgba(230,237,237,0.12)" }, undefined, { src: image.data, width: IMAGE_WIDTH, height: IMAGE_HEIGHT })
+          : card.badge
+            ? h("div", { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: 170, height: 170, borderRadius: 999, border: `6px solid ${accent}` }, [
+                h("div", { display: "flex", fontSize: 58, fontWeight: 700, color: "#ffffff" }, card.badge.value),
+                h("div", { display: "flex", fontSize: 22, color: "#82939a" }, card.badge.label),
+              ])
+            : null,
       ].filter(Boolean)),
-      card.meta ? h("div", { display: "flex", fontSize: 24, color: "#82939a", borderTop: "1px solid rgba(230,237,237,0.12)", paddingTop: 22 }, clamp(card.meta, 70)) : null,
+      footer,
     ].filter(Boolean),
   );
 }
@@ -164,7 +199,10 @@ async function render(file: string, size: { width: number; height: number }, tre
 }
 
 export function ogEtag(card: OgCard): string {
-  return createHash("sha256").update(OG_TEMPLATE_VERSION).update(SITE.name).update(SITE_HOST).update(JSON.stringify(card)).digest("hex").slice(0, 24);
+  // The picture is hundreds of KB of base64 and identical bytes make an identical card, so its digest
+  // stands in for it in the hash (and in the disk-cache name that comes from the hash).
+  const image = card.image ? createHash("sha256").update(card.image.data).digest("hex") : null;
+  return createHash("sha256").update(OG_TEMPLATE_VERSION).update(SITE.name).update(SITE_HOST).update(JSON.stringify({ ...card, image })).digest("hex").slice(0, 24);
 }
 
 /** PNG bytes for a card, from the disk cache when this exact card was rendered before. */
