@@ -3,7 +3,9 @@
 // The grid is desktop; phones get the same days as a list, because seven columns do not fit a phone.
 import { Link } from "react-router";
 import type { CalendarResponse, DeadlineView } from "@girlsbands/contracts/site";
+import { FAN_EVENT_LABEL, isFanEvent } from "@girlsbands/contracts/site";
 import { IconChevronLeft, IconChevronRight, IconDownload } from "../../components/icons";
+import { FanOnlyBadge } from "../../components/ui/FanOnlyBadge";
 import { DEADLINE_KINDS, md } from "../feed/deadlines";
 
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
@@ -28,10 +30,13 @@ function monthGrid(month: string): { lead: number; days: number } {
 function Event({ d }: { d: DeadlineView }) {
   const kind = DEADLINE_KINDS[d.kind];
   const time = d.localTime;
+  // 同人场的标记要落在日期格这一层：读者是扫着日历决定「那天乐队会不会到场」的，详情页上再写就晚了。
+  const fan = isFanEvent(d.organizer) ? FAN_EVENT_LABEL : null;
   return (
-    <Link to={`/items/${d.itemId}`} prefetch="intent" title={`${kind.label}${d.note ? ` · ${d.note}` : ""} · ${d.title}`} className="group/event flex items-start gap-1.5">
+    <Link to={`/items/${d.itemId}`} prefetch="intent" title={[fan, kind.label, d.note, d.title].filter(Boolean).join(" · ")} className="group/event flex items-start gap-1.5">
       <span aria-hidden="true" className={`mt-[5px] size-1.5 flex-none rounded-full bg-current ${kind.className}`} />
       <span className="min-w-0 text-[11.5px] leading-[1.45] text-ink-2 transition-colors group-hover/event:text-accent">
+        <FanOnlyBadge organizer={d.organizer} className="is-cell mr-1 align-[1px]" />
         {time && <span className="mono mr-1 text-ink-4">{time}</span>}
         {d.title}
       </span>

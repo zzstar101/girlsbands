@@ -12,6 +12,7 @@ import { Ticket, daysAway, Countdown } from "../features/feed/Ticket";
 import { subjectOfId } from "../features/feed/bands";
 import { DEADLINE_KINDS, clockText, dayName, md } from "../features/feed/deadlines";
 import { ArtistLine } from "../components/ui/ArtistBadge";
+import { FanOnlyBadge } from "../components/ui/FanOnlyBadge";
 import { EmptyState } from "../components/ui/Page";
 import { IconCalendar, IconInfo } from "../components/icons";
 import { PhoneBar } from "../components/shell/PhoneBar";
@@ -63,6 +64,7 @@ function Row({ d, from }: { d: DeadlineView; from: string }) {
       <div className="min-w-0">
         <h3 className="text-[15px] font-[650] leading-[1.55] text-ink">
           <Link viewTransition to={`/items/${d.itemId}`} prefetch="intent" className="transition-colors group-hover:text-accent">
+            <FanOnlyBadge organizer={d.organizer} className="mr-1.5 align-[1px]" />
             {d.note ? <span className="text-accent">{d.note}</span> : null}
             {d.note ? <span className="text-ink-4"> · </span> : null}
             {d.title}

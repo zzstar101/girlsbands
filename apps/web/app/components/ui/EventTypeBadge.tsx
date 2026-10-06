@@ -4,7 +4,8 @@ import { CATEGORY_LABELS } from "@girlsbands/contracts/taxonomy";
 /**
  * The category, as a poster stamp: a Latin code so a card reads at a glance, with the Chinese label
  * kept for readers who do not read the code. Colour never carries the meaning alone — the text is
- * always there — and only the two categories that ask the reader to act (票务, 通知) are tinted.
+ * always there. Tinted stamps (flyer.css): LIVE pink, TICKET tape yellow, RELEASE pink text, and
+ * COLLAB split pink/violet (two works meeting); the rest stay outlined.
  */
 const CODES: Record<CategoryKey, string> = {
   notice: "NOTICE",

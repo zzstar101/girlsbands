@@ -78,3 +78,8 @@ export function subjectsOfItem(item: { subjects?: readonly string[] | null; tags
   }
   return [...filed, ...subjectsOfTags(item.tags).filter((s) => !filed.includes(s))];
 }
+
+/** Every real band (not projects), in pack order — for picks like the home headline's 「大家好，我们是 ×××」. */
+export function allBands(): Subject[] {
+  return [...BY_ID.values()].filter((s) => s.kind === "band");
+}

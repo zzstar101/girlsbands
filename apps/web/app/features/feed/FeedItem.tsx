@@ -13,6 +13,7 @@ import type { CardChange, GroupInfo, FeedItemSummary, TimelineFilters, DeadlineV
 import { SameEventBadge, SelectedBadge } from "../../components/ui/Badge";
 import { ArtistLine } from "../../components/ui/ArtistBadge";
 import { EventTypeBadge } from "../../components/ui/EventTypeBadge";
+import { FanOnlyBadge } from "../../components/ui/FanOnlyBadge";
 import { ScoreLabel } from "../../components/ui/Score";
 import { beijingTime } from "@girlsbands/contracts/time";
 import { daysAway } from "./Ticket";
@@ -69,11 +70,11 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
   const subjects = subjectsOfItem(item);
 
   return (
-    <article ref={ref} className={`flyer-card relative min-w-0 ${headliner ? "headliner" : ""}`} data-item-id={item.id} style={{ "--k1": subjects[0]?.accent ?? "transparent" } as CSSProperties}>
+    <article ref={ref} className={`flyer-card relative min-w-0 ${headliner ? "headliner" : ""}`} data-item-id={item.id} style={{ "--k1": subjects[0]?.accent ?? "transparent", "--oshi": subjects[0]?.accent ?? "var(--ink)" } as CSSProperties}>
       <span className="spine" aria-hidden="true">{subjects.map((s) => <i key={s.id} style={{ background: s.accent ?? "var(--pink)" }} />)}</span>
       {headliner && <><div className="hl-dots halftone" aria-hidden="true" /><div className="lineup"><span className="lineup-k">LINEUP<br />出演</span>{subjects.map((s) => <Link key={s.id} to={`/topics/${s.id}`} style={{ "--c": s.accent } as CSSProperties} aria-label={s.label}><BandLogo id={s.id} /></Link>)}{!subjects.length && <span className="px-4 py-3 text-[12px] font-bold">今日头条</span>}</div></>}
       <header className="flex min-h-[22px] items-center gap-1.5 text-[12.5px] leading-[18px] text-ink-4 lg:min-h-[18px] lg:gap-2">
-        <EventTypeBadge category={item.category} /><ArtistLine subjects={subjects} /><SourceLine item={item} className="feed-source text-ink-4" />
+        <EventTypeBadge category={item.category} /><FanOnlyBadge organizer={item.organizer} /><ArtistLine subjects={subjects} /><SourceLine item={item} className="feed-source text-ink-4" />
         {at && (
           <time dateTime={at} className="mono shrink-0 text-[12px] lg:hidden">
             · {beijingTime(at)}

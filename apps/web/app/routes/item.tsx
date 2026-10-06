@@ -1,6 +1,7 @@
 import { Ticket } from "../features/feed/Ticket";
 import { ArtistLine } from "../components/ui/ArtistBadge";
 import { EventTypeBadge } from "../components/ui/EventTypeBadge";
+import { FanOnlyBadge } from "../components/ui/FanOnlyBadge";
 import { subjectsOfItem } from "../features/feed/bands";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Await, isRouteErrorResponse, Link, useAsyncError, useLoaderData, useNavigate, useRevalidator } from "react-router";
@@ -23,6 +24,7 @@ import { MediaGallery } from "../features/item/MediaGallery";
 import { QuotedPost } from "../features/item/QuotedPost";
 import { ArticleBody } from "../features/item/ArticleBody";
 import { ActionsSheet, ReaderToolbar, type ActionRow } from "../features/item/ReaderTools";
+import { Develop, MarkedLede, StringProgress } from "../features/item/StageFx";
 import { ReportProblem } from "../features/feedback/ReportProblem";
 import { OutlineSheet, scrollToAnchor } from "../components/ui/OutlineSheet";
 import { CoverImage } from "../components/ui/CoverImage";
@@ -454,6 +456,7 @@ function ItemView({ item }: { item: SiteItemDetail }) {
       >
         {/* Between lg and 2xl the left rail is hidden: 返回 stays at the top while reading, as on the original site. */}
         <div className="sticky top-0 z-20 -mx-2 hidden bg-bg/95 px-2 py-1.5 backdrop-blur lg:block 2xl:hidden">{backButton}</div>
+        <StringProgress />
         <article className="pb-6 pt-3 lg:pt-2 2xl:pt-1">
           <div className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-ink-3 2xl:hidden ${isX ? "" : "mb-3"}`}>
             <span className="font-semibold text-ink-2">{isX ? item.x!.authorName : item.source.name}</span>
@@ -473,14 +476,14 @@ function ItemView({ item }: { item: SiteItemDetail }) {
               </span>
             )}
           </div>
-          <div className="mb-3 flex flex-wrap items-center gap-2"><EventTypeBadge category={item.category} /><ArtistLine subjects={subjectsOfItem(item)} /></div>
+          <div className="mb-3 flex flex-wrap items-center gap-2"><EventTypeBadge category={item.category} /><FanOnlyBadge organizer={item.organizer} /><ArtistLine subjects={subjectsOfItem(item)} /></div>
           {!isX && <h1 data-page-title="" className="text-[26px] font-bold leading-[1.38] tracking-[-0.01em] text-ink lg:text-[32px] lg:leading-[1.34] xl:text-[36px] xl:leading-[1.3]">{item.title}</h1>}
           {!isX && item.originalTitle && <p className="mt-2.5 text-[14px] leading-relaxed text-ink-4">{item.originalTitle}</p>}
 
           {leadCover && (
-            <div className="mt-6 max-w-[620px]">
-              <CoverImage cover={leadCover} className="h-auto w-full rounded-lg shadow-sm" priority />
-            </div>
+            <Develop className="mt-6 max-w-[620px]">
+              <CoverImage cover={leadCover} className="block h-auto w-full" priority />
+            </Develop>
           )}
 
           {item.dates?.[0] && <div className="mt-5 max-w-[520px]"><Ticket item={item.dates[0]} from={item.datesFrom ?? item.dates[0].day} /></div>}
@@ -488,7 +491,7 @@ function ItemView({ item }: { item: SiteItemDetail }) {
           {item.summary && (
             <section className={isX ? "mt-4" : "mt-7 xl:mt-8"}>
               <div className="mb-2 text-[12px] font-semibold text-accent">{summaryOnly ? "摘要" : "AI 导读"}</div>
-              <p className="text-[18px] leading-[1.7] text-ink xl:text-[20px] xl:leading-[1.7]">{item.summary}</p>
+              <MarkedLede text={item.summary} accent={subjectsOfItem(item)[0]?.accent} className="text-[18px] leading-[1.7] text-ink xl:text-[20px] xl:leading-[1.7]" />
             </section>
           )}
 

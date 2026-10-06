@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import type { ActionCenterResponse, DeadlineView } from "@girlsbands/contracts/site";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { ArtistLine } from "../../components/ui/ArtistBadge";
+import { FanOnlyBadge } from "../../components/ui/FanOnlyBadge";
 import { subjectOfId, type Subject } from "./bands";
 import { Countdown, daysAway } from "./Ticket";
 import { DEADLINE_KINDS, clockText, md } from "./deadlines";
@@ -17,7 +18,7 @@ function Row({ d, from }: { d: DeadlineView; from: string }) {
     <div>
       <div className={`k ${kind.className}`}>{kind.label}<i>{clockText(d.localTime, d.timezone)}</i></div>
       <Countdown at={d.at} timezone={d.timezone} from={from} />
-      <Link className="tt block" to={`/items/${d.itemId}`}>{d.title}</Link>
+      <Link className="tt block" to={`/items/${d.itemId}`}><FanOnlyBadge organizer={d.organizer} className="mr-1.5 align-[1px]" />{d.title}</Link>
       <ArtistLine subjects={d.subjects.map(subjectOfId).filter((s): s is Subject => !!s)} className="mt-2" />
     </div>
   </li>;

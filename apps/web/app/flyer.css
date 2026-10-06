@@ -1,5 +1,5 @@
 .side {
-  position: sticky; top: 0; height: 100dvh; width: 232px; flex: none; display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100dvh; width: 264px; flex: none; display: flex; flex-direction: column;
   background: var(--wall); border-right: 2px solid var(--ink); padding: 20px 30px 14px 16px; overflow: hidden;
 }
 .logo { display: block; }
@@ -89,22 +89,23 @@
 .tickets { display: grid; gap: 12px; }
 .ticket {
   --c: var(--pink);
-  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 92px; background: var(--paper); color: var(--paper-ink);
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 92px; color: var(--paper-ink);
   border-left: 7px solid var(--c); transition: transform .2s cubic-bezier(.25,1,.5,1);
-  -webkit-mask: radial-gradient(circle 8px at calc(100% - 92px) 0, transparent 98%, #000) top / 100% 51% no-repeat,
-                radial-gradient(circle 8px at calc(100% - 92px) 100%, transparent 98%, #000) bottom / 100% 51% no-repeat;
-          mask: radial-gradient(circle 8px at calc(100% - 92px) 0, transparent 98%, #000) top / 100% 51% no-repeat,
-                radial-gradient(circle 8px at calc(100% - 92px) 100%, transparent 98%, #000) bottom / 100% 51% no-repeat;
 }
 .ticket:hover { transform: translateX(-4px) rotate(-.4deg); }
-.ticket .t-main { padding: 12px 14px 12px 14px; min-width: 0; border-right: 2px dashed rgba(20,18,22,.25); }
+/* The punch holes sit on the perforation: half a notch on each side, so the stub can tear away on its own. */
+.ticket .t-main { position: relative; padding: 12px 14px 12px 14px; min-width: 0; background: var(--paper); border-right: 2px dashed rgba(20,18,22,.25);
+  -webkit-mask: radial-gradient(circle 8px at 100% 0, transparent 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 8px at 100% 100%, transparent 98%, #000) bottom / 100% 51% no-repeat;
+          mask: radial-gradient(circle 8px at 100% 0, transparent 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 8px at 100% 100%, transparent 98%, #000) bottom / 100% 51% no-repeat; }
 .ticket .t-top { display: flex; align-items: center; gap: 8px; }
 .ticket .kind { font-size: 11px; font-weight: 800; letter-spacing: .06em; padding: 1px 6px; background: var(--paper-ink); color: var(--paper); }
 .ticket .kind.act { background: #e6005f; color: #fff; }
 .ticket .band { font-size: 12px; font-weight: 800; color: var(--c); filter: saturate(1.1) brightness(.85); }
 .ticket .t-title { margin-top: 6px; font-size: 14.5px; font-weight: 700; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ticket .t-when { margin-top: 6px; font-size: 11.5px; color: #6b6570; }
-.ticket .t-stub { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.ticket .t-stub { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: var(--paper); transform-origin: 0 100%; transition: transform .35s cubic-bezier(.3,1.4,.5,1);
+  -webkit-mask: radial-gradient(circle 8px at 0 0, transparent 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 8px at 0 100%, transparent 98%, #000) bottom / 100% 51% no-repeat;
+          mask: radial-gradient(circle 8px at 0 0, transparent 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 8px at 0 100%, transparent 98%, #000) bottom / 100% 51% no-repeat; }
 .ticket .t-stub .d { font-family: var(--font-display); font-size: 13px; letter-spacing: .1em; color: #6b6570; }
 .ticket .t-stub .n { font-family: var(--font-display); font-size: 52px; line-height: .9; }
 .ticket.soon .t-stub { background: var(--tape); }
@@ -239,6 +240,16 @@ a:hover > .tip.l, a:hover > .tip.r, a:focus-visible > .tip.l, a:focus-visible > 
 .stamp.live { background: var(--pink); border-color: var(--pink); color: #fff; }
 .stamp.ticket { background: var(--tape); border-color: var(--tape); color: var(--tape-ink); }
 .stamp.release { color: var(--pink-ink); }
+/* 同人 Only：粉丝／同人团体主办，乐队不会到场。虚线框跟实底分类印章分开；正文字体，Anton 没有汉字。 */
+.fanonly { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border: 1.5px dashed var(--fan-line); background: var(--fan-bg); font-size: 11.5px; font-weight: 800; line-height: 1; letter-spacing: .02em; color: var(--fan-ink); white-space: nowrap; }
+/* COLLAB：两个作品撞在一起 —— 粉、紫各占一半的斜切色块，白字在两边都够对比。
+   同人 Only：薄荷绿虚线 + 淡底，像同人展场贩的手写摊位牌；虚线仍是主要区分，颜色只是辅助。 */
+:root { --fan-line: #0d8f7d; --fan-bg: rgb(13 160 140 / .1); --fan-ink: #0a6b5e; --collab-a: var(--pink); --collab-b: #7c4dff; }
+[data-theme="dark"] { --fan-line: #3fd6bf; --fan-bg: rgb(63 214 191 / .12); --fan-ink: #7eeedd; --collab-b: #8f63ff; }
+/* 票根、海报、歌单这些纸面在黑场里也是米白纸，徽章要按纸的颜色走 */
+[data-theme="dark"] :is(.ticket, .bt-main, .topic-poster, .lineup, .poster-slot, .hs-setlist, .hero .project-names) { --fan-line: #0d8f7d; --fan-bg: rgb(13 160 140 / .1); --fan-ink: #0a6b5e; }
+.stamp.collab { position: relative; border-color: transparent; color: #fff; background: linear-gradient(115deg, var(--collab-a) 0 50%, var(--collab-b) 50% 100%); }
+.fanonly.is-cell { height: 15px; padding: 0 4px; border-width: 1px; font-size: 10px; }
 .bands { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip-band { position: relative; z-index: 3; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 8px; background: var(--c); color: var(--on); font-size: 13px; font-weight: 900; letter-spacing: -.005em; white-space: nowrap; }
 .chip-band::before { content: ""; width: 6px; height: 6px; background: currentColor; transform: rotate(45deg); opacity: .8; }
@@ -250,7 +261,7 @@ a:hover > .tip.l, a:hover > .tip.r, a:focus-visible > .tip.l, a:focus-visible > 
 .beam { position: absolute; top: -30%; width: 46%; height: 170%; filter: blur(38px); opacity: .22; mix-blend-mode: screen; transform-origin: 50% 0; }
 .beam.b1 { left: 8%; background: linear-gradient(180deg, var(--pink), transparent 75%); clip-path: polygon(44% 0, 56% 0, 100% 100%, 0 100%); animation: sweep 9s ease-in-out infinite alternate; }
 .beam.b2 { left: 34%; background: linear-gradient(180deg, var(--tape), transparent 70%); clip-path: polygon(45% 0, 55% 0, 92% 100%, 8% 100%); opacity: .12; animation: sweep 11s ease-in-out -4s infinite alternate-reverse; }
-[data-theme="light"] .beam { mix-blend-mode: multiply; opacity: .1; }
+[data-theme="light"] .beam { mix-blend-mode: normal; opacity: .07; }
 [data-theme="light"] .beam.b2 { opacity: .14; }
 @keyframes sweep { from { transform: rotate(-16deg); } to { transform: rotate(14deg); } }
 .hero > * { position: relative; z-index: 1; }
@@ -434,4 +445,262 @@ body:not(:has([data-admin])) [data-pill-track] [aria-current="page"] { color: va
 @media (prefers-reduced-motion: reduce) { .seal-ring { animation: none !important; } }
 @media (max-width: 960px) {
   a:hover > .tip, a:focus-visible > .tip { display: none; }
+}
+
+/* ---------- 细节 FX (docs/design.md §细节) ---------- */
+/* 01 翻牌倒计时: every digit is a split-flap tile that flips when it changes. */
+.countdown.flip { white-space: nowrap; }
+.countdown.flip i { font-style: normal; margin: 0 1px; opacity: .6; }
+.flap { display: inline-block; position: relative; min-width: 1.15em; margin: 0 1px; padding: 1px 0; text-align: center; font-weight: 700;
+  background: var(--paper-ink); color: var(--paper); transform-origin: 50% 0; animation: flap-in 300ms cubic-bezier(.3,1.5,.5,1) both; }
+.flap::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(255,255,255,.22); }
+.sn-top .flap { background: var(--tape-ink); color: var(--tape); }
+@keyframes flap-in { from { transform: perspective(60px) rotateX(-85deg); filter: brightness(1.8); } }
+.ticket .t-stub .n { position: relative; }
+.ticket .t-stub .n::after { content: ""; position: absolute; left: -6px; right: -6px; top: 52%; height: 2px; background: var(--paper); opacity: .9; }
+.ticket.soon .t-stub .n::after { background: var(--tape); }
+
+/* 04 撕票根: on hover the stub tears along the perforation and a 入場 stamp comes down. */
+.ticket .punch { position: absolute; top: 9px; right: 12px; padding: 1px 7px; border: 2px solid var(--pink); color: var(--pink); font-size: 13px; font-weight: 900; letter-spacing: .1em;
+  opacity: 0; transform: rotate(-12deg) scale(1.7); transition: opacity .15s, transform .25s cubic-bezier(.3,1.6,.5,1); pointer-events: none; }
+@media (hover: hover) {
+  .ticket:hover .t-stub { transform: translate(7px, -2px) rotate(7deg); }
+  .ticket:hover .punch { opacity: .9; transform: rotate(-12deg) scale(1); }
+}
+
+/* 05 应援色硬影 + 胶带翘起: the hard shadow takes the band's colour; poster tape lifts at one corner. */
+@media (hover: hover) {
+  .flyer-card:hover { box-shadow: 5px 5px 0 var(--oshi, var(--ink)); }
+  .poster::before { transition: transform .25s cubic-bezier(.3,1.4,.5,1), box-shadow .25s; transform-origin: 0 50%; }
+  .poster:hover::before { transform: rotate(-9deg) translate(-3px, -4px) skewX(-6deg); box-shadow: 0 4px 5px rgba(0,0,0,.28); }
+}
+
+/* 07 拉闸换场: the new theme opens as an iris from the switch; 黑场 flickers once as the lights come up. */
+:root[data-theme-vt]::view-transition-old(root) { animation: none; }
+:root[data-theme-vt]::view-transition-new(root) { animation: iris-open 700ms cubic-bezier(.65,0,.25,1) both; }
+:root[data-theme-vt="dark"]::view-transition-new(root) { animation: iris-open 700ms cubic-bezier(.65,0,.25,1) both, lights-up 900ms linear both; }
+@keyframes iris-open { from { clip-path: circle(0 at var(--iris-x, 50%) var(--iris-y, 50%)); } to { clip-path: circle(150vmax at var(--iris-x, 50%) var(--iris-y, 50%)); } }
+@keyframes lights-up { 0%, 62% { filter: none; } 66% { filter: brightness(.45); } 71% { filter: none; } 76% { filter: brightness(.6); } 82%, 100% { filter: none; } }
+
+/* 08 荧光笔划重点 */
+.marked .hl { color: inherit; padding: 0 1px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  background: linear-gradient(color-mix(in srgb, var(--hl, var(--tape)) 58%, transparent), color-mix(in srgb, var(--hl, var(--tape)) 58%, transparent)) no-repeat 0 100% / 0% 38%;
+  transition: background-size 650ms cubic-bezier(.6,0,.2,1) calc(var(--i, 0) * 260ms + 200ms); }
+.marked.lit .hl { background-size: 100% 38%; }
+
+/* 09 吉他弦阅读进度 */
+.string-progress { position: fixed; z-index: 60; top: 0; left: 0; right: 0; height: 14px; pointer-events: none; }
+@media (min-width: 1024px) { .string-progress { left: 264px; } }
+.string-progress svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.string-progress path { fill: none; vector-effect: non-scaling-stroke; }
+.string-progress .s-rest { stroke: var(--ink-4); stroke-width: 1; opacity: .7; }
+.string-progress .s-played { stroke: var(--pink); stroke-width: 2.5; stroke-dasharray: 1 1; }
+.string-progress .s-pick { position: absolute; top: 0; width: 13px; height: 14px; margin-left: -6px; background: var(--tape); border: 1.5px solid var(--ink);
+  border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%; clip-path: polygon(0 0, 100% 0, 100% 45%, 50% 100%, 0 45%); }
+
+/* 10 网点显影: halftone dots swell until they close, then the picture takes its colour. */
+@property --dot-r { syntax: "<length>"; inherits: false; initial-value: 5px; }
+.develop { position: relative; }
+.develop img { animation: develop-ink 1.5s cubic-bezier(.4,0,.2,1) .2s both; }
+.develop::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle, transparent var(--dot-r), var(--bg) calc(var(--dot-r) + .7px)) 0 0 / 7px 7px;
+  animation: develop-dots 1.1s cubic-bezier(.5,0,.3,1) .2s both; }
+@keyframes develop-dots { from { --dot-r: .6px; } to { --dot-r: 5px; } }
+@keyframes develop-ink { 0%, 55% { filter: grayscale(1) contrast(1.5); } 100% { filter: none; } }
+@media (prefers-reduced-motion: reduce) { .flap, .develop img, .develop::after { animation: none !important; } .develop::after { display: none; } .string-progress .s-pick { transition: none; } }
+
+/* ── 首页 hero 右半边（HeroSide）：海报墙 / 大票 / 歌单 / 月历，先都做出来比较 ── */
+.hero-main { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); column-gap: 20px; align-items: start; }
+.hero-main > .stats { grid-column: 1 / -1; }
+@media (min-width: 1101px) { .hero-main:has(.hero-side) .issue-seal { display: none; } }
+@media (max-width: 1100px) { .hero-main { display: block; } .hero-main:has(.hero-side) .issue-seal { display: none; } .hero-side { margin: 30px 0 6px; max-width: 560px; overflow-x: clip; overflow-y: visible; padding: 0 4px; } }
+.hero-side { position: relative; min-width: 0; margin-top: 4px; }
+.hs-tabs { display: flex; gap: 0; margin-bottom: 12px; border: 1px solid var(--line-strong); width: max-content; }
+.hs-tabs button { padding: 2px 9px; font-size: 11.5px; font-weight: 700; color: var(--ink-3); cursor: pointer; }
+.hs-tabs button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.hs-empty { padding: 30px 0; color: var(--ink-4); font-size: 13px; }
+
+/* 1 海报墙 */
+.hs-wall { position: relative; height: 330px; }
+.poster-slot { position: absolute; display: block; rotate: var(--rot, 0deg); z-index: var(--z, 1); background: var(--paper); padding: 5px 5px 0; box-shadow: 3px 4px 0 rgb(0 0 0 / .35); transition: transform .25s cubic-bezier(.3,1.4,.5,1), z-index 0s; color: var(--paper-ink); }
+.poster-slot img { display: block; width: 100%; aspect-ratio: var(--ar, .75); object-fit: cover; background: var(--wall); transition: aspect-ratio .2s; }
+.poster-slot::before { content: ""; position: absolute; z-index: 2; top: -8px; left: 50%; width: 52px; height: 16px; translate: -50% 0; rotate: -4deg; background: var(--tape); opacity: .85; mix-blend-mode: multiply; }
+[data-theme="dark"] .poster-slot::before { mix-blend-mode: normal; opacity: .9; }
+.poster-cap { display: block; padding: 4px 2px 5px; font-size: 10.5px; line-height: 1.35; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border-top: 3px solid var(--c); margin-top: 5px; }
+.poster-cap b { margin-right: 5px; color: var(--c); filter: brightness(.8); }
+.poster-slot:hover, .poster-slot:focus-visible { rotate: 0deg; z-index: 9; transform: translateY(-6px) scale(1.06); }
+
+/* 2 下一场大票 */
+.hs-ticket { --c: var(--pink); display: grid; grid-template-columns: minmax(0, 1fr) 70px; color: var(--paper-ink); rotate: -1.5deg; transition: rotate .25s, transform .25s; filter: drop-shadow(5px 6px 0 var(--c)); }
+.hs-ticket:hover { rotate: 0deg; transform: translateY(-3px); }
+.bt-main { position: relative; min-width: 0; padding: 12px 14px 14px; background: var(--paper); border-right: 2px dashed rgba(20,18,22,.3); border-top: 10px solid var(--c);
+  -webkit-mask: radial-gradient(circle 10px at 100% 0, transparent 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 10px at 100% 100%, transparent 98%, #000) bottom / 100% 51% no-repeat;
+          mask: radial-gradient(circle 10px at 100% 0, transparent 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 10px at 100% 100%, transparent 98%, #000) bottom / 100% 51% no-repeat; }
+.bt-top { display: flex; flex-wrap: wrap; gap: 2px 10px; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: .12em; color: #6b6570; }
+.bt-band { margin-top: 8px; font-size: 19px; font-weight: 900; letter-spacing: -.02em; line-height: 1.15; color: var(--c); filter: brightness(.85) saturate(1.2); }
+.bt-title { margin-top: 4px; font-size: 13.5px; font-weight: 800; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.bt-when { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1.5px solid var(--paper-ink); }
+.bt-date { font-family: var(--font-display); font-size: 40px; line-height: .9; }
+.bt-wd { font-size: 11.5px; font-weight: 700; line-height: 1.4; color: #4a454e; }
+.hs-ticket .countdown { margin-top: 10px; font-size: 13px; }
+.bt-code { display: block; margin-top: 10px; width: 100%; height: 14px; background: repeating-linear-gradient(90deg, var(--paper-ink) 0 2px, transparent 2px 4px, var(--paper-ink) 4px 5px, transparent 5px 8px, var(--paper-ink) 8px 11px, transparent 11px 12px); opacity: .8; }
+.bt-stub { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: var(--tape); border-top: 10px solid var(--c);
+  -webkit-mask: radial-gradient(circle 10px at 0 0, transparent 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 10px at 0 100%, transparent 98%, #000) bottom / 100% 51% no-repeat;
+          mask: radial-gradient(circle 10px at 0 0, transparent 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 10px at 0 100%, transparent 98%, #000) bottom / 100% 51% no-repeat; }
+.bt-stub .d { font-family: var(--font-display); font-size: 16px; letter-spacing: .1em; }
+.bt-stub .n { font-family: var(--font-display); font-size: 54px; line-height: .85; }
+.bt-stub .meta { writing-mode: vertical-rl; font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: .2em; margin-top: 6px; }
+
+/* 3 本周歌单 */
+.hs-setlist { position: relative; padding: 18px 20px 16px; background: var(--paper); color: var(--paper-ink); rotate: 1.2deg; box-shadow: 4px 5px 0 rgb(0 0 0 / .35);
+  background-image: repeating-linear-gradient(180deg, transparent 0 29px, rgb(20 18 22 / .08) 29px 30px); background-position: 0 52px; }
+.hs-setlist .tape { position: absolute; top: -9px; left: 50%; width: 76px; height: 20px; translate: -50% 0; rotate: -3deg; background: var(--tape); opacity: .9; }
+.sl-head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 6px; border-bottom: 2.5px solid var(--paper-ink); font-family: var(--font-display); font-size: 26px; letter-spacing: .04em; line-height: 1; }
+.sl-head .mono { font-size: 12px; letter-spacing: .1em; }
+.hs-setlist ol { margin-top: 4px; }
+.hs-setlist li { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: baseline; height: 30px; line-height: 30px; }
+.hs-setlist .no { font-family: var(--font-display); font-size: 17px; color: var(--c); filter: brightness(.85) saturate(1.2); }
+.hs-setlist li a { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13.5px; font-weight: 700; background: linear-gradient(transparent 62%, color-mix(in srgb, var(--c) 45%, transparent) 62% 90%, transparent 90%) no-repeat 0 0 / 0 100%; transition: background-size .3s; }
+.hs-setlist li a:hover { background-size: 100% 100%; }
+.hs-setlist li.encore { margin-top: 6px; border-top: 1.5px dashed rgb(20 18 22 / .35); }
+.hs-setlist li.encore .no { color: var(--paper-ink); }
+
+/* 4 五周月历 */
+.hs-cal { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.cal-wd { font-size: 10.5px; font-weight: 700; color: var(--ink-4); text-align: center; padding-bottom: 2px; }
+.cal-day { position: relative; aspect-ratio: 1.25; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid var(--line); background: transparent; color: var(--ink-3); font-family: var(--font-display); font-size: 15px; line-height: 1; cursor: default; transition: transform .15s, background .15s; }
+.cal-day.has { color: var(--ink); border-color: var(--line-strong); cursor: pointer; }
+.cal-day.past { opacity: .35; }
+.cal-day.today { background: var(--pink); color: #fff; border-color: var(--pink); }
+.cal-day.on:not(.today) { background: var(--ink); color: var(--bg); transform: rotate(-4deg) scale(1.08); }
+.cal-n { font-size: 15px; }
+.cal-dots { display: flex; gap: 2px; height: 5px; }
+.cal-dots i, .cal-legend i { display: block; width: 5px; height: 5px; border-radius: 50%; background: var(--ink-4); }
+.cal-dots i.ev, .cal-legend i.ev { background: var(--pink); }
+.cal-dots i.sale, .cal-legend i.sale { background: var(--tape); outline: 1px solid rgb(0 0 0 / .25); }
+.cal-dots i.due, .cal-legend i.due { background: transparent; outline: 1.5px solid var(--pink); outline-offset: -1.5px; }
+.cal-day.today .cal-dots i { outline: 1px solid #fff; }
+.cal-detail { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: start; min-width: 0; border-top: 2px solid var(--ink); padding-top: 8px; }
+.cal-when { font-size: 12px; color: var(--ink-3); line-height: 1.1; }
+.cal-when b { display: block; } .cal-when b { font-family: var(--font-display); font-size: 30px; font-weight: 400; color: var(--ink); margin-right: 4px; }
+.cal-detail ul { display: grid; gap: 4px; min-width: 0; }
+.cal-detail li a { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; font-weight: 700; line-height: 1.4; }
+.cal-detail li a:hover { color: var(--pink); }
+.cal-detail .k { display: inline-block; margin-right: 5px; padding: 0 4px; font-size: 10px; background: var(--ink); color: var(--bg); }
+.cal-detail .k.ev { background: var(--pink); color: #fff; }
+.cal-detail .k.sale { background: var(--tape); color: var(--tape-ink); }
+.cal-legend { grid-column: 1 / -1; padding-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 9px; font-size: 10.5px; color: var(--ink-4); }
+.cal-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.cal-legend a { color: var(--ink-3); } .cal-legend a:hover { color: var(--pink); }
+@media (prefers-reduced-motion: reduce) { .poster-slot, .hs-ticket, .cal-day { transition: none; } }
+
+/* 首页大标题口号（HeroCopy）：逐字入场 + 按情绪的待机小动作，点击换一句 */
+.hero h1 .slogan { display: block; width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit; letter-spacing: inherit; background: none; border: 0; padding: 0; --pop: cubic-bezier(.2, 1.5, .35, 1); }
+.hero h1 .slogan:focus-visible { outline: 2px dashed var(--pink); outline-offset: 4px; }
+.hero h1 .slogan.is-pending { opacity: 0; animation: sl-reveal 0s 1.5s forwards; }
+@keyframes sl-reveal { to { opacity: 1; } }
+.hero h1 .sl-top { display: block; width: max-content; font-size: calc(.62em * var(--fit, 1)); letter-spacing: -.02em; white-space: nowrap; }
+.hero h1 .sl-top .tc { position: relative; display: inline-block; animation: sl-type 1ms steps(1, end) var(--d) both; }
+@keyframes sl-type { from { opacity: 0; } to { opacity: 1; } }
+/* 光标：每个字出现的那一瞬在它右边闪一下，看起来是光标往前走；最后一个字后面多闪几下再灭 */
+.hero h1 .sl-top .tc::after { content: ""; position: absolute; right: -.08em; top: .1em; width: .09em; height: .9em; background: var(--pink); opacity: 0; animation: sl-cur 45ms steps(1, end) var(--d); }
+.hero h1 .sl-top .tc.last::after { animation: sl-caret 1.6s steps(1, end) var(--d) both; }
+@keyframes sl-cur { from { opacity: 1; } to { opacity: 1; } }
+@keyframes sl-caret { 0% { opacity: 1; } 20% { opacity: 0; } 40% { opacity: 1; } 60% { opacity: 0; } 80% { opacity: 1; } 100% { opacity: 0; } }
+.hero h1 .sl-big { position: relative; isolation: isolate; display: inline-block; white-space: nowrap; color: var(--pink); font-size: calc(1em * var(--fit, 1)); font-weight: 900; letter-spacing: -.04em; -webkit-text-stroke: .025em currentColor; line-height: 1.04; margin-top: .04em; }
+.hero h1 .sl-big.en { font-family: var(--font-display); font-weight: 400; -webkit-text-stroke: 0; letter-spacing: -.005em; font-size: calc(1.7em * var(--fit, 1)); line-height: .88; }
+/* 每句的字体与配色 */
+.hero h1 .sl-big.look-ink { color: var(--ink); }
+.hero h1 .sl-big.look-tape { color: var(--tape-ink); background: var(--tape); padding: .04em .16em .02em; margin-top: .12em; rotate: -1.5deg; box-shadow: .08em .08em 0 var(--pink); -webkit-text-stroke: 0; }
+.hero h1 .sl-big.look-outline { color: transparent; -webkit-text-stroke: .032em var(--ink); text-shadow: .07em .07em 0 var(--pink); }
+.hero h1 .sl-big.look-inverse { color: var(--wall); background: var(--ink); padding: .06em .18em .02em; margin-top: .12em; rotate: 1.2deg; -webkit-text-stroke: 0; box-shadow: .07em .07em 0 var(--pink); }
+.hero h1 .sl-big.look-serif { color: var(--ink); font-family: "Hiragino Mincho ProN", "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif; font-weight: 900; -webkit-text-stroke: .01em currentColor; letter-spacing: .02em; }
+.hero h1 .sl-big.look-duo .ch:nth-child(odd) { color: var(--ink); }
+.hero h1 .sl-big.look-band { color: var(--ink); -webkit-text-stroke: 0; text-shadow: .06em .06em 0 var(--bc); }
+.hero h1 .sl-big.look-band::after { content: ""; position: absolute; z-index: -1; left: 0; right: 0; bottom: -.04em; height: .12em; background: var(--bc); transform-origin: left; animation: sl-bar .5s cubic-bezier(.6, 0, .2, 1) var(--settle) both; transform: scaleX(0); }
+.hero h1 .sl-big.look-outline::before, .hero h1 .sl-big.look-inverse::before { border-color: var(--pink); }
+/* 白纸（粉白底）：口号不用纯黑大色块，墨色换成深莓紫，反色块改成粉底白字，影子用黄/淡粉，跟底色同一家族 */
+:root:not([data-theme="dark"]) .hero-slogan { --sl-ink: #3b1838; }
+:root:not([data-theme="dark"]) .hero h1 .sl-top { color: var(--sl-ink); }
+:root:not([data-theme="dark"]) .hero h1 .sl-big.look-ink,
+:root:not([data-theme="dark"]) .hero h1 .sl-big.look-serif,
+:root:not([data-theme="dark"]) .hero h1 .sl-big.look-band,
+:root:not([data-theme="dark"]) .hero h1 .sl-big.look-duo .ch:nth-child(odd) { color: var(--sl-ink); }
+:root:not([data-theme="dark"]) .hero h1 .sl-big.look-outline { -webkit-text-stroke-color: var(--pink); text-shadow: .07em .07em 0 var(--tape); }
+:root:not([data-theme="dark"]) .hero h1 .sl-big.look-inverse { color: #fff; background: var(--pink); box-shadow: .07em .07em 0 var(--tape); }
+:root:not([data-theme="dark"]) .hero h1 .sl-big.look-outline::before, :root:not([data-theme="dark"]) .hero h1 .sl-big.look-inverse::before { border-color: var(--sl-ink); }
+:root:not([data-theme="dark"]) .hero h1 .sl-big.look-tape { color: var(--sl-ink); box-shadow: .08em .08em 0 rgb(230 0 95 / .35); }
+:root:not([data-theme="dark"]) .hero h1 .sl-big.look-serif { text-shadow: .05em .05em 0 rgb(230 0 95 / .18); }
+.hero h1 .sl-big .ch { display: inline-block; position: relative; transform-origin: 50% 85%; transform: rotate(var(--r)); animation: sl-drop .52s var(--pop) var(--d) both; }
+@keyframes sl-drop { 0% { opacity: 0; transform: translateY(-.75em) scale(1.8) rotate(calc(var(--r) * 5)); filter: blur(5px); } 55% { opacity: 1; filter: none; } 100% { transform: rotate(var(--r)); } }
+
+/* wave：一个字一个字跳起来，像台下跟着节拍 */
+.mood-wave .sl-big .ch { animation: sl-drop .52s var(--pop) var(--d) both, sl-wave 2.4s ease-in-out calc(var(--settle) + var(--i) * 90ms) infinite; }
+@keyframes sl-wave { 0%, 30%, 100% { transform: rotate(var(--r)); } 12% { transform: translateY(-.18em) rotate(calc(var(--r) * -1)); } }
+/* chant：按顺序一个个放大发光，像全场在喊 */
+.mood-chant .sl-big .ch { animation: sl-drop .52s var(--pop) var(--d) both, sl-chant 1.8s ease-out calc(var(--settle) + var(--i) * 110ms) infinite; }
+@keyframes sl-chant { 0%, 20%, 100% { transform: rotate(var(--r)); text-shadow: none; } 6% { transform: rotate(var(--r)) scale(1.2); text-shadow: 0 0 .3em var(--pink); } }
+/* shake：整句一起抖，像闹钟、像手在发抖 */
+.mood-shake .sl-big .ch { animation: sl-drop .52s var(--pop) var(--d) both, sl-shake 2.6s linear var(--settle) infinite; }
+@keyframes sl-shake { 0%, 14%, 100% { transform: rotate(var(--r)); } 2%, 6%, 10% { transform: translateX(-.035em) rotate(calc(var(--r) - 5deg)); } 4%, 8%, 12% { transform: translateX(.035em) rotate(calc(var(--r) + 5deg)); } }
+/* wobble：软塌塌地晃，钱包快撑不住 */
+.mood-wobble .sl-big .ch { animation: sl-drop .52s var(--pop) var(--d) both, sl-wobble 3s ease-in-out calc(var(--settle) + var(--i) * 70ms) infinite; }
+@keyframes sl-wobble { 0%, 45%, 100% { transform: rotate(var(--r)); } 10% { transform: skewX(-10deg) scaleY(.88) rotate(var(--r)); } 22% { transform: skewX(7deg) scaleY(1.06) rotate(var(--r)); } 34% { transform: skewX(-3deg) rotate(var(--r)); } }
+/* float：慢慢飘，省略号自己数点，祈祷中 */
+.mood-float .sl-big .ch { animation: sl-drop .52s var(--pop) var(--d) both, sl-float 3.2s ease-in-out calc(var(--settle) + var(--i) * 320ms) infinite; }
+.mood-float .sl-big .ch.dots { animation: sl-drop .52s var(--pop) var(--d) both, sl-float 3.2s ease-in-out calc(var(--settle) + var(--i) * 320ms) infinite, sl-dots 1.5s steps(1, end) var(--settle) infinite; }
+@keyframes sl-float { 0%, 100% { transform: translateY(0) rotate(var(--r)); } 50% { transform: translateY(-.1em) rotate(calc(var(--r) * -1)); } }
+@keyframes sl-dots { 0% { clip-path: inset(0 68% 0 0); } 33% { clip-path: inset(0 36% 0 0); } 66% { clip-path: inset(0 0 0 0); } }
+/* lights：字先在暗处落下，再像舞台灯一样闪两下亮起来，偶尔接触不良 */
+.mood-lights { --glow: rgb(230 0 95 / .22); }
+[data-theme="dark"] .mood-lights { --glow: var(--pink); }
+.mood-lights .sl-big { animation: sl-lights-on 1s steps(1, end) var(--settle) both, sl-lights-hum 7s steps(1, end) calc(var(--settle) + 1s) infinite; }
+@keyframes sl-lights-on { 0% { filter: brightness(.22) saturate(0); } 12% { filter: none; text-shadow: 0 0 .35em var(--glow); } 20% { filter: brightness(.22) saturate(0); text-shadow: none; } 34% { filter: none; text-shadow: 0 0 .35em var(--glow); } 100% { filter: none; text-shadow: 0 0 .18em var(--glow); } }
+@keyframes sl-lights-hum { 0%, 100% { filter: none; } 92% { filter: brightness(.35); } 93.5% { filter: none; } 95% { filter: brightness(.35); } 96.5% { filter: none; } }
+/* echo：每个字往外扩一圈空心回声，「听得见吗」 */
+.mood-echo .sl-big .ch::after { content: attr(data-c); position: absolute; inset: 0; color: transparent; -webkit-text-stroke: .03em var(--pink); opacity: 0; pointer-events: none; animation: sl-echo 2.4s ease-out calc(var(--settle) + var(--i) * 160ms) infinite; }
+@keyframes sl-echo { 0% { opacity: .9; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.7); } }
+/* stamp：整句一起盖下去，带一个橡皮章的框，砸完整行一震 */
+.mood-stamp .sl-big { padding: 0 .1em; animation: sl-thud .32s ease-out calc(var(--b) + 260ms) both; }
+.mood-stamp .sl-big .ch { animation: sl-stamp .42s cubic-bezier(.3, 1.4, .5, 1) var(--b) both; }
+.mood-stamp .sl-big::before { content: ""; position: absolute; inset: .02em -.02em -.02em; border: .06em solid currentColor; border-radius: .1em; rotate: -2.5deg; pointer-events: none; animation: sl-stamp-box .42s cubic-bezier(.3, 1.4, .5, 1) calc(var(--b) + 60ms) both; }
+@keyframes sl-stamp { 0% { opacity: 0; transform: scale(2.6) rotate(-9deg); } 65% { opacity: 1; transform: scale(.94) rotate(var(--r)); } 100% { transform: rotate(var(--r)); } }
+@keyframes sl-stamp-box { 0% { opacity: 0; transform: scale(1.8); } 60% { opacity: 1; transform: scale(.97); } 100% { opacity: .9; } }
+@keyframes sl-thud { 0%, 100% { translate: 0 0; } 25% { translate: -2px 2px; } 50% { translate: 2px -1px; } 75% { translate: -1px 1px; } }
+/* mark：落定后荧光笔从左往右划过去 */
+.mood-mark .sl-big::before { content: ""; position: absolute; z-index: -1; left: -.06em; right: -.06em; bottom: .04em; height: .42em; background: var(--tape); transform-origin: left center; transform: scaleX(0) skewX(-12deg); animation: sl-mark .5s cubic-bezier(.6, 0, .2, 1) var(--settle) forwards; }
+@keyframes sl-mark { to { transform: scaleX(1) skewX(-12deg); } }
+@keyframes sl-bar { to { transform: scaleX(1); } }
+[data-theme="dark"] .mood-mark .sl-big::before { opacity: .85; }
+/* 换一句：字带着各自的角度往下掉 */
+.hero h1 .slogan.is-leaving .sl-top { opacity: 0; transition: opacity .2s; }
+.hero h1 .slogan.is-leaving .sl-big .ch { animation: sl-fall .4s cubic-bezier(.5, 0, 1, .5) calc(var(--i) * 35ms) forwards !important; }
+.hero h1 .slogan.is-leaving .sl-big::before, .hero h1 .slogan.is-leaving .sl-big .ch::after { opacity: 0 !important; transition: opacity .15s; }
+@keyframes sl-fall { to { opacity: 0; transform: translateY(1em) rotate(calc(var(--r) * 6 + 24deg)); } }
+.hero h1 .hero-deadline.fact { color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: flyer-rise .6s ease-out calc(var(--fact-d, 1.6s)) both; }
+@media (prefers-reduced-motion: reduce) { .hero h1 .slogan.is-pending { opacity: 1; } .hero h1 .sl-top .tc::after { display: none; } .mood-mark .sl-big::before { transform: skewX(-12deg); } .mood-stamp .sl-big::before { opacity: .9; } .hero h1 .sl-big .ch::after { display: none; } }
+.hero-side.is-pending > :not(.hs-tabs) { opacity: 0; animation: sl-reveal 0s 1.5s forwards; }
+.hero-side > :not(.hs-tabs) { animation: hs-in .45s ease-out both; }
+@keyframes hs-in { from { opacity: 0; translate: 0 8px; } }
+
+/* 手机：hero 只放口号，铺满第一屏；右边四种（海报墙/大票/歌单/月历）不放 */
+@media (max-width: 720px) {
+  .hero-side { display: none !important; }
+  .hero { padding: 18px 0 22px; }
+  .hero-main { display: flex !important; flex-direction: column; min-height: calc(100svh - var(--bar-h, 56px) - 64px); }
+  .hero-copy { flex: 1; min-width: 0; width: 100%; display: flex; flex-direction: column; justify-content: center; padding: 8vh 0 6vh; }
+  .hero-copy > * { min-width: 0; max-width: 100%; }
+  .hero-copy .issue { position: absolute; top: 0; left: 0; right: 0; }
+  .hero h1.hero-slogan { margin-top: 0; font-size: 26vw; line-height: 1; }
+  .hero h1 .sl-top { font-size: calc(.3em * var(--fit, 1)); margin-bottom: .14em; letter-spacing: -.01em; }
+  .hero h1 .sl-big { line-height: 1; }
+  .hero h1 .sl-big.en { line-height: .9; }
+  .hero-copy .project-names { margin-top: 4vh; align-self: flex-start; }
+  .hero-lede { display: block; margin-top: 18px; font-size: 14px; }
+  .hero-main > .stats { align-self: stretch; width: 100%; margin-top: auto; padding-right: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 2px solid var(--ink); padding-top: 12px; }
+  .hero-main > .stats .stat { margin: 0; padding: 0 0 0 10px; border-left: 1px solid var(--line); border-right: 0; }
+  .hero-main > .stats .stat:first-child { padding-left: 0; border-left: 0; }
+  .hero-main > .stats .stat .n { font-size: 40px; line-height: 1; }
+  .hero-main > .stats .stat .l { margin-top: 4px; font-size: 11px; white-space: nowrap; }
 }

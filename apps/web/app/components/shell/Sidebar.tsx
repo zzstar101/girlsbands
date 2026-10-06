@@ -23,7 +23,7 @@ export function Sidebar({ changelogVersion, home }: { changelogVersion: string |
   const next = home?.deadlines.days.flatMap((d) => d.items).find((d) => d.kind === 'lottery_end' || d.kind === 'stream_end');
   return <aside className="side hidden lg:flex">
     <Link to="/" className="logo" aria-label={`${SITE.name} 首页`}><Wordmark size={32} /></Link>
-    {next && <div className="side-next"><div className="sn-top"><span>即将截止</span><Countdown at={next.at} timezone={next.timezone} from={home!.deadlines.from} /></div><Link to={`/items/${next.itemId}`} className="sn-title">{next.title}</Link><ArtistLine className="mt-2" subjects={next.subjects.map(subjectOfId).filter((s): s is Subject => !!s)} /></div>}
+    {next && <div className="side-next"><div className="sn-top"><span>即将截止</span><Countdown at={next.at} timezone={next.timezone} from={home!.deadlines.from} flip /></div><Link to={`/items/${next.itemId}`} className="sn-title">{next.title}</Link><ArtistLine className="mt-2" subjects={next.subjects.map(subjectOfId).filter((s): s is Subject => !!s)} /></div>}
     <nav className="nav flex-1 overflow-y-auto scrollbar-thin" aria-label="主导航">
       {MAIN.map(([to, label], i) => {
         const [path, query] = to.split('#');
