@@ -16,9 +16,9 @@ export function useChangelogDot(latestVersion: string | null): boolean {
   useEffect(() => setMounted(true), []);
   return mounted && !!latestVersion && (!seen || seen < latestVersion);
 }
-const MAIN = [['/', '首页'], ['/all', '全部消息'], ['/deadlines', '截止雷达'], ['/topics/bang-dream#calendar', '日历'], ['/hot', '热议'], ['/daily', '日报']] as const;
+const MAIN = [['/', '首页'], ['/all', '全部消息'], ['/deadlines', '截止雷达'], ['/calendar', '日历'], ['/hot', '热议'], ['/daily', '日报']] as const;
 export function Sidebar({ changelogVersion, home }: { changelogVersion: string | null; home?: HomeResponse | null }) {
-  const { pathname, hash: windowHash } = useLocation();
+  const { pathname } = useLocation();
   const dot = useChangelogDot(changelogVersion);
   const next = home?.deadlines.days.flatMap((d) => d.items).find((d) => d.kind === 'lottery_end' || d.kind === 'stream_end');
   return <aside className="side hidden lg:flex">
@@ -26,11 +26,10 @@ export function Sidebar({ changelogVersion, home }: { changelogVersion: string |
     {next && <div className="side-next"><div className="sn-top"><span>即将截止</span><Countdown at={next.at} timezone={next.timezone} from={home!.deadlines.from} flip /></div><Link to={`/items/${next.itemId}`} className="sn-title">{next.title}</Link><ArtistLine className="mt-2" subjects={next.subjects.map(subjectOfId).filter((s): s is Subject => !!s)} /></div>}
     <nav className="nav flex-1 overflow-y-auto scrollbar-thin" aria-label="主导航">
       {MAIN.map(([to, label], i) => {
-        const [path, query] = to.split('#');
-        const on = pathname === path && (query ? windowHash === `#${query}` : windowHash !== '#calendar');
+        const on = pathname === to;
         return <Link key={to} to={to} className={on ? 'on' : ''} aria-current={on ? 'page' : undefined}><span className="no">0{i + 1}</span>{label}{home && i === 1 && <span className="cnt">{home.stats.today}</span>}{home && i === 2 && home.stats.soon > 0 && <span className="cnt hot">{home.stats.soon}</span>}</Link>;
       })}
-      <div className="nav-title">企划<i /></div>{FRANCHISES.map((id) => <Link key={id} to={`/topics/${id}`} className={`fr ${pathname === `/topics/${id}` && windowHash !== '#calendar' ? 'on' : ''}`}><span className="sw" style={{ background: ENTITIES[id].accent }} /><span className="truncate">{ENTITIES[id].displayTag ?? ENTITIES[id].name}</span>{home && <span className="cnt">{home.projects[id]?.today ?? 0}</span>}</Link>)}
+      <div className="nav-title">企划<i /></div>{FRANCHISES.map((id) => <Link key={id} to={`/topics/${id}`} className={`fr ${pathname === `/topics/${id}` ? 'on' : ''}`}><span className="sw" style={{ background: ENTITIES[id].accent }} /><span className="truncate">{ENTITIES[id].displayTag ?? ENTITIES[id].name}</span>{home && <span className="cnt">{home.projects[id]?.today ?? 0}</span>}</Link>)}
       <div className="nav-title">分类<i /></div><div className="cats">{CATEGORIES.map((c) => <Link key={c.key} to={`/all?category=${c.key}`}>{c.label}</Link>)}</div>
       <div className="side-links px-2"><Link to="/starred">收藏</Link><Link to="/changelog">更新日志{dot ? ' ·' : ''}</Link><Link to="/feedback">反馈</Link></div>
     </nav>

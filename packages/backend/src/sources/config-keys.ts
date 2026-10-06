@@ -18,6 +18,7 @@ const KEYS: Record<SourceRow["kind"], string[]> = {
     ...COLLECTED, "urls", "url", "mode", "method", "headers", "bodyJson", "jsonKey", "windowVar", "itemsPath", "itemsObjectValues",
     "titlePaths", "summaryPaths", "summaryTemplate", "summaryIsBody", "authorPaths", "publishedAtPath", "publishedAtUnit",
     "publishedAtUtcOffset", "externalIdPath", "urlTemplate", "urlTemplateFallback", "rawDropKeys", "requireBoolean", "minNumeric",
+    "imageField", "imagePrefix",
   ],
   // X accounts are mostly read in shards, which apply only these.
   x_search: [...PUBLISHER, "_girlsbands", "ingestNoiseFilter", "itemUrlPrefixRewrite", "query", "searchType"],

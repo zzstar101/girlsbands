@@ -155,6 +155,9 @@ export default function DeadlinesPage() {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <Link to={subject ? `/calendar?subject=${encodeURIComponent(subject)}` : "/calendar"} className="text-[12.5px] text-ink-3 transition-colors hover:text-band">
+            月历视图 →
+          </Link>
           {soon.length > 0 && (
             <p className="text-[12px] text-hot">
               48 小时内 <span className="num">{soon.length}</span> 个

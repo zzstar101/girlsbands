@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 import { guardedFetch } from "../lib/http-fetch.ts";
 import { normalizeUrl } from "../lib/url.ts";
 import { collapseWhitespace, stripTags } from "../lib/text.ts";
-import { readable, type ExtractedBody } from "../content/extract.ts";
+import { readable, usableImageUrl, type ExtractedBody } from "../content/extract.ts";
 import { sanitizeBody } from "../content/sanitize.ts";
 import { jinaRead } from "../providers/jina.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
@@ -202,6 +202,11 @@ export function fromHtml(html: string, base: string, source: SourceRow): Candida
     }
     seen.add(url);
     const candidate: Candidate = { url, title, publishedAt };
+    const image = el.find("img").toArray().map((img) => {
+      const imageEl = $(img);
+      return [imageEl.attr("src"), imageEl.attr("data-src")].map((value) => value ? usableImageUrl(value, base) : null).find(Boolean);
+    }).find(Boolean);
+    if (image) candidate.media = [{ kind: "image", url: image, width: null, height: null }];
     if (excerpt) {
       candidate.excerpt = excerpt;
       // The card is the whole item: nothing on the page it links to adds a date or a venue.

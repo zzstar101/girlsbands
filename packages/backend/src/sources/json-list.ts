@@ -2,6 +2,7 @@
 import { credential } from "../config.ts";
 import { guardedFetch } from "../lib/http-fetch.ts";
 import { collapseWhitespace, stripTags } from "../lib/text.ts";
+import { usableImageUrl } from "../content/extract.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 
 export function getPath(obj: unknown, path: string): unknown {
@@ -14,6 +15,13 @@ export function getPath(obj: unknown, path: string): unknown {
     else return undefined;
   }
   return cur;
+}
+
+export function imageFromField(item: unknown, imageField: string, baseUrl?: string): string | null {
+  const value = getPath(item, imageField);
+  if (typeof value !== "string" || !value.trim()) return null;
+  if (!baseUrl && !/^https?:\/\//i.test(value.trim())) return null;
+  return usableImageUrl(value.trim(), baseUrl ?? value.trim());
 }
 
 function firstString(obj: unknown, paths: string[] | undefined): string | null {
@@ -259,6 +267,14 @@ export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
     const summary = (c.summaryTemplate ? renderFields(String(c.summaryTemplate), item, String(c.publishedAtUtcOffset ?? "+08:00")) : null)
       ?? firstString(item, c.summaryPaths);
     const summaryIsBody = c.summaryIsBody === true && !!summary;
+    // imagePrefix: some APIs give image paths under a CDN folder ("/2026/9/x.jpg" on …/upload), which
+    // URL resolution against a base would drop.
+    const imageValue = typeof c.imageField === "string" && typeof c.imagePrefix === "string" ? getPath(item, c.imageField) : null;
+    const image = typeof c.imageField === "string"
+      ? typeof imageValue === "string" && imageValue.startsWith("/")
+        ? usableImageUrl(`${String(c.imagePrefix).replace(/\/$/, "")}${imageValue}`, String(c.imagePrefix))
+        : imageFromField(item, c.imageField, String(c.baseUrl ?? url))
+      : null;
     out.push({
       url,
       title: collapseWhitespace(stripTags(title)),
@@ -267,6 +283,7 @@ export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
       excerpt: summary ? collapseWhitespace(stripTags(summary)).slice(0, 2000) : null,
       bodyText: summaryIsBody ? stripTags(summary!) : null,
       bodyStatus: summaryIsBody ? "ok" : "pending",
+      media: image ? [{ kind: "image", url: image, width: null, height: null }] : [],
       raw: { externalId: externalId ?? null },
     });
   }

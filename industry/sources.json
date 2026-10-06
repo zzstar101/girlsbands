@@ -665,7 +665,9 @@
         "_girlsbands": {
           "initialBackfillLimit": 30,
           "fanPlatform": true
-        }
+        },
+        "imageField": "logoPicUrl",
+        "imagePrefix": "https://imagecdn3.allcpp.cn/upload"
       },
       "tier": "T2_EVENT",
       "owner_entity_id": null,
@@ -710,7 +712,8 @@
           "dropMarkers": [
             "票务状态：已结束"
           ]
-        }
+        },
+        "imageField": "cover"
       },
       "tier": "T2_EVENT",
       "owner_entity_id": null,

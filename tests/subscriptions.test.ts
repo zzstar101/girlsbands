@@ -44,7 +44,7 @@ let n = 0;
 const email = () => `${T}-${(n += 1)}@example.org`;
 
 /** A dated report that a reader can see, so the radar has something to hand a reminder about. */
-async function report(opts: { at: string; title?: string; tags?: string[]; selected?: boolean; timelineAt?: Date }) {
+async function report(opts: { at: string; title?: string; tags?: string[]; selected?: boolean; timelineAt?: Date; storyId?: number | null; score?: number | null }) {
   n += 1;
   const id = `${T}-a${n}`;
   const sourceId = `${T}-s${n}`;
@@ -59,8 +59,8 @@ async function report(opts: { at: string; title?: string; tags?: string[]; selec
       scope: "single",
       fact: { deadlines: [{ kind: "lottery_end", at: opts.at, note: "FC先行", quote: "受付は明日まで" }] },
     } as never)}) RETURNING id`;
-  await sql`INSERT INTO publications (article_id, analysis_id, revision, visibility, eligible, selected, title, source_id, channel, first_party, url, published_at, visible_after, discovered_at, timeline_at, body_mode, sort_at, tags)
-    VALUES (${id}, ${analysis!.id}, 1, 'public', true, ${opts.selected ?? false}, ${title}, ${sourceId}, 'news', false, ${`https://example.org/${id}`}, ${at}, ${at}, ${at}, ${at}, 'summary', ${at}, ${opts.tags ?? []})`;
+  await sql`INSERT INTO publications (article_id, analysis_id, revision, visibility, eligible, selected, title, source_id, channel, first_party, url, published_at, visible_after, discovered_at, timeline_at, body_mode, sort_at, tags, story_id, score)
+    VALUES (${id}, ${analysis!.id}, 1, 'public', true, ${opts.selected ?? false}, ${title}, ${sourceId}, 'news', false, ${`https://example.org/${id}`}, ${at}, ${at}, ${at}, ${at}, 'summary', ${at}, ${opts.tags ?? []}, ${opts.storyId ?? null}, ${opts.score ?? null})`;
   return id;
 }
 
@@ -273,6 +273,23 @@ test("a reader who follows another band is not written to about this one", async
   assert.equal(matches(["roselia"], ["mygo"]), false);
 });
 
+test("a project pick expands to its bands: a BanG Dream! subscriber hears about Roselia", () => {
+  // 只订企划的人该收到旗下乐队的情报——归属关系在 industry/taxonomy.ts 的 seriesOf 里。
+  assert.equal(matches(["bang-dream"], ["roselia"]), true, "企划展开到旗下乐队");
+  assert.equal(matches(["bang-dream"], ["mygo"]), true);
+  assert.equal(matches(["bang-dream"], ["bang-dream"]), true, "企划自己也命中");
+  assert.equal(matches(["girls-band-cry"], ["togenashi-togeari"]), true);
+  assert.equal(matches(["bocchi-the-rock"], ["kessoku-band"]), true);
+  // 不串台：别的系列的乐队不算命中。
+  assert.equal(matches(["bang-dream"], ["togenashi-togeari"]), false);
+  assert.equal(matches(["bang-dream"], ["kessoku-band"]), false);
+  // 勾乐队不反向展开成整个系列：只订 Roselia 的人不该收到 MyGO!!!!!。
+  assert.equal(matches(["roselia"], ["mygo"]), false);
+  assert.equal(matches(["roselia"], ["bang-dream"]), false);
+  // 一条情报同时挂着企划和乐队时只算命中一次（Set 去重）。
+  assert.equal(matches(["bang-dream"], ["bang-dream", "roselia"]), true);
+});
+
 test("a deadline outside the 48-hour window is not urgent enough to send", async () => {
   const far = { id: 0, email: "nobody@example.org", token: "x", bands: ["kessoku-band"] };
   await report({ at: jstDayAhead(9), title: "結束バンド 一般発売", tags: ["发售", "entity:kessoku-band"] });
@@ -314,6 +331,41 @@ test("the digest only carries what the reader asked for, and nothing at all when
   const [sent] = await sql<{ status: string }[]>`
     SELECT status FROM email_sends WHERE subscriber_id = ${out!.subscriber.id} AND kind = 'digest'`;
   assert.equal(sent!.status, "sent");
+});
+
+test("a project plus some of its bands behaves exactly like the project alone", async () => {
+  // 同时勾企划和它旗下的乐队，展开后是同一个集合：两种勾法结果一样，不会重复。
+  const address = email();
+  const out = await subscribe({ email: address, bands: ["bang-dream", "roselia"], wantsDeadlines: false, wantsDigest: true });
+  await confirm(out!.subscriber.confirmToken);
+  await report({ at: jstDayAhead(20), title: "Roselia 新曲", tags: ["新作发售", "entity:roselia"], selected: true });
+
+  const mixed = await digestData({ id: out!.subscriber.id, email: address, token: out!.subscriber.token, bands: ["bang-dream", "roselia"] }, NOW);
+  // 只订企划的人收到同一批：企划展开到旗下乐队。
+  const projectOnly = await digestData({ id: 0, email: address, token: "x", bands: ["bang-dream"] }, NOW);
+  assert.ok(mixed);
+  assert.ok(projectOnly);
+  const titles = (d: { items: { title: string }[] }) => d.items.map((i) => i.title).sort();
+  assert.deepEqual(titles(mixed), titles(projectOnly), "企划加旗下乐队和只订企划的结果完全一样");
+  assert.equal(titles(mixed).includes("Roselia 新曲"), true, "只订企划也收到只挂乐队标签的情报");
+  assert.equal(new Set(titles(mixed)).size, titles(mixed).length, "同一条情报不会重复占格");
+  // 只订别的系列的乐队的读者收不到。
+  const other = await digestData({ id: 0, email: address, token: "x", bands: ["kessoku-band"] }, NOW);
+  assert.equal(other, null);
+});
+
+test("the digest keeps one item per story: the highest score wins", async () => {
+  const address = email();
+  const out = await subscribe({ email: address, bands: ["kessoku-band"], wantsDeadlines: false, wantsDigest: true });
+  await confirm(out!.subscriber.confirmToken);
+  // 两条报道讲同一个故事（同一 story_id），分数不同：读者只需要看分高的那一条。
+  await report({ at: jstDayAhead(20), title: "結束バンド 新曲（低分）", tags: ["新作发售", "entity:kessoku-band"], selected: true, storyId: 4242, score: 3.5 });
+  await report({ at: jstDayAhead(20), title: "結束バンド 新曲（高分）", tags: ["新作发售", "entity:kessoku-band"], selected: true, storyId: 4242, score: 8.0 });
+
+  const mine = await digestData({ id: out!.subscriber.id, email: address, token: out!.subscriber.token, bands: ["kessoku-band"] }, NOW);
+  assert.ok(mine);
+  assert.equal(mine.items.length, 1, "同一个故事只占一格");
+  assert.equal(mine.items[0]!.title, "結束バンド 新曲（高分）", "分高的那条留下");
 });
 
 test("an old digest item falls out of the window", async () => {

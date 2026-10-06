@@ -9,7 +9,7 @@ import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { useStarred } from "../lib/local-state";
 import { ThemeSwitch } from "../components/shell/ThemeSwitch";
-import { IconBookmark, IconChevronRight, IconHeart, IconMail, IconMessage, IconMoon, IconPin, IconPlug, IconRss, IconSparkles, IconUsers } from "../components/icons";
+import { IconBookmark, IconCalendar, IconChevronRight, IconHeart, IconMail, IconMessage, IconMoon, IconPin, IconPlug, IconRss, IconSparkles, IconUsers } from "../components/icons";
 
 export const handle: Screen = { tab: "me", name: "我的" };
 
@@ -28,6 +28,7 @@ export function meta() {
 type Row = { to: string; label: string; icon: ReactNode; detail?: ReactNode };
 
 const TOOLS: Row[] = [
+  { to: "/calendar", label: "日历", icon: <IconCalendar size={20} />, detail: "按月看演出与发售" },
   { to: "/members", label: "角色", icon: <IconUsers size={20} />, detail: "担当 · 声优 · 报道" },
   { to: "/guide", label: "远征攻略", icon: <IconPin size={20} />, detail: "外部攻略 · 座位视角" },
   { to: "/subscribe", label: "邮件订阅", icon: <IconMail size={20} />, detail: "截止提醒 · 精选摘要" },

@@ -40,6 +40,7 @@ async function build(): Promise<string> {
     { loc: "/daily", lastmod: latestDaily?.t, changefreq: "daily", priority: 0.9 },
     { loc: "/hot", lastmod: now, changefreq: "hourly", priority: 0.9 },
     { loc: "/deadlines", lastmod: now, changefreq: "hourly", priority: 0.9 },
+    { loc: "/calendar", lastmod: now, changefreq: "daily", priority: 0.7 },
     { loc: "/daily/archive", lastmod: latestDaily?.t, changefreq: "daily", priority: 0.7 },
     { loc: "/weekly", changefreq: "weekly", priority: 0.7 },
     { loc: "/monthly", changefreq: "monthly", priority: 0.6 },

@@ -178,19 +178,21 @@ function ReleaseSection({ releases }: { releases: TopicPage["releases"] }) {
 
 /**
  * 这支乐队/这个企划的角色。成员不是采集主体，名单是静态的（industry/members.ts），这里只把它们
- * 摆出来；企划页按乐队分组，乐队页就一组（队名与页头重复，不画）。
+ * 摆出来；企划页按乐队分组，乐队页就一组（队名与页头重复，不画）。默认收起，放在动态之后。
  */
 function MemberSection({ subject }: { subject: string }) {
   const bands = membersOfSubject(subject);
   if (bands.length === 0) return null;
   return (
-    <section id="members" className="card mb-8 scroll-mt-16 p-5 lg:p-6">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-[16px] font-[650] text-ink">角色</h2>
+    <details id="members" className="card group/members mt-8 scroll-mt-16 p-5 lg:p-6">
+      <summary className="flex cursor-pointer list-none items-baseline justify-between gap-3">
+        <h2 className="text-[16px] font-[650] text-ink">
+          角色 <span className="text-[12.5px] font-normal text-ink-4">{bands.length > 1 ? `${bands.length} 支乐队 · ` : ""}{bands.reduce((n, b) => n + b.members.length, 0)} 人 · <span className="group-open/members:hidden">展开</span><span className="hidden group-open/members:inline">收起</span></span>
+        </h2>
         <Link viewTransition to="/members" className="text-[12.5px] font-semibold text-accent hover:text-accent-ink">
           全部角色 →
         </Link>
-      </div>
+      </summary>
       {bands.map((band, i) => (
         <div key={band.id} className={i > 0 ? "mt-3 border-t border-line-soft pt-3" : "mt-2"}>
           {bands.length > 1 && (
@@ -213,7 +215,7 @@ function MemberSection({ subject }: { subject: string }) {
           </ul>
         </div>
       ))}
-    </section>
+    </details>
   );
 }
 
@@ -297,8 +299,6 @@ export default function TopicRoute() {
         </div>
       )}
 
-      {page === 1 && band && <MemberSection subject={topic.slug} />}
-
       <h2 className="sr-only">{all ? `${topic.name}的全部动态` : `${topic.name}的精选`}{page > 1 ? ` · 第 ${page} 页` : ""}</h2>
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <PillTabs
@@ -321,6 +321,8 @@ export default function TopicRoute() {
         <DayList items={items} headerAside={<span className="num whitespace-nowrap">第 {first}–{last} 条<span className="hidden sm:inline"> · 共 {shown.toLocaleString("zh-CN")} 条</span></span>} />
       )}
       <Pagination page={page} pageCount={pageCount} href={(p) => href(p)} />
+      {/* The cast is reference, not news: folded away under the timeline instead of between the dates and it. */}
+      {page === 1 && band && <MemberSection subject={topic.slug} />}
       <p className="mt-6 border-t border-line-soft pt-4 text-[12.5px] text-ink-4">
         <ReportProblem kind="topic" id={topic.slug} what={topic.name} />
       </p>

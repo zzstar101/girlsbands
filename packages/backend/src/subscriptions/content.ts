@@ -6,7 +6,7 @@
 import { CATEGORY_LABELS } from "@girlsbands/contracts/taxonomy";
 import { DEADLINE_LABELS, TIMEZONE_LABELS, type DeadlineKind, type DeadlineView } from "@girlsbands/contracts/site";
 import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
-import { ENTITIES, isBand } from "@girlsbands/industry/taxonomy";
+import { ENTITIES, isBand, seriesOf } from "@girlsbands/industry/taxonomy";
 import { heroHandle, normalizeHero, type HeroHandle, type HeroSpec } from "@girlsbands/industry/email/hero";
 import { EMAIL_THEME } from "@girlsbands/industry/email/theme";
 import type { ConfirmData, DeadlineData, DeadlineDay, DeadlineEntry, DigestData, DigestItem, EmailSite } from "@girlsbands/industry/email/types";
@@ -117,10 +117,18 @@ function bandOf(subjects: readonly string[]): { id: string; name: string; accent
   return { id, name: entity.name, accent: entity.accent ?? null };
 }
 
-/** 这条节点和这个收件人有关吗：没勾乐队就是全部，勾了就要求至少命中一支。 */
-export function matches(bands: readonly string[], subjects: readonly string[]): boolean {
-  if (bands.length === 0) return true;
-  return subjects.some((s) => bands.includes(s));
+/**
+ * 这条节点和这个收件人有关吗：没勾就是全部，勾了就要求至少命中一个。
+ * 勾的是企划（系列 id）时，它旗下乐队的情报也算命中——只订「BanG Dream!」的人该收到 Roselia 的消息。
+ * 归属关系只有一份，在 industry/taxonomy.ts 的 seriesOf 里，这里不另抄一张表：它认系列 id 才展开，
+ * 所以勾乐队时不会把同系列其它乐队串进来（和企划页、日历是同一套语义）。
+ * 同时勾了企划和它旗下的乐队时，展开后是同一个集合，两种勾法的结果完全一样。
+ */
+export function matches(picks: readonly string[], subjects: readonly string[]): boolean {
+  if (picks.length === 0) return true;
+  const wanted = new Set<string>();
+  for (const id of picks) for (const member of seriesOf(id)) wanted.add(member);
+  return subjects.some((s) => wanted.has(s));
 }
 
 function toEntry(view: DeadlineView): DeadlineEntry {
@@ -199,6 +207,19 @@ interface DigestRow {
   first_party: boolean;
   timeline_at: Date;
   source_name: string;
+  story_id: number | null;
+  score: number | null;
+}
+
+/** 同一个故事里哪条更值得占掉那唯一一格：分高的优先，同分取最早那条（先到的那篇通常信息最全）。 */
+function betterRow(a: DigestRow, b: DigestRow): boolean {
+  const sa = a.score ?? -Infinity;
+  const sb = b.score ?? -Infinity;
+  if (sa !== sb) return sa > sb;
+  const ta = a.timeline_at.getTime();
+  const tb = b.timeline_at.getTime();
+  if (ta !== tb) return ta < tb;
+  return a.article_id < b.article_id;
 }
 
 /**
@@ -207,7 +228,8 @@ interface DigestRow {
 export async function digestData(recipient: Recipient, now = new Date()): Promise<DigestData | null> {
   const since = new Date(now.getTime() - DIGEST_WINDOW_HOURS * 3600_000);
   const rows = await sql<DigestRow[]>`
-    SELECT p.article_id, p.title, p.summary, p.category, p.tags, p.first_party, p.timeline_at, s.name AS source_name
+    SELECT p.article_id, p.title, p.summary, p.category, p.tags, p.first_party, p.timeline_at, s.name AS source_name,
+           p.story_id, p.score
     FROM publications p
     JOIN sources s ON s.id = p.source_id
     WHERE ${selectedCondition(now)}
@@ -215,11 +237,24 @@ export async function digestData(recipient: Recipient, now = new Date()): Promis
     ORDER BY p.timeline_at DESC
     LIMIT 200`;
 
-  const items: DigestItem[] = [];
-  const bandCounts = new Map<string, { id: string; name: string; accent: string | null; n: number }>();
+  // 先按收件人筛一遍，再在同一个故事里挑一条：几条不同来源的报道讲的是同一件事时，读者不需要看两遍。
+  // 没归组（story_id 为空）的条目不参与去重，各自都算一条。
+  const candidates: DigestRow[] = [];
+  const bestOfStory = new Map<number, DigestRow>();
   for (const r of rows) {
     const subjects = entityIds(r.tags ?? []);
     if (!matches(recipient.bands, subjects)) continue;
+    candidates.push(r);
+    if (r.story_id === null) continue;
+    const current = bestOfStory.get(r.story_id);
+    if (!current || betterRow(r, current)) bestOfStory.set(r.story_id, r);
+  }
+
+  const items: DigestItem[] = [];
+  const bandCounts = new Map<string, { id: string; name: string; accent: string | null; n: number }>();
+  for (const r of candidates) {
+    if (r.story_id !== null && bestOfStory.get(r.story_id) !== r) continue;
+    const subjects = entityIds(r.tags ?? []);
     const bands = bandNames(subjects);
     for (const id of subjects) {
       const entity = ENTITIES[id as keyof typeof ENTITIES];

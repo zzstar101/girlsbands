@@ -1,7 +1,7 @@
 // The writing side of the analysis: the prefilter's and the content understanding's inputs, the
 // title/summary prompts for everything else, the output parsing and the deterministic guards. The
 // wording lives in the industry pack (industry/prompts/); a failed guard falls back without a repair call.
-import { IDENTITY_CONTEXT_ALIASES, IDENTITY_LEXICON, PUBLISHER_DOMAINS } from "@girlsbands/industry/taxonomy";
+import { ENTITIES, IDENTITY_CONTEXT_ALIASES, IDENTITY_LEXICON, PUBLISHER_DOMAINS } from "@girlsbands/industry/taxonomy";
 import { glossaryBlock } from "@girlsbands/industry/glossary";
 import { looksChinese } from "../lib/text.ts";
 import { onlyXArticleLink } from "../sources/x.ts";
@@ -93,6 +93,10 @@ export function renderContext(a: AnalyzeInputArticle, opts: { annotateQuoted?: b
   const lines: string[] = [];
   lines.push(`【来源】${a.source.name}（${a.source.kind}，tier=${a.source.tier || "未分级"}）`);
   if (a.source.tags?.length) lines.push(`【来源标签】${a.source.tags.join(", ")}`);
+  if (a.source.ownerEntityId) {
+    const entityName = ENTITIES[a.source.ownerEntityId]?.name;
+    lines.push(`【关联主体】${entityName ?? a.source.ownerEntityId}`);
+  }
   const name = a.xPost?.authorName || a.author;
   const handle = a.xPost?.handle;
   if (name || handle) lines.push(`【作者】${[name, handle ? `@${handle}` : null].filter(Boolean).join(" · ")}`);

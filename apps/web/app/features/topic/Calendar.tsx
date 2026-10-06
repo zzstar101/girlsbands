@@ -7,6 +7,8 @@ import { FAN_EVENT_LABEL, isFanEvent } from "@girlsbands/contracts/site";
 import { IconChevronLeft, IconChevronRight, IconDownload } from "../../components/icons";
 import { FanOnlyBadge } from "../../components/ui/FanOnlyBadge";
 import { DEADLINE_KINDS, md } from "../feed/deadlines";
+import { subjectOfId } from "../feed/bands";
+import type { CSSProperties } from "react";
 
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 
@@ -26,14 +28,27 @@ function monthGrid(month: string): { lead: number; days: number } {
   return { lead: (new Date(Date.UTC(year, m - 1, 1)).getUTCDay() + 6) % 7, days: new Date(Date.UTC(year, m, 0)).getUTCDate() };
 }
 
+/** The colour a dated row wears: its band's, else its project's — so a month reads by who, not only by what. */
+export function eventAccent(d: DeadlineView): string | null {
+  const subjects = d.subjects.map(subjectOfId);
+  return (subjects.find((s) => s?.kind === "band") ?? subjects.find(Boolean))?.accent ?? null;
+}
+
 /** One dated row: a kind-coloured dot and the title, which opens the report that stated the date. */
 function Event({ d }: { d: DeadlineView }) {
   const kind = DEADLINE_KINDS[d.kind];
   const time = d.localTime;
   // 同人场的标记要落在日期格这一层：读者是扫着日历决定「那天乐队会不会到场」的，详情页上再写就晚了。
   const fan = isFanEvent(d.organizer) ? FAN_EVENT_LABEL : null;
+  const accent = eventAccent(d);
   return (
-    <Link to={`/items/${d.itemId}`} prefetch="intent" title={[fan, kind.label, d.note, d.title].filter(Boolean).join(" · ")} className="group/event flex items-start gap-1.5">
+    <Link
+      to={`/items/${d.itemId}`}
+      prefetch="intent"
+      title={[fan, kind.label, d.note, d.title].filter(Boolean).join(" · ")}
+      style={accent ? ({ "--ev": accent } as CSSProperties) : undefined}
+      className="cal-event group/event flex items-start gap-1.5"
+    >
       <span aria-hidden="true" className={`mt-[5px] size-1.5 flex-none rounded-full bg-current ${kind.className}`} />
       <span className="min-w-0 text-[11.5px] leading-[1.45] text-ink-2 transition-colors group-hover/event:text-accent">
         <FanOnlyBadge organizer={d.organizer} className="is-cell mr-1 align-[1px]" />
@@ -88,7 +103,14 @@ function Nav({ data, monthHref, icsHref }: { data: CalendarResponse; monthHref: 
   );
 }
 
-export function MonthCalendar({ data, monthHref, icsHref, className = "" }: { data: CalendarResponse; monthHref: MonthHref; icsHref: string; className?: string }) {
+export function MonthCalendar({ data, monthHref, icsHref, className = "", agenda = false }: {
+  data: CalendarResponse;
+  monthHref: MonthHref;
+  icsHref: string;
+  className?: string;
+  /** Also list every date under the grid on desktop: a cell shows three, the list shows them all. */
+  agenda?: boolean;
+}) {
   const byDay = new Map(data.days.map((d) => [d.date, d.items]));
   const { lead, days } = monthGrid(data.month);
   const today = jstDay(data.computedAt);
@@ -126,7 +148,7 @@ export function MonthCalendar({ data, monthHref, icsHref, className = "" }: { da
             })}
           </div>
 
-          <ol className="card divide-y divide-line-soft overflow-hidden lg:hidden">
+          <ol className={`card divide-y divide-line-soft overflow-hidden ${agenda ? "lg:mt-6" : "lg:hidden"}`}>
             {data.days.map((day) => (
               <li key={day.date} className="flex gap-3 px-4 py-2.5">
                 <span className="mono w-[46px] flex-none pt-0.5 text-[12.5px] font-semibold text-ink-2">{md(day.date)}</span>

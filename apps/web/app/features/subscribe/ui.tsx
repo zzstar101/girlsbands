@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BAND_IDS, PROJECT_IDS } from "@girlsbands/industry/taxonomy";
+import { BAND_IDS, PROJECT_IDS, seriesOf } from "@girlsbands/industry/taxonomy";
 import { subjectOfId } from "../feed/bands";
 
 export { BAND_IDS, PROJECT_IDS };
@@ -12,28 +12,38 @@ export const LABEL = "mb-2 block text-[13px] font-semibold text-ink";
  * 乐队／企划选择：不选任何一个就是全部。颜色只用来标出选中状态，含义始终由文字承担。
  * 「乐队」和「企划」分成两组：企划是整个系列、单部作品或游戏本身，乐队才是具体的团。
  * 两种都能订，但页面必须让人一眼分清自己订的是哪一种，邮件头图也按这个区分挂 logo。
+ * 订了企划就收到旗下所有乐队的消息，所以选中企划时它的乐队显示为「已包含」、不能再单独勾。
  */
 export function BandPicker({ value, onChange, disabled = false }: { value: readonly string[]; onChange: (next: string[]) => void; disabled?: boolean }) {
+  const coveredBy = (id: string) => PROJECT_IDS.find((p) => p !== id && value.includes(p) && seriesOf(p).includes(id));
   const toggle = (id: string) => {
-    onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+    if (value.includes(id)) return onChange(value.filter((v) => v !== id));
+    // A project takes over its bands: keeping them picked too would only leave stale choices behind.
+    const members = PROJECT_IDS.includes(id) ? seriesOf(id) : [];
+    onChange([...value.filter((v) => !members.includes(v)), id]);
   };
   const chip = (id: string) => {
     const subject = subjectOfId(id);
     if (!subject) return null;
     const on = value.includes(id);
+    const project = coveredBy(id);
+    const covered = !on && !!project;
     return (
       <button
         key={id}
         type="button"
-        disabled={disabled}
-        aria-pressed={on}
+        disabled={disabled || covered}
+        aria-pressed={on || covered}
+        title={covered ? `已包含在「${subjectOfId(project!)?.label ?? project}」里` : undefined}
         onClick={() => toggle(id)}
-        style={on && subject.accent ? { backgroundColor: subject.accent, borderColor: subject.accent } : undefined}
+        style={on && subject.accent ? { backgroundColor: subject.accent, borderColor: subject.accent } : covered && subject.accent ? { borderColor: subject.accent, color: subject.accent } : undefined}
         className={`h-8 rounded-full px-3 text-[12.5px] font-medium transition-colors disabled:opacity-50 ${
-          on ? "border border-transparent text-white" : "bg-bg-sunk text-ink-3 ring-1 ring-inset ring-line-soft hover:text-ink"
+          on ? "border border-transparent text-white" : covered ? "border border-dashed !opacity-70" : "bg-bg-sunk text-ink-3 ring-1 ring-inset ring-line-soft hover:text-ink"
         }`}
       >
+        {covered && <span aria-hidden="true">✓ </span>}
         {subject.label}
+        {covered && <span className="sr-only">（已包含在企划里）</span>}
       </button>
     );
   };
@@ -54,15 +64,15 @@ export function BandPicker({ value, onChange, disabled = false }: { value: reado
       </div>
       <div>
         <p className="mb-1.5 text-[12px] font-semibold text-ink">
-          乐队 <span className="font-normal text-ink-3">具体的团——Live、抽选、发售、成员动态按它们归档</span>
+          企划 <span className="font-normal text-ink-3">整个系列、单部作品或游戏本身，订企划会收到旗下所有乐队的消息</span>
         </p>
-        <div className="flex flex-wrap gap-1.5">{BAND_IDS.map(chip)}</div>
+        <div className="flex flex-wrap gap-1.5">{PROJECT_IDS.map(chip)}</div>
       </div>
       <div>
         <p className="mb-1.5 text-[12px] font-semibold text-ink">
-          企划 <span className="font-normal text-ink-3">整个系列、单部作品或游戏本身，比如 BanG Dream! 与 GIRLS BAND CRY</span>
+          乐队 <span className="font-normal text-ink-3">具体的团——Live、抽选、发售、成员动态按它们归档</span>
         </p>
-        <div className="flex flex-wrap gap-1.5">{PROJECT_IDS.map(chip)}</div>
+        <div className="flex flex-wrap gap-1.5">{BAND_IDS.map(chip)}</div>
       </div>
     </div>
   );

@@ -22,6 +22,32 @@ export interface ExtractedBody {
 
 const MIN_BODY_CHARS = 200;
 
+/** Keep only real page images; listing and metadata placeholders are not useful covers. */
+export function usableImageUrl(value: string, base: string): string | null {
+  try {
+    const image = new URL(value.replace(/&amp;/g, "&"), base);
+    if (!/^https?:$/.test(image.protocol) || /favicon|\.svg(?:$|[?#])|logo|no[_-]?image|default/i.test(image.href)) return null;
+    return image.href;
+  } catch {
+    return null;
+  }
+}
+
+function fallbackImage(document: ReturnType<typeof parseHTML>["document"], base: string): string | null {
+  const candidates = [
+    document.querySelector('meta[property="og:image"]')?.getAttribute("content"),
+    document.querySelector('meta[name="twitter:image"], meta[property="twitter:image"]')?.getAttribute("content"),
+    document.querySelector('link[rel~="image_src"]')?.getAttribute("href"),
+  ];
+  for (const value of candidates) {
+    if (value) {
+      const image = usableImageUrl(value, base);
+      if (image) return image;
+    }
+  }
+  return null;
+}
+
 export function readable(html: string, url: string): ExtractedBody | null {
   const { document } = parseHTML(html);
   try {
@@ -38,10 +64,16 @@ export function readable(html: string, url: string): ExtractedBody | null {
   if (text.length < MIN_BODY_CHARS) return null;
   const images: ExtractedBody["images"] = [];
   for (const m of clean.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) {
+    const imageUrl = usableImageUrl(m[1]!, url);
+    if (!imageUrl) continue;
     const w = /\bwidth="(\d+)"/.exec(m[0]);
     const h = /\bheight="(\d+)"/.exec(m[0]);
-    images.push({ kind: "image", url: m[1]!.replace(/&amp;/g, "&"), width: w ? Number(w[1]) : null, height: h ? Number(h[1]) : null });
+    images.push({ kind: "image", url: imageUrl, width: w ? Number(w[1]) : null, height: h ? Number(h[1]) : null });
     if (images.length >= 12) break;
+  }
+  if (!images.length) {
+    const imageUrl = fallbackImage(document, url);
+    if (imageUrl) images.push({ kind: "image", url: imageUrl, width: null, height: null });
   }
   return { html: clean, text, images, via: "readability" };
 }

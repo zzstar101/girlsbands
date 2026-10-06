@@ -46,6 +46,7 @@ export const SIDEBAR: Array<{ title: string; items: NavItem[] }> = [
     title: "追踪",
     items: [
       { to: "/deadlines", label: "截止雷达", icon: IconClock },
+      { to: "/calendar", label: "日历", icon: IconCalendar },
       { to: "/topics/live", label: "Live 与活动", icon: IconCalendar },
       { to: "/topics/ticket", label: "票务与抽选", icon: IconTicket },
       { to: "/topics/release", label: "发售与周边", icon: IconDisc },

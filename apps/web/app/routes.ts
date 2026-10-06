@@ -9,6 +9,7 @@ export default [
   route("items/:id/original", "routes/item-original.tsx", { id: "item-original" }),
   route("hot", "routes/hot.tsx"),
   route("deadlines", "routes/deadlines.tsx"),
+  route("calendar", "routes/calendar.tsx"),
   route("story/:publicId", "routes/story.tsx"),
   route("live/:publicId", "routes/live.tsx"),
   route("release/:publicId", "routes/release.tsx"),

@@ -491,12 +491,17 @@ body:not(:has([data-admin])) [data-pill-track] [aria-current="page"] { color: va
 /* 09 吉他弦阅读进度 */
 .string-progress { position: fixed; z-index: 60; top: 0; left: 0; right: 0; height: 14px; pointer-events: none; }
 @media (min-width: 1024px) { .string-progress { left: 264px; } }
-.string-progress svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.string-progress svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; overflow: visible; }
 .string-progress path { fill: none; vector-effect: non-scaling-stroke; }
 .string-progress .s-rest { stroke: var(--ink-4); stroke-width: 1; opacity: .7; }
-.string-progress .s-played { stroke: var(--pink); stroke-width: 2.5; stroke-dasharray: 1 1; }
+.string-progress .s-played { stroke: var(--pink); stroke-width: 2.5; }
 .string-progress .s-pick { position: absolute; top: 0; width: 13px; height: 14px; margin-left: -6px; background: var(--tape); border: 1.5px solid var(--ink);
   border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%; clip-path: polygon(0 0, 100% 0, 100% 45%, 50% 100%, 0 45%); }
+
+/* 日历格里的一件事：左边一道乐队应援色，底色淡淡染一层，扫一眼就知道这个月是谁的。 */
+.cal-event { border-left: 2px solid var(--ev, var(--line-strong)); padding: 1px 3px 1px 5px; border-radius: 0 3px 3px 0;
+  background: color-mix(in srgb, var(--ev, transparent) 11%, transparent); }
+.cal-event:hover { background: color-mix(in srgb, var(--ev, var(--accent)) 20%, transparent); }
 
 /* 10 网点显影: halftone dots swell until they close, then the picture takes its colour. */
 @property --dot-r { syntax: "<length>"; inherits: false; initial-value: 5px; }

@@ -90,14 +90,64 @@ export function isTeaser(text: string): boolean {
 }
 
 /**
- * The body and excerpt of a feed entry: its text when it is the article, else no body (a summary, or
- * a teaser that stands in as the excerpt when the entry has none).
+ * X posts are read through a Nitter mirror: the item links a source rewrites to x.com are mirror
+ * links, so a mirror's own page (a hashtag search, a profile, a quoted status) is the post's address
+ * on a host nobody should end up on.
  */
-function feedText(bodyHtml: string | null, summaryHtml: string, source: SourceRow): Pick<Candidate, "excerpt" | "bodyHtml" | "bodyText" | "bodyStatus"> {
+const isXMirror = (source: SourceRow) => /^(?:https?:\/\/)?(?:www\.)?(?:x|twitter)\.com\//i.test(String(source.config.itemUrlPrefixRewrite?.to ?? ""));
+
+/** The host a feed's item links live on, which a body's links point at as well. */
+function mirrorHost(link: string): string | null {
+  try {
+    const url = new URL(link);
+    return /^https?:$/.test(url.protocol) ? url.host : null;
+  } catch {
+    return null;
+  }
+}
+
+const A_HREF = /(<a\b[^>]*\shref=)(["'])(.*?)\2/gi;
+
+/** A link inside a tweet's body: its x.com address when it is a mirror page. */
+function xLink(href: string, mirror: string): string {
+  let url: URL;
+  try {
+    url = new URL(href, `http://${mirror}/`);
+  } catch {
+    return href;
+  }
+  if (url.host !== mirror) return href; // the post's own links: other sites the tweet points at
+  const q = url.searchParams.get("q") ?? "";
+  if (url.pathname === "/search" && q) {
+    return q.startsWith("#")
+      ? `https://x.com/hashtag/${encodeURIComponent(q.slice(1))}`
+      : `https://x.com/search?q=${encodeURIComponent(q)}`;
+  }
+  const status = /^\/([A-Za-z0-9_]{1,15})\/status\/(\d+)/.exec(url.pathname);
+  if (status) return `https://x.com/${status[1]}/status/${status[2]}`; // the mirror's #m anchor is its own
+  const profile = /^\/([A-Za-z0-9_]{1,15})\/?$/.exec(url.pathname);
+  return profile ? `https://x.com/${profile[1]}` : href;
+}
+
+/** Every link of a tweet's body that points at the mirror, as its x.com address. */
+function mirrorBody(html: string, mirror: string): string {
+  return html.replace(A_HREF, (_m, head: string, quote: string, href: string) => `${head}${quote}${xLink(href, mirror)}${quote}`);
+}
+
+/** A retweet in a Nitter feed: "RT by @handle: " before the quoted post's text. */
+const RETWEET_PREFIX = /^RT by @[^\s:]+:\s+/;
+
+/**
+ * The body and excerpt of a feed entry: its text when it is the article, else no body (a summary, or
+ * a teaser that stands in as the excerpt when the entry has none). A tweet is the whole text however
+ * short, and no later fetch can bring more of it (x.com serves no page to a reader), so the length
+ * rule that keeps a news summary a summary does not apply.
+ */
+function feedText(bodyHtml: string | null, summaryHtml: string, source: SourceRow, tweet = false): Pick<Candidate, "excerpt" | "bodyHtml" | "bodyText" | "bodyStatus"> {
   const bodyText = bodyHtml ? stripTags(bodyHtml) : null;
-  const teaser = !!bodyText && source.participation_mode === "editorial" && isTeaser(bodyText);
+  const teaser = !tweet && !!bodyText && source.participation_mode === "editorial" && isTeaser(bodyText);
   const excerpt = summaryHtml ? collapseWhitespace(stripTags(summaryHtml)).slice(0, 2000) : teaser ? collapseWhitespace(bodyText!) : null;
-  return bodyText && bodyText.length > 280 && !teaser
+  return bodyText && (tweet || (bodyText.length > 280 && !teaser))
     ? { excerpt, bodyHtml, bodyText, bodyStatus: "ok" }
     : { excerpt, bodyHtml: null, bodyText: null, bodyStatus: "pending" };
 }
@@ -145,6 +195,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
     throw new FetchError(`feed parse error: ${String(e).slice(0, 200)}`);
   }
   const summaryIsBody = source.config.summaryIsBody === true;
+  const xMirror = isXMirror(source);
   const out: Candidate[] = [];
 
   const channel = doc.rss?.channel ?? doc["rdf:RDF"];
@@ -152,12 +203,15 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
     const items = arr(doc.rss?.channel?.item ?? doc["rdf:RDF"]?.item);
     for (const it of items) {
       const link = text(it.link) || text(it.guid);
-      const title = collapseWhitespace(stripTags(text(it.title)));
+      const title = collapseWhitespace(stripTags(text(it.title).replace(RETWEET_PREFIX, "")));
       if (!link || !title) continue;
       const contentEncoded = text(it["content:encoded"]);
-      const description = text(it.description);
+      const description = text(it.description).replace(RETWEET_PREFIX, "");
       const bodyHtmlRaw = contentEncoded || (summaryIsBody ? description : "");
-      const bodyHtml = bodyHtmlRaw ? sanitizeBody(bodyHtmlRaw, link) : null;
+      // The body's links are relative to the mirror or absolute on it: before the cleaner turns
+      // relative ones into item links, mirror pages become the x.com pages they are mirrors of.
+      const mirror = xMirror ? mirrorHost(link) : null;
+      const bodyHtml = bodyHtmlRaw ? sanitizeBody(mirror ? mirrorBody(bodyHtmlRaw, mirror) : bodyHtmlRaw, link) : null;
       const enclosure = arr(it.enclosure as Record<string, string> | Array<Record<string, string>>).find((e) => /^image\//.test(e?.["@type"] ?? ""));
       const media = [
         ...(enclosure ? [{ kind: "image" as const, url: enclosure["@url"]! }] : []),
@@ -168,7 +222,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         title,
         author: text(it["dc:creator"]) || text(it.author) || null,
         publishedAt: parseDate(text(it.pubDate) || text(it["dc:date"]) || text(it.published)),
-        ...feedText(bodyHtml, description, source),
+        ...feedText(bodyHtml, description, source, xMirror),
         media: media.slice(0, 6),
         categories: arr(it.category).map((c) => text(c)).filter(Boolean),
         raw: { guid: text(it.guid) || null },

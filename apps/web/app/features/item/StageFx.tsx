@@ -25,24 +25,42 @@ export function MarkedLede({ text, accent, className = "" }: { text: string; acc
 }
 
 /**
- * 吉他弦阅读进度: a string across the top of the page; the pick rides at the reading position and the string
- * shakes with scroll speed, then rings down.
+ * 吉他弦阅读进度: a string across the top of the page; the pick rides at the reading position of the article
+ * that follows it and the string shakes with scroll speed, then rings down.
+ *
+ * The played part is the same string clipped in screen space: the svg is stretched (preserveAspectRatio none)
+ * and its stroke is non-scaling, so a pathLength dash would be measured on the unstretched length and land
+ * in the wrong place.
  */
 export function StringProgress() {
+  const root = useRef<HTMLDivElement>(null);
   const path = useRef<SVGPathElement>(null);
   const played = useRef<SVGPathElement>(null);
+  const playedSvg = useRef<SVGSVGElement>(null);
   const pick = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let amp = 0, phase = 0, frame = 0, lastY = window.scrollY;
+    const progress = () => {
+      const article = root.current?.nextElementSibling;
+      const doc = document.documentElement.scrollHeight - window.innerHeight;
+      if (article) {
+        const box = article.getBoundingClientRect();
+        const start = box.top + window.scrollY;
+        // Done when the article's end reaches the bottom of the screen, not when the page footer does.
+        const span = Math.min(box.height - window.innerHeight, doc - start);
+        // An article that fits on one screen has nothing to track; the page then measures the whole page.
+        if (span > 0) return (window.scrollY - start) / span;
+      }
+      return doc > 0 ? window.scrollY / doc : 0;
+    };
     const draw = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      const p = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+      const p = Math.min(1, Math.max(0, progress()));
       const y = 7 + amp * Math.sin(phase);
       const d = `M0 7 Q500 ${y.toFixed(2)} 1000 7`;
       path.current?.setAttribute("d", d);
       played.current?.setAttribute("d", d);
-      played.current?.style.setProperty("stroke-dashoffset", String(1 - p));
+      if (playedSvg.current) playedSvg.current.style.clipPath = `inset(-8px ${((1 - p) * 100).toFixed(3)}% -8px 0)`;
       if (pick.current) pick.current.style.left = `${p * 100}%`;
     };
     const ring = () => {
@@ -58,12 +76,17 @@ export function StringProgress() {
       if (!frame) frame = requestAnimationFrame(ring);
     };
     draw();
+    // Images and the translation toggle change the article's height after the first paint.
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => { if (!frame) draw(); });
+    const article = root.current?.nextElementSibling;
+    if (ro && article) ro.observe(article);
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", draw);
-    return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", draw); };
+    return () => { cancelAnimationFrame(frame); ro?.disconnect(); window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", draw); };
   }, []);
-  return <div className="string-progress" aria-hidden="true">
-    <svg viewBox="0 0 1000 14" preserveAspectRatio="none"><path ref={path} className="s-rest" d="M0 7 Q500 7 1000 7" /><path ref={played} className="s-played" pathLength={1} d="M0 7 Q500 7 1000 7" /></svg>
+  return <div ref={root} className="string-progress" aria-hidden="true">
+    <svg viewBox="0 0 1000 14" preserveAspectRatio="none"><path ref={path} className="s-rest" d="M0 7 Q500 7 1000 7" /></svg>
+    <svg ref={playedSvg} viewBox="0 0 1000 14" preserveAspectRatio="none" style={{ clipPath: "inset(-8px 100% -8px 0)" }}><path ref={played} className="s-played" d="M0 7 Q500 7 1000 7" /></svg>
     <span ref={pick} className="s-pick" />
   </div>;
 }
