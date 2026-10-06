@@ -116,3 +116,11 @@ volumes:
   db: {}
   data: {}
   caddy: {}
+
+# IPv6 egress for the containers. Some sources resolve to IPv6 first (the Nitter mirror does), and the
+# guarded lookup dials the first address it gets: on a v4-only bridge that connect times out and every
+# fetch of the source fails. Docker gives the network a private v6 range and NATs it out; on a host
+# without IPv6 the v4 path is unchanged.
+networks:
+  default:
+    enable_ipv6: true
