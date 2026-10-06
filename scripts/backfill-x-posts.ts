@@ -15,14 +15,15 @@ const pace = Number(value("--pace") ?? 400);
 const dry = args.includes("--dry");
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-interface Row { id: string; url: string; title: string; handle: string; tweet_id: string }
+interface Row { id: string; url: string; title: string; handle: string; tweet_id: string; owner: string | null }
 
 async function main() {
   // 信源还在窗口里的推文，采集器下一次抓取就会按新解析写 x_post，不用管。
   const rows = await sql<Row[]>`
     SELECT a.id, a.url, a.title,
            substring(a.url from '//[^/]+/([^/]+)/status/') AS handle,
-           substring(a.url from '/status/([0-9]+)') AS tweet_id
+           substring(a.url from '/status/([0-9]+)') AS tweet_id,
+           substring(s.config->>'feedUrl' from '//[^/]+/([^/]+)/rss') AS owner
     FROM articles a
     JOIN sources s ON s.id = a.source_id
     JOIN publications p ON p.article_id = a.id
@@ -38,6 +39,8 @@ async function main() {
     if (!tweet) { missing += 1; console.log(`  missing ${r.id} ${r.url}`); await sleep(pace); continue; }
     const xPost = fxTweetToXPost(tweet);
     if (!xPost) { skipped += 1; console.log(`  unusable ${r.id} (no author/id) ${r.url}`); await sleep(pace / 2); continue; }
+    // 信源账号转推别人的帖子：帖子作者不是信源账号，卡片顶上要写「某某 转发了」。
+    if (r.owner && r.owner.toLowerCase() !== xPost.handle.toLowerCase()) xPost.retweetedBy = { handle: r.owner, authorName: null };
     if (dry) { console.log(`  would update ${r.id}: @${xPost.handle} ${xPost.text.slice(0, 40)}`); await sleep(pace / 2); continue; }
     try {
       // x_post 不在 content_hash 里：直接写字段，不出新修订，分析和译文都不重跑。

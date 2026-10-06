@@ -34,6 +34,29 @@ function series<T extends { day: string }>(labels: string[], rows: T[], pick: (r
   return labels.map((d) => by.get(d) ?? 0);
 }
 
+type Line = { key: string; label: string; color: string; values: number[]; dashed?: boolean };
+/** A line needs a few days to mean anything; with one or two days the same numbers read better as bars. */
+function Trend({ labels, series: lines }: { labels: string[]; series: Line[] }) {
+  if (labels.length >= 3) return <LineChart labels={labels} series={lines} />;
+  return (
+    <div className="grid gap-2 text-[13px]">
+      <p className="text-[12px] text-ink-4">数据还不到 3 天，先按天列出，攒够了再画趋势线。</p>
+      {labels.map((d, i) => (
+        <div key={d} className="flex flex-wrap items-baseline gap-x-5 gap-y-1 border-t border-line/70 pt-2">
+          <span className="num w-12 text-ink-3">{d}</span>
+          {lines.map((l) => (
+            <span key={l.key} className="inline-flex items-baseline gap-1.5">
+              <i className="inline-block h-2 w-2 rounded-full" style={{ background: l.color }} />
+              <span className="text-ink-3">{l.label}</span>
+              <span className="num text-ink">{num(l.values[i] ?? 0)}</span>
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TopList({ rows, label }: { rows: EdgeTop | Array<{ key: string; value: number }>; label?: (k: string) => string }) {
   if (!rows.length) return <Empty>暂无数据</Empty>;
   return <ShareBars rows={rows.slice(0, 8).map((r) => ({ label: label ? label(r.key) : r.key, value: r.value }))} />;
@@ -74,7 +97,7 @@ export default function StatsAdmin({ loaderData: s }: Route.ComponentProps) {
           </div>
           <Card title="每天的访问">
             {trafficDays.length ? (
-              <LineChart
+              <Trend
                 labels={trafficDays.map(short)}
                 series={[
                   { key: "pv", label: "PV", color: C.accent, values: series(trafficDays, t.daily, (d) => d.pv) },
@@ -136,7 +159,7 @@ export default function StatsAdmin({ loaderData: s }: Route.ComponentProps) {
           <div className="grid gap-4 lg:grid-cols-3">
             <Card title="每天的产出" className="lg:col-span-2">
               {contentDays.length ? (
-                <LineChart
+                <Trend
                   labels={contentDays.map(short)}
                   series={[
                     { key: "c", label: "采集", color: C.soft, values: series(contentDays, s.content.daily, (d) => d.collected) },
@@ -202,17 +225,20 @@ export default function StatsAdmin({ loaderData: s }: Route.ComponentProps) {
                 <Empty>暂无</Empty>
               )}
             </Card>
-            <Card title="按用途" pad={false}>
-              <DataTable
-                dense
-                rows={[...s.models.byPurpose].sort((a, b) => b.calls - a.calls).slice(0, 12)}
-                rowKey={(r) => r.purpose}
-                columns={[
-                  { key: "p", label: "用途", render: (r) => <span className="font-mono text-[11.5px]">{r.purpose}</span> },
-                  { key: "c", label: "调用", align: "right", render: (r) => num(r.calls) },
-                  { key: "l", label: "平均耗时", align: "right", render: (r) => `${(r.avgLatencyMs / 1000).toFixed(1)} s` },
-                ]}
-              />
+            <Card title="按用途">
+              {s.models.byPurpose.length ? (
+                <ul className="grid gap-1.5 text-[12.5px]">
+                  {[...s.models.byPurpose].sort((a, b) => b.calls - a.calls).slice(0, 12).map((r) => (
+                    <li key={r.purpose} className="flex items-baseline gap-3">
+                      <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink-2">{r.purpose}</span>
+                      <span className="num text-ink">{num(r.calls)}</span>
+                      <span className="num w-14 text-right text-ink-4">{(r.avgLatencyMs / 1000).toFixed(1)} s</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Empty>暂无</Empty>
+              )}
             </Card>
           </div>
         </section>
@@ -228,7 +254,7 @@ export default function StatsAdmin({ loaderData: s }: Route.ComponentProps) {
           </div>
           <Card title="每天的订阅与邮件">
             {subDays.length ? (
-              <LineChart
+              <Trend
                 labels={subDays.map(short)}
                 series={[
                   { key: "n", label: "新订阅", color: C.accent, values: series(subDays, s.subscriptions.daily, (d) => d.newSubs) },

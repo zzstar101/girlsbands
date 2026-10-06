@@ -6,6 +6,7 @@ import type { XPostView } from "@girlsbands/contracts/site";
 import { SourceAvatar } from "../../components/ui/SourceAvatar";
 import { fullDateTime } from "../../lib/format";
 import { ArticleBody } from "./ArticleBody";
+import { stripQuoteEcho } from "./quoteEcho";
 import { MediaGallery } from "./MediaGallery";
 
 type Person = { authorName?: string | null; handle?: string | null; avatarUrl?: string | null; avatarSrcSet?: string };
@@ -97,7 +98,7 @@ export function XPostCard({
       {head && <div className="mt-4">{head}</div>}
 
       {html ? (
-        <ArticleBody html={html} dropImages gallery={false} className="prose x-text mt-3" />
+        <ArticleBody html={stripQuoteEcho(html, quoted)} dropImages gallery={false} className="prose x-text mt-3" />
       ) : (
         x.text && <p className="x-text mt-3 whitespace-pre-line">{original ? x.text : x.translation ?? x.text}</p>
       )}
