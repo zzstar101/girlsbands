@@ -18,6 +18,7 @@ import { forwardPendingFeedback } from "@girlsbands/backend/operations/feedback"
 import { sendDeadlineReminders, sendDigest as sendSubscriberDigest } from "@girlsbands/backend/subscriptions/notify";
 import { backupConfigured, runBackup } from "@girlsbands/backend/operations/backup";
 import { sourceHealthWeekly } from "@girlsbands/backend/operations/reports";
+import { prunePageViews, pullEdgeOne } from "@girlsbands/backend/operations/edgeanalytics";
 
 interface Scheduled {
   name: string;
@@ -58,6 +59,8 @@ export const SCHEDULES: Scheduled[] = [
   { name: "email.digest", cron: "0 20 * * *", missed: "once", run: () => sendSubscriberDigest() },
   ...(backupConfigured() ? [{ name: "ops.backup", cron: "10 4 * * *", missed: "once" as const, run: () => runBackup() }] : []),
   { name: "reports.source-health", cron: "0 9 * * 1", missed: "once", run: () => sourceHealthWeekly() },
+  { name: "analytics.edgeone", cron: "0 * * * *", missed: "once", run: () => pullEdgeOne(3) },
+  { name: "analytics.page-view-retention", cron: "20 3 * * *", missed: "once", run: () => prunePageViews() },
   ...(collecting
     ? [
         { name: "sources.schedule", cron: "* * * * *", run: () => scheduleDueSources() },

@@ -18,6 +18,7 @@ import { releaseReceipt } from "@girlsbands/backend/operations/recover";
 import { replaceContactQr, setTargetEnabled, settingsOverview, updateBudget } from "@girlsbands/backend/admin/settings";
 import { createSource, fetchNow, listSources, previewSource, previewStoredSource, sourceDetail, updateSource, withdrawSource } from "@girlsbands/backend/admin/sources";
 import { sendProblem } from "../http/respond.ts";
+import { adminStats } from "@girlsbands/backend/admin/stats";
 import { adminHandler } from "./admin-auth.ts";
 
 type Q = Record<string, string | undefined>;
@@ -35,6 +36,7 @@ function decodeImage(dataUrl: unknown): Buffer {
 }
 
 export function registerAdmin(app: FastifyInstance) {
+  app.get("/api/admin/stats", adminHandler(async (req) => adminStats(Math.min(90, Math.max(1, Number(q(req).days) || 30)))));
   // Sources
   app.get("/api/admin/sources", adminHandler(async (req) => {
     const f = q(req);

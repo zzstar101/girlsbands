@@ -24,6 +24,7 @@ const NAV: Array<{ group: string; items: Array<{ to: string; label: string; coun
   {
     group: "内容",
     items: [
+      { to: "/admin/stats", label: "数据统计" },
       { to: "/admin/content", label: "内容诊断" },
       { to: "/admin/review", label: "中文抽检" },
       { to: "/admin/sources", label: "信源", count: "sources", tone: "bad" },

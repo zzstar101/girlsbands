@@ -54,7 +54,7 @@ test("packages never import the apps, and nothing below the admin imports it", (
 // Public routes read through the public read faces; the rest are the reader's own writes (feedback and
 // email subscriptions) and the image proxy. Admin and ingest routes may call any backend use case.
 const PRIVATE_ROUTES = new Set(["admin.ts", "admin-auth.ts", "ingest.ts"]);
-const PUBLIC_READS = [/^publication\//, /^site\//, /^lib\//, /^config\.ts$/, /^operations\/(feedback|abuse)\.ts$/, /^media\//, /^jobs\/queue\.ts$/, /^subscriptions\//];
+const PUBLIC_READS = [/^publication\//, /^site\//, /^lib\//, /^config\.ts$/, /^operations\/(feedback|abuse|pageviews)\.ts$/, /^media\//, /^jobs\/queue\.ts$/, /^subscriptions\//];
 
 test("public routes read content only through the public read layer", () => {
   const routes = sources("apps/api/src/routes").filter(({ file }) => !PRIVATE_ROUTES.has(path.basename(file)));

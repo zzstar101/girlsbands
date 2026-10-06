@@ -20,8 +20,7 @@ import { Menu, MenuItem } from "../components/ui/Menu";
 import { StarButton } from "../features/feed/parts";
 import { GroupButton, GroupSources } from "../features/feed/ReadingGroup";
 import { StoryFollowups } from "../features/item/StoryFollowups";
-import { MediaGallery } from "../features/item/MediaGallery";
-import { QuotedPost } from "../features/item/QuotedPost";
+import { XPostCard } from "../features/item/XPostCard";
 import { ArticleBody } from "../features/item/ArticleBody";
 import { ActionsSheet, ReaderToolbar, type ActionRow } from "../features/item/ReaderTools";
 import { Develop, MarkedLede, StringProgress } from "../features/item/StageFx";
@@ -102,7 +101,7 @@ function ReadingProgress() {
       window.removeEventListener("resize", schedule);
     };
   }, []);
-  return <div ref={ref} aria-hidden="true" className="fixed inset-x-0 top-0 z-50 h-[2px] origin-left scale-x-0 bg-accent transition-transform duration-150 ease-out" />;
+  return <div ref={ref} aria-hidden="true" className="fixed inset-x-0 top-[env(safe-area-inset-top)] z-50 h-[2px] origin-left scale-x-0 bg-accent transition-transform duration-150 ease-out" />;
 }
 
 /** An outline link: a plain click scrolls in place (above); modifier clicks keep the browser's behaviour. */
@@ -520,11 +519,20 @@ function ItemView({ item }: { item: SiteItemDetail }) {
 
           {summaryOnly && <p className="mt-7 rounded-control bg-bg-sunk px-4 py-3 text-[13.5px] leading-relaxed text-ink-3">应来源方要求，这里只提供摘要与原文入口。完整内容请阅读原文。</p>}
 
-          {item.body && bodyHtml && (
-            <section className="mt-9 border-t border-line pt-4 xl:mt-10">
-              <div className="mb-6 flex items-center justify-between gap-3">
-                <span className="text-[12px] text-ink-4">{bodyLabel}</span>
-                {hasTranslation && (
+          {isX ? (
+            <section className="mt-8 xl:mt-9">
+              <XPostCard
+                x={item.x!}
+                html={bodyHtml ?? null}
+                original={lang === "original"}
+                postUrl={item.links.original}
+                publishedIso={publishedIso}
+                accent={subjectsOfItem(item)[0]?.accent}
+                head={
+                  item.body && bodyHtml ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[12px] text-ink-4">{bodyLabel}</span>
+                      {hasTranslation && (
                   <PillTabs
                     size="xs"
                     layoutId="item-body-lang"
@@ -536,16 +544,36 @@ function ItemView({ item }: { item: SiteItemDetail }) {
                     ]}
                   />
                 )}
-              </div>
-              {hasTranslation && lang === "zh" && !item.body.complete && (
-                <p className="mb-5 rounded-control bg-bg-sunk px-3 py-2 text-[13px] text-ink-3">译文尚不完整，完整内容请切换到原文。</p>
-              )}
-              <ArticleBody html={bodyHtml} />
+                    </div>
+                  ) : null
+                }
+              />
             </section>
+          ) : (
+            item.body && bodyHtml && (
+              <section className="mt-9 border-t border-line pt-4 xl:mt-10">
+                <div className="mb-6 flex items-center justify-between gap-3">
+                  <span className="text-[12px] text-ink-4">{bodyLabel}</span>
+                  {hasTranslation && (
+                  <PillTabs
+                    size="xs"
+                    layoutId="item-body-lang"
+                    label="正文语言"
+                    active={lang}
+                    items={[
+                      { key: "zh", label: "中文", prefetch: "intent", replace: true, to: `/items/${item.id}` },
+                      { key: "original", label: "原文", prefetch: "intent", replace: true, to: `/items/${item.id}/original` },
+                    ]}
+                  />
+                )}
+                </div>
+                {hasTranslation && lang === "zh" && !item.body.complete && (
+                  <p className="mb-5 rounded-control bg-bg-sunk px-3 py-2 text-[13px] text-ink-3">译文尚不完整，完整内容请切换到原文。</p>
+                )}
+                <ArticleBody html={bodyHtml} />
+              </section>
+            )
           )}
-
-          {isX && item.x!.media.length > 0 && <MediaGallery media={item.x!.media} postUrl={item.links.original} />}
-          {isX && item.x!.quoted?.text && <QuotedPost quoted={item.x!.quoted} original={lang === "original"} />}
 
           <p className="mt-8 text-[13px] text-ink-4">
             来源：

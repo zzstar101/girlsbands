@@ -45,6 +45,12 @@ export interface ItemRow {
   zh_text: string | null;
   /** Chinese translation of the post an X post quotes. */
   quoted_zh: string | null;
+  /** Cached name/avatar of the post's account: a mirror's retweet carries only a handle. */
+  x_profile_name?: string | null;
+  x_profile_avatar?: string | null;
+  /** Cached name/avatar of the account an X post quotes. */
+  x_quoted_name?: string | null;
+  x_quoted_avatar?: string | null;
 }
 
 /** Columns every item listing selects. Internal judgement details never leave this layer. */
@@ -54,6 +60,8 @@ export const ITEM_COLUMNS = sql`
   p.body_mode, p.indexable, p.fact_id, ${organizerColumn()} AS organizer,
   s.name AS source_name, s.participation_mode AS source_mode,
   a.x_post, a.author, a.language, a.media,
+  xp.author_name AS x_profile_name, xp.avatar_url AS x_profile_avatar,
+  xq.author_name AS x_quoted_name, xq.avatar_url AS x_quoted_avatar,
   st.public_id::text AS story_public_id, st.title AS story_title,
   CASE WHEN p.channel = 'x' THEN tr.body_text END AS zh_text, qt.text_zh AS quoted_zh`;
 
@@ -73,7 +81,10 @@ export const ITEM_FROM = sql`
   LEFT JOIN analyses an ON an.id = p.analysis_id
   LEFT JOIN stories st ON st.id = p.story_id AND st.merged_into IS NULL
   LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh' AND tr.revision >= a.revision
-  LEFT JOIN quote_translations qt ON p.channel = 'x' AND qt.tweet_id = substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')`;
+  LEFT JOIN quote_translations qt ON p.channel = 'x' AND qt.tweet_id = substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')
+  /* 镜像的转推只给了 handle；名字和头像从缓存补，读路径因此不联网。handle 小写匹配（x-profiles 小写入库）。 */
+  LEFT JOIN LATERAL (SELECT author_name, avatar_url FROM x_profiles WHERE handle = lower(a.x_post->>'handle')) xp ON true
+  LEFT JOIN LATERAL (SELECT author_name, avatar_url FROM x_profiles WHERE handle = lower(a.x_post->'quoted'->>'handle')) xq ON true`;
 
 export function channelCondition(channel: ChannelKey | null | undefined) {
   if (!channel || channel === "all") return sql``;
@@ -123,27 +134,51 @@ function mediaView(m: Record<string, any>, mode: "card" | "thumb" | "full" = "th
   };
 }
 
-export function xView(row: Pick<ItemRow, "x_post" | "zh_text"> & Partial<Pick<ItemRow, "quoted_zh">>, compact = false, responsive = compact): XPostView | null {
+export function xView(row: Pick<ItemRow, "x_post" | "zh_text"> & Partial<Pick<ItemRow, "quoted_zh" | "x_profile_name" | "x_profile_avatar" | "x_quoted_name" | "x_quoted_avatar">>, compact = false, responsive = compact): XPostView | null {
   const x = row.x_post;
   if (!x) return null;
+  // rss.ts 给转推/引用作者写的是 handle 占位；缓存里查到真名再显示真名。
+  // 每个作者跟自己的 handle 比：占位就是「名字栏里只有 handle」。
+  const nameOf = (stored: string, ownHandle: string, cached?: string | null) => {
+    const name = stored.trim();
+    if (name && name !== ownHandle) return name;
+    return cached?.trim() || ownHandle;
+  };
+  const handle = String(x.handle ?? "");
+  const authorName = nameOf(String(x.authorName ?? ""), handle, row.x_profile_name);
   const quoted = x.quoted && typeof x.quoted === "object"
     ? {
-      authorName: String(x.quoted.authorName ?? ""), handle: String(x.quoted.handle ?? ""), text: String(x.quoted.text ?? ""), url: String(x.quoted.url ?? ""),
+      authorName: nameOf(String(x.quoted.authorName ?? ""), String(x.quoted.handle ?? ""), row.x_quoted_name),
+      handle: String(x.quoted.handle ?? ""), text: String(x.quoted.text ?? ""), url: String(x.quoted.url ?? ""),
       translation: row.quoted_zh && row.quoted_zh.trim() !== String(x.quoted.text ?? "").trim() ? row.quoted_zh : null,
     }
     : null;
   const media = ((x.media ?? []) as Array<Record<string, any>>)
     .map((raw) => ({ raw, view: mediaView(raw, compact || !responsive ? "thumb" : "full", responsive) }))
     .filter((entry): entry is { raw: Record<string, any>; view: MediaView } => entry.view !== null);
-  const avatarSrcSet = responsive ? proxiedImageSet(x.avatarUrl, "avatar") : null;
+  const quotedMedia = ((x.quoted?.media ?? []) as Array<Record<string, any>>)
+    .map((raw) => mediaView(raw, "thumb", false))
+    .filter((view): view is MediaView => view !== null);
+  const quotedAvatar = x.quoted ? proxiedImage(x.quoted.avatarUrl ?? row.x_quoted_avatar, "avatar") : null;
+  const quotedAvatarSrcSet = responsive && x.quoted ? proxiedImageSet(x.quoted.avatarUrl ?? row.x_quoted_avatar, "avatar") : null;
+  const avatarSrcSet = responsive ? proxiedImageSet(x.avatarUrl ?? row.x_profile_avatar, "avatar") : null;
   return {
-    authorName: String(x.authorName ?? x.handle ?? ""),
-    handle: String(x.handle ?? ""),
-    avatarUrl: proxiedImage(x.avatarUrl, "avatar"),
+    authorName,
+    handle,
+    avatarUrl: proxiedImage(x.avatarUrl ?? row.x_profile_avatar, "avatar"),
     ...(avatarSrcSet ? { avatarSrcSet } : {}),
     text: String(x.text ?? ""),
     translation: row.zh_text && row.zh_text.trim() !== String(x.text ?? "").trim() ? row.zh_text : null,
-    quoted,
+    quoted: quoted ? {
+      ...quoted,
+      ...(quotedAvatar ? { avatarUrl: quotedAvatar } : {}),
+      ...(quotedAvatarSrcSet ? { avatarSrcSet: quotedAvatarSrcSet } : {}),
+      ...(quotedMedia.length ? { media: quotedMedia } : {}),
+    } : null,
+    retweetedBy: x.retweetedBy && typeof x.retweetedBy === "object" && String(x.retweetedBy.handle ?? "")
+      ? { handle: String(x.retweetedBy.handle), authorName: x.retweetedBy.authorName ? String(x.retweetedBy.authorName) : null }
+      : null,
+    replyTo: x.replyTo ? String(x.replyTo) : null,
     // A multi-image list grid is 112 CSS px wide; one image can be 240 px. Keep 3x pixels for both.
     // Detail retains full media for the lightbox; srcSet bounds the displayed image.
     media: media.map(({ raw, view }) => compact && media.length > 1 ? mediaView(raw, "card", responsive)! : view),

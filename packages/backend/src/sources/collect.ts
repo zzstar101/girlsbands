@@ -6,10 +6,12 @@ import { identityKeyForUrl } from "../lib/url.ts";
 import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import { queueProcessing } from "../jobs/content.ts";
 import { BudgetExceededError, completeReceipt } from "../providers/receipts.ts";
-import { fetchRss } from "./rss.ts";
+import { fetchRss, type XFeedOwner } from "./rss.ts";
 import { allowed, fetchDetail, fetchWebList, type DetailNeed } from "./web-list.ts";
 import { unsupportedConfig } from "./config-keys.ts";
 import { fetchJsonList } from "./json-list.ts";
+import { detailUrl, fetchTicketDetail, withDetail, type DetailAdapter } from "./detail-adapters.ts";
+import { enrichXProfiles, xProfileSeeds } from "./x-profiles.ts";
 import { fetchXSearch, planXShards, readXSearch, shardHandle, shardQuery, selfThreadHandle, SHARDABLE_SQL, tweetToCandidate, type XBacklog } from "./x.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 
@@ -165,6 +167,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     if (unsupported.length) throw new FetchError(`unsupported config: ${unsupported.join(", ")}`);
     let candidates: Candidate[];
     let paidReceiptIds: number[] = [];
+    let xOwner: XFeedOwner | null = null;
     let nextCursor: Record<string, unknown> = { ...(source.cursor ?? {}) };
     let detail: Record<string, unknown> | null = null;
     if (source.kind === "rss") {
@@ -175,6 +178,7 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
       if (!firstImport) nextCursor.rss = rss.validator;
       else delete nextCursor.rss;
       if (rss.notModified) detail = { notModified: true, httpStatus: 304 };
+      xOwner = rss.owner ?? null;
     }
     else if (source.kind === "web_list" || source.kind === "json_list") {
       const listing = await fetchListing(source);
@@ -215,6 +219,23 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     // Every other run keeps all it was given: the cursor (an RSS validator) moves past the whole listing,
     // so an entry cut here would never be offered again.
 
+    // Ticket detail APIs are separate from article pages: keep a strict per-run cap and retain listing data on any failure.
+    const ticketAdapter = source.kind === "json_list" ? source.config.detailAdapter as DetailAdapter | undefined : undefined;
+    if (ticketAdapter) {
+      let used = 0;
+      for (const [key, candidate] of unique) {
+        if (used >= 20) break;
+        const externalId = (candidate.raw as { externalId?: unknown } | null)?.externalId;
+        if (externalId === null || externalId === undefined || !String(externalId).trim()) continue;
+        used += 1;
+        try {
+          const url = detailUrl(typeof source.config.detailUrlTemplate === "string" ? source.config.detailUrlTemplate : undefined, ticketAdapter, String(externalId));
+          const parsed = await fetchTicketDetail(ticketAdapter, String(externalId), { url });
+          if (parsed) unique.set(key, withDetail(candidate, parsed));
+        } catch { /* detail enrichment is best effort; never lose a listing candidate */ }
+      }
+      candidates = [...unique.values()];
+    }
     // Detail pages only for material we have not seen (bounded per run), and only for what the listing lacks.
     const d = source.config.detail;
     const known = d ? await storedTitles(candidates.map((c) => c.identityKey!)) : new Map<string, string>();
@@ -258,6 +279,17 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     }
 
     ({ created, revised } = await store(sourceId, candidates, firstImport ? "first-import" : null));
+
+    // A mirror names a retweet's author only by handle; the read path may not call out, so the name
+    // and the avatar are cached during collection. The owner comes free with the feed, the other
+    // handles one fxtwitter lookup each (bounded); a lookup that fails is simply tried next run.
+    if (xOwner) {
+      try {
+        await enrichXProfiles(xProfileSeeds(xOwner, candidates));
+      } catch {
+        // Enrichment is display data: never fail a fetch over it.
+      }
+    }
 
     if (firstImport) nextCursor.initializedAt = new Date().toISOString();
     nextCursor.lastOkAt = new Date().toISOString();

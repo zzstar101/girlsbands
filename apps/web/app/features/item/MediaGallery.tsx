@@ -24,7 +24,7 @@ export function MediaGallery({ media, postUrl }: { media: MediaView[]; postUrl: 
   const shown = media.slice(0, 9);
   const images = shown.filter((m) => m.kind !== "video");
   const single = shown.length === 1;
-  const tile = `group relative overflow-hidden rounded-tile border border-line-soft bg-bg-sunk ${single ? "max-w-[420px]" : "aspect-[16/10]"}`;
+  const tile = `group relative overflow-hidden rounded-tile border border-line-soft bg-bg-sunk ${single ? "w-fit max-w-full" : "aspect-[16/10]"}`;
   return (
     <>
       <div className={`mt-5 grid gap-2 ${single ? "grid-cols-1" : shown.length === 2 || shown.length === 4 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}`}>
@@ -39,7 +39,7 @@ export function MediaGallery({ media, postUrl }: { media: MediaView[]; postUrl: 
               decoding="async"
               alt={m.alt ?? ""}
               loading="lazy"
-              className={`block w-full object-cover transition-transform duration-300 group-hover:scale-[1.015] ${single ? "max-h-[360px]" : "h-full"}`}
+              className={`block object-cover ${single ? "h-auto w-auto max-w-full" : "w-full"} transition-transform duration-300 group-hover:scale-[1.015] ${single ? "max-h-[520px] object-contain" : "h-full"}`}
               style={single && m.width && m.height ? { aspectRatio: `${m.width} / ${m.height}` } : undefined}
             />
           );
@@ -55,7 +55,7 @@ export function MediaGallery({ media, postUrl }: { media: MediaView[]; postUrl: 
           );
         })}
       </div>
-      <Lightbox images={images.map((m) => ({ src: m.url, alt: m.alt }))} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />
+      <Lightbox images={images.map((m) => ({ src: m.fullUrl ?? m.url, alt: m.alt }))} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />
     </>
   );
 }

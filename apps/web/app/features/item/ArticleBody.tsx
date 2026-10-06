@@ -1,8 +1,10 @@
 // An article body as the server sent it (sanitised HTML, in the first HTML response), enhanced after
 // hydration: code blocks get a head with the language and a copy button and are coloured on demand,
 // and pictures that are not links open in the viewer, stepping through the body's pictures.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Lightbox, type LightboxImage } from "../../components/ui/Lightbox";
+import { splitBodyImages } from "./bodyImages";
+import { MediaGallery } from "./MediaGallery";
 
 /** Pictures worth enlarging: not inside a link, not tiny icons. */
 function zoomable(root: HTMLElement): HTMLImageElement[] {
@@ -76,7 +78,13 @@ function enhanceCode(root: HTMLElement): () => void {
   };
 }
 
-export function ArticleBody({ html }: { html: string }) {
+/**
+ * gallery (default): the body's pictures leave the text and follow it as a gallery; off for an X post,
+ * whose pictures are its own media and are shown by the post card.
+ */
+export function ArticleBody({ html: source, gallery = true, dropImages = false, className = "prose" }: { html: string; gallery?: boolean; dropImages?: boolean; className?: string }) {
+  const split = useMemo(() => (gallery || dropImages ? splitBodyImages(source) : { html: source, images: [] }), [source, gallery, dropImages]);
+  const html = split.html;
   const ref = useRef<HTMLDivElement>(null);
   const [images, setImages] = useState<LightboxImage[]>([]);
   const [open, setOpen] = useState<number | null>(null);
@@ -129,7 +137,13 @@ export function ArticleBody({ html }: { html: string }) {
   }, [html]);
   return (
     <>
-      <div ref={ref} className="prose" dangerouslySetInnerHTML={{ __html: html }} />
+      <div ref={ref} className={className} dangerouslySetInnerHTML={{ __html: html }} />
+      {gallery && !dropImages && split.images.length > 0 && (
+        <div className="mt-8">
+          <div className="text-[12px] text-ink-4">图片 · {split.images.length} 张 · 点击放大</div>
+          <MediaGallery media={split.images} postUrl="" />
+        </div>
+      )}
       <Lightbox images={images} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />
     </>
   );

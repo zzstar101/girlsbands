@@ -4,6 +4,7 @@ import { guardedFetch } from "../lib/http-fetch.ts";
 import { collapseWhitespace, stripTags } from "../lib/text.ts";
 import { sanitizeBody } from "../content/sanitize.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
+import type { MediaItem, XPostData } from "../content/materials.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 
 const parser = new XMLParser({
@@ -18,6 +19,9 @@ const parser = new XMLParser({
   // Only XHTML stops parsing; escaped HTML and CDATA retain their existing entity handling.
   stopNodes: ["feed.entry.title[type=xhtml]", "feed.entry.summary[type=xhtml]", "feed.entry.content[type=xhtml]"],
 });
+
+/** An X post carries at most four photos or videos. */
+const MAX_TWEET_MEDIA = 4;
 
 function text(v: unknown): string {
   if (v === null || v === undefined) return "";
@@ -145,7 +149,181 @@ export function mirrorBody(html: string, mirror: string): string {
 }
 
 /** A retweet in a Nitter feed: "RT by @handle: " before the quoted post's text. */
-const RETWEET_PREFIX = /^RT by @[^\s:]+:\s+/;
+const RETWEET_PREFIX = /^RT by @([^\s:]+):\s+/;
+/** A reply in a Nitter feed: "R to @handle: " before the post's own text. */
+const REPLY_PREFIX = /^R to @([^\s:]+):\s+/;
+
+/**
+ * The owner a mirror feed states about itself: its channel title is "<name> / @handle" and its
+ * channel image is that account's avatar. A mirror's items never name a retweet's author, but the
+ * owner's own posts (the common case) get name and avatar free with every fetch.
+ */
+export interface XFeedOwner {
+  handle: string;
+  authorName: string | null;
+  avatarUrl: string | null;
+}
+
+export function xOwnerOf(channelTitle: string, channelImage: string): XFeedOwner | null {
+  const handle = /\/\s*@([A-Za-z0-9_]{1,15})\s*$/.exec(channelTitle.trim());
+  if (!handle) return null;
+  const authorName = channelTitle.trim().slice(0, handle.index).trim();
+  return { handle: handle[1]!, authorName: authorName || null, avatarUrl: channelImage.trim() || null };
+}
+
+/** The status id a mirror item link points at: "…/<user>/status/<id>#m". */
+const tweetIdOf = (link: string) => /\/status\/(\d+)/.exec(link)?.[1] ?? null;
+
+/** An author as Nitter's dc:creator states it: "@handle". */
+const handleOf = (author: string) => /@?([A-Za-z0-9_]{1,15})$/.exec(author.trim())?.[1] ?? null;
+
+/**
+ * A piped.video link in a tweet, as the YouTube page it plays. Its own parameters survive — a ?t=
+ * starts the video where the tweet meant it — except si, which is piped's share id and means nothing
+ * on YouTube. Written with and without the scheme, because Nitter also writes the address out as the
+ * link's text.
+ */
+const PIPED_LINK = /(?:https?:\/\/)?(?:www\.)?piped\.video\/([A-Za-z0-9_-]{8,14})(\?[^"'\s<>]*)?/gi;
+
+const pipedToYouTube = (id: string, query?: string) => {
+  if (!query) return `https://www.youtube.com/watch?v=${id}`;
+  const kept = new URLSearchParams(query.slice(1));
+  kept.delete("si");
+  const tail = kept.toString();
+  return `https://www.youtube.com/watch?v=${id}${tail ? `&${tail}` : ""}`;
+};
+
+const rewritePipedLinks = (html: string) => html.replace(PIPED_LINK, (_m, id: string, query?: string) => pipedToYouTube(id, query));
+
+const ENTITIES: Array<[RegExp, string]> = [
+  [/&nbsp;/g, " "], [/&amp;/g, "&"], [/&lt;/g, "<"], [/&gt;/g, ">"], [/&quot;/g, '"'], [/&#39;|&apos;/g, "'"],
+];
+
+/**
+ * A tweet's plain text: its HTML's text with the line break a tweet wrote kept — stripTags collapses
+ * every newline to a space, which would run a tweet's lines together.
+ */
+function tweetPlainText(html: string): string {
+  let s = html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")
+    .replace(NITTER_VIDEO, " ")
+    .replace(IMG_TAG, " ") // the whole tag: what follows src="…" is more attributes, not text
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:p|div|li|blockquote|pre|tr|h[1-6])\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "");
+  for (const [re, to] of ENTITIES) s = s.replace(re, to);
+  return s
+    .split("\n")
+    .map((line) => line.replace(/[^\S\n]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** Nitter marks a video as an anchor to the very status, a "Video" caption over its thumb. */
+const NITTER_VIDEO = /<a\b[^>]*>\s*(?:<br\s*\/?>\s*)*Video\b[^<]*(?:<br\s*\/?>\s*)*<img\b[^>]*\bsrc="([^"]+)"[^>]*\/?>\s*<\/a>/gi;
+const IMG = /<img\b[^>]*\bsrc="([^"]+)"/gi;
+/** A whole img element: IMG alone stops at src="…" and leaves the rest of its attributes as text. */
+const IMG_TAG = /<img\b[^>]*>/gi;
+
+const urlOf = (raw: string, base: string) => {
+  try {
+    return new URL(raw, base).toString();
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * A post's media as the site shows it: pictures as images; a video as the still its thumb is, linked
+ * to the status — the site itself plays nothing, the still opens the post (MediaGallery does the
+ * same for x.com search posts).
+ */
+function mediaOf(html: string, base: string, postUrl: string): MediaItem[] {
+  const out: MediaItem[] = [];
+  for (const m of html.matchAll(NITTER_VIDEO)) {
+    const thumb = urlOf(m[1]!, base);
+    if (thumb) out.push({ kind: "video", url: postUrl, poster: thumb });
+  }
+  for (const m of html.replace(NITTER_VIDEO, " ").matchAll(IMG)) {
+    const src = urlOf(m[1]!, base);
+    if (src) out.push({ kind: "image", url: src });
+  }
+  return out.slice(0, MAX_TWEET_MEDIA);
+}
+
+/**
+ * The status a mirror link points at, with the account that owns it: "…/<handle>/status/<id>#m".
+ * The one slash between handle and status belongs to both, so both are read in one match.
+ */
+function statusLinkOf(html: string): { handle: string; id: string } | null {
+  const m = /\/([A-Za-z0-9_]{1,15})\/status\/(\d{5,25})/.exec(html);
+  return m ? { handle: m[1]!, id: m[2]! } : null;
+}
+
+/**
+ * The quoted post a mirror appends to an entry: a blockquote under an <hr> whose <b> names its
+ * author, whose images are its media, and whose footer carries the status it quotes. Mirrors that
+ * predate the blockquote wrote the whole quote inside one: the <hr> there separates the quote from
+ * its attribution, so the text stops there while the status link is searched in the whole part.
+ */
+function quotedOf(html: string, base: string): XPostData["quoted"] {
+  const quote = /<blockquote\b[^>]*>([\s\S]*?)<\/blockquote>/i.exec(html);
+  const at = html.search(/<hr\s*\/?>/i);
+  const part = quote?.[1] ?? (at >= 0 ? html.slice(at) : "");
+  if (!part.trim()) return null;
+  const status = statusLinkOf(part) ?? statusLinkOf(html);
+  if (!status) return null;
+  const url = `https://x.com/${status.handle}/status/${status.id}`;
+  const named = /<b\b[^>]*>([\s\S]*?)<\/b>/i.exec(part);
+  const namedText = named ? collapseWhitespace(stripTags(named[1]!)).replace(/\s*\(@[A-Za-z0-9_]+\)\s*$/, "").trim() : "";
+  const cut = Math.min(...[part.search(/<hr\s*\/?>/i), part.search(/<footer\b/i)].filter((i) => i >= 0));
+  const body = (cut >= 0 ? part.slice(0, cut) : part)
+    .replace(/<b\b[^>]*>[\s\S]*?<\/b>/gi, " ")
+    .replace(/<a\b[^>]*>[\s\S]*?<\/a>/gi, " ");
+  return {
+    authorName: namedText || status.handle,
+    handle: status.handle,
+    text: tweetPlainText(body),
+    url,
+    avatarUrl: null,
+    media: mediaOf(body, base, url),
+  };
+}
+
+/** The main post's HTML: a mirror appends a quote after an <hr> or in a <blockquote>. */
+function tweetBodyOf(bodyRaw: string): string {
+  const cut = Math.min(...[bodyRaw.search(/<hr\s*\/?>/i), bodyRaw.search(/<blockquote\b/i)].filter((i) => i >= 0));
+  return cut > 0 ? bodyRaw.slice(0, cut) : bodyRaw;
+}
+
+/**
+ * The X post behind a mirror entry: its author (the feed owner's, free with the feed, when it is the
+ * owner's own post; a handle alone when it is someone else's retweet), the tweet's text with its
+ * line breaks, the quoted post, and the media. A name or avatar that is not in the feed stays null
+ * here and is filled from x_profiles at read time (the read path may not call out).
+ */
+function xPostOf(owner: XFeedOwner | null, creator: string, rawTitle: string, bodyRaw: string, link: string, tweetId: string): XPostData {
+  const retweetedBy = RETWEET_PREFIX.exec(rawTitle);
+  const replyTo = REPLY_PREFIX.exec(rawTitle);
+  const handle = handleOf(creator) ?? owner?.handle ?? "";
+  const own = !!owner && handle === owner.handle;
+  const url = `https://x.com/${handle}/status/${tweetId}`;
+  const body = tweetBodyOf(bodyRaw);
+  return {
+    tweetId,
+    authorName: own ? owner!.authorName ?? handle : handle,
+    handle,
+    avatarUrl: own ? owner!.avatarUrl : null,
+    text: tweetPlainText(body),
+    retweetedBy: retweetedBy
+      ? { handle: retweetedBy[1]!, authorName: owner && retweetedBy[1] === owner.handle ? owner.authorName : null }
+      : null,
+    quoted: quotedOf(bodyRaw, link),
+    media: mediaOf(body, link, url),
+    replyTo: replyTo?.[1] ?? null,
+  };
+}
 
 /**
  * The body and excerpt of a feed entry: its text when it is the article, else no body (a summary, or
@@ -173,6 +351,8 @@ export interface RssRead {
   candidates: Candidate[];
   validator: RssValidator;
   notModified: boolean;
+  /** The feed owner for an X mirror: name and avatar come free with every fetch (null otherwise). */
+  owner?: XFeedOwner | null;
 }
 
 export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}): Promise<RssRead> {
@@ -195,7 +375,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
     lastModified: res.headers.get("last-modified") ?? (res.status === 304 ? previous?.lastModified ?? null : null),
   };
   if (res.status === 304 && previous && (previous.etag || previous.lastModified) && res.url === previous.responseUrl) {
-    return { candidates: [], validator, notModified: true };
+    return { candidates: [], validator, notModified: true, owner: null };
   }
   if (res.status !== 200) throw new FetchError(`HTTP ${res.status}`, res.status);
   let doc: Record<string, any>;
@@ -211,13 +391,18 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
   const channel = doc.rss?.channel ?? doc["rdf:RDF"];
   if (channel) {
     const items = arr(doc.rss?.channel?.item ?? doc["rdf:RDF"]?.item);
+    // A mirror's channel states the feed's owner: "name / @handle" in its title, the avatar in its
+    // image. The owner's own posts then carry name and avatar without any lookup.
+    const owner = xMirror ? xOwnerOf(text(channel.title), text(channel.image?.url)) : null;
     for (const it of items) {
       const link = text(it.link) || text(it.guid);
-      const title = collapseWhitespace(stripTags(text(it.title).replace(RETWEET_PREFIX, "")));
+      const rawTitle = text(it.title);
+      const title = collapseWhitespace(stripTags(rawTitle.replace(RETWEET_PREFIX, "").replace(REPLY_PREFIX, "")));
       if (!link || !title) continue;
-      const contentEncoded = text(it["content:encoded"]);
-      const description = text(it.description).replace(RETWEET_PREFIX, "");
-      const bodyHtmlRaw = contentEncoded || (summaryIsBody ? description : "");
+      const contentEncoded = xMirror ? rewritePipedLinks(text(it["content:encoded"])) : text(it["content:encoded"]);
+      const description = text(it.description).replace(RETWEET_PREFIX, "").replace(REPLY_PREFIX, "");
+      const descriptionHtml = xMirror ? rewritePipedLinks(description) : description;
+      const bodyHtmlRaw = contentEncoded || (summaryIsBody ? descriptionHtml : "");
       // The body's links are relative to the mirror or absolute on it: before the cleaner turns
       // relative ones into item links, mirror pages become the x.com pages they are mirrors of.
       const mirror = xMirror ? mirrorHost(link) : null;
@@ -227,18 +412,20 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         ...(enclosure ? [{ kind: "image" as const, url: enclosure["@url"]! }] : []),
         ...(bodyHtmlRaw ? imagesFrom(bodyHtmlRaw, link) : []),
       ];
+      const tweetId = xMirror ? tweetIdOf(link) : null;
       out.push({
         url: link,
         title,
         author: text(it["dc:creator"]) || text(it.author) || null,
         publishedAt: parseDate(text(it.pubDate) || text(it["dc:date"]) || text(it.published)),
-        ...feedText(bodyHtml, description, source, xMirror),
+        ...feedText(bodyHtml, descriptionHtml, source, xMirror),
         media: media.slice(0, 6),
         categories: arr(it.category).map((c) => text(c)).filter(Boolean),
         raw: { guid: text(it.guid) || null },
+        ...(tweetId ? { xPost: xPostOf(owner, text(it["dc:creator"]) || text(it.author), rawTitle, bodyHtmlRaw, link, tweetId) } : {}),
       });
     }
-    return { candidates: out, validator, notModified: false };
+    return { candidates: out, validator, notModified: false, owner };
   }
 
   const feed = doc.feed;
@@ -265,7 +452,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         raw: { id: text(e.id) || null },
       });
     }
-    return { candidates: out, validator, notModified: false };
+    return { candidates: out, validator, notModified: false, owner: null };
   }
   throw new FetchError("not an RSS/Atom document");
 }

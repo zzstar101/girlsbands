@@ -22,7 +22,9 @@ export interface XPostData {
   handle: string;
   avatarUrl?: string | null;
   text: string;
-  quoted?: { authorName: string; handle: string; text: string; url: string; media?: MediaItem[] } | null;
+  /** Who retweeted this (a Nitter mirror item is a retweet when its title says "RT by @…"). */
+  retweetedBy?: { handle: string; authorName: string | null } | null;
+  quoted?: { authorName: string; handle: string; text: string; url: string; avatarUrl?: string | null; media?: MediaItem[] } | null;
   media?: MediaItem[];
   lang?: string | null;
   replyTo?: string | null;

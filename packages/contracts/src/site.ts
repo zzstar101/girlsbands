@@ -37,8 +37,12 @@ export interface XPostView {
   avatarSrcSet?: string;
   text: string;
   translation: string | null;
+  /** 转发了这条推的账号（转推的产品名不显示，只显示是谁）。 */
+  retweetedBy?: { authorName: string | null; handle: string } | null;
+  /** The tweet this one answers (@handle), when it is a reply. */
+  replyTo?: string | null;
   /** translation: Chinese translation of the quoted post, when it is in another language. */
-  quoted: { authorName: string; handle: string; text: string; url: string; translation: string | null } | null;
+  quoted: { authorName: string; handle: string; text: string; url: string; translation: string | null; avatarUrl?: string | null; avatarSrcSet?: string; media?: MediaView[] } | null;
   media: MediaView[];
 }
 

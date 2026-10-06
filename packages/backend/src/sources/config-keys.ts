@@ -18,7 +18,7 @@ const KEYS: Record<SourceRow["kind"], string[]> = {
     ...COLLECTED, "urls", "url", "mode", "method", "headers", "bodyJson", "jsonKey", "windowVar", "itemsPath", "itemsObjectValues",
     "titlePaths", "summaryPaths", "summaryTemplate", "summaryIsBody", "authorPaths", "publishedAtPath", "publishedAtUnit",
     "publishedAtUtcOffset", "externalIdPath", "urlTemplate", "urlTemplateFallback", "rawDropKeys", "requireBoolean", "minNumeric",
-    "imageField", "imagePrefix",
+    "imageField", "imagePrefix", "detailAdapter", "detailUrlTemplate",
   ],
   // X accounts are mostly read in shards, which apply only these.
   x_search: [...PUBLISHER, "_girlsbands", "ingestNoiseFilter", "itemUrlPrefixRewrite", "query", "searchType"],
@@ -47,6 +47,7 @@ const VALUES: Record<string, string[]> = {
   parseMode: ["html", "markdown", "docusaurus_changelog"],
   // The clock this source's stated times are on; anything else is a typo, not a third timezone.
   timezone: [...TIMEZONES],
+  detailAdapter: ["bilibili-show", "allcpp-event"],
 };
 
 /** The config entries a source of this kind would ignore or cannot run, e.g. ["adapter=site_cards", "detail.titleFoo"]. */

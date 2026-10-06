@@ -98,12 +98,37 @@ function SiteShell({ changelogVersion, home, children }: { changelogVersion: str
   );
 }
 
+/**
+ * One page view per screen shown, counted by our own API (pages are served from the CDN cache, so the
+ * origin never sees most visits). No cookie and nothing that identifies the reader is sent: the server
+ * keeps only a daily-rotating hash for unique visitors. The admin is not counted.
+ */
+function usePageView(pathname: string) {
+  useEffect(() => {
+    if (pathname === "/admin" || pathname.startsWith("/admin/")) return;
+    const first = !(window as Window & { __pv?: boolean }).__pv;
+    (window as Window & { __pv?: boolean }).__pv = true;
+    const body = JSON.stringify({ path: pathname, referrer: first ? document.referrer || null : null });
+    const timer = setTimeout(() => {
+      try {
+        if (!navigator.sendBeacon?.("/api/site/pv", new Blob([body], { type: "text/plain" }))) {
+          void fetch("/api/site/pv", { method: "POST", body, keepalive: true, headers: { "content-type": "text/plain" } }).catch(() => {});
+        }
+      } catch {
+        // Counting is never worth an error.
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [pathname]);
+}
+
 export default function App() {
   const meta = useLoaderData<typeof loader>();
   useHydratedFlag();
   useThemeSync();
   const { pathname, search } = useLocation();
   useEffect(() => rememberPage(pathname + search), [pathname, search]);
+  usePageView(pathname);
   usePageTransition();
   // iOS Safari only shows :active (pressed) styles once the document listens for touches.
   useEffect(() => {

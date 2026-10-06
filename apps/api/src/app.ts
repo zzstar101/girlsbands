@@ -27,6 +27,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     routerOptions: { ignoreTrailingSlash: false, maxParamLength: 300 },
   });
 
+  app.addContentTypeParser("text/plain", { parseAs: "string" }, (_req, body, done) => done(null, body));
+
   app.addHook("onResponse", async (req, reply) => {
     const path = (req.raw.url ?? "").split("?")[0] ?? "/";
     // The reverse proxy logs every request; the process only notes the slow and the failed.

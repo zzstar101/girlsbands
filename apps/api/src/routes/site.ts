@@ -27,6 +27,7 @@ import { loadLive } from "@girlsbands/backend/publication/lives";
 import { loadRelease } from "@girlsbands/backend/publication/releases";
 import { listReports, loadReport, reportNavigation, loadReportNavigation, loadReportMonth, type ReportKind } from "@girlsbands/backend/publication/reports";
 import { looseQuery, sendJsonWithEtag, sendProblem } from "../http/respond.ts";
+import { recordPageView } from "@girlsbands/backend/operations/pageviews";
 
 type Handler = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
 
@@ -72,6 +73,21 @@ function kindsParam(value: string): DeadlineKind[] {
 }
 
 export function registerSite(app: FastifyInstance) {
+  app.post("/api/site/pv", async (req, reply) => {
+    reply.header("Cache-Control", "no-store");
+    const ua = String(req.headers["user-agent"] ?? "");
+    if (/bot|crawler|spider|slurp|headless|facebookexternalhit|preview/i.test(ua)) return reply.code(204).send();
+    let data: any = req.body;
+    if (typeof data === "string") { try { data = JSON.parse(data); } catch { return reply.code(204).send(); } }
+    if (!data || typeof data.path !== "string" || !data.path.startsWith("/") || data.path.startsWith("//")) return reply.code(204).send();
+    const ip = String(req.headers["eo-connecting-ip"] ?? req.ip ?? "").split(",")[0]!.trim();
+    const uaFamily = ua.slice(0, 500);
+    const device = /ipad|tablet/i.test(ua) ? "tablet" : /mobile|iphone|android/i.test(ua) ? "mobile" : "desktop";
+    const country = typeof req.headers["eo-country-code"] === "string" ? req.headers["eo-country-code"] : null;
+    await recordPageView({ path: data.path.slice(0, 500), referrer: typeof data.referrer === "string" ? data.referrer.slice(0, 2000) : null, ip, ua: uaFamily, device, country });
+    return reply.code(204).send();
+  });
+
   app.get("/api/site/home", siteHandler(async (req, reply) => sendJsonWithEtag(req, reply, await loadHome(), { etagPrefix: "home", cacheControl: "public, max-age=60, s-maxage=60" })));
 
   app.get("/api/site/meta", siteHandler(async (req, reply) => {

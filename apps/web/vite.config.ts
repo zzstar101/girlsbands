@@ -1,4 +1,5 @@
 import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
@@ -34,8 +35,10 @@ function devEdge(): Plugin {
           return res.end();
         }
         if (!isApiOwned(pathname)) return next();
-        const upstream = httpRequest(
-          { hostname: API.hostname, port: API.port, path: raw, method: req.method, headers: req.headers },
+        // An https API_BASE_URL (the live site, for front-end work against real data) needs TLS and its own Host.
+        const request = API.protocol === "https:" ? httpsRequest : httpRequest;
+        const upstream = request(
+          { hostname: API.hostname, port: API.port, path: raw, method: req.method, headers: { ...req.headers, host: API.host } },
           (up) => {
             res.writeHead(up.statusCode ?? 502, up.headers);
             up.pipe(res);
