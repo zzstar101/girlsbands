@@ -125,13 +125,23 @@ function xLink(href: string, mirror: string): string {
   }
   const status = /^\/([A-Za-z0-9_]{1,15})\/status\/(\d+)/.exec(url.pathname);
   if (status) return `https://x.com/${status[1]}/status/${status[2]}`; // the mirror's #m anchor is its own
+  // The mirror proxies X's short links under its own host; the reader wants t.co itself.
+  const short = /^\/t\.co\/([A-Za-z0-9]+)\/?$/.exec(url.pathname);
+  if (short) return `https://t.co/${short[1]}`;
   const profile = /^\/([A-Za-z0-9_]{1,15})\/?$/.exec(url.pathname);
   return profile ? `https://x.com/${profile[1]}` : href;
 }
 
-/** Every link of a tweet's body that points at the mirror, as its x.com address. */
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Every link of a tweet's body that points at the mirror, as its x.com address — the hrefs, and the
+ * mirror addresses written out as text (a quoted tweet ends with "— http://<mirror>/user/status/…#m").
+ */
 function mirrorBody(html: string, mirror: string): string {
-  return html.replace(A_HREF, (_m, head: string, quote: string, href: string) => `${head}${quote}${xLink(href, mirror)}${quote}`);
+  const hrefs = html.replace(A_HREF, (_m, head: string, quote: string, href: string) => `${head}${quote}${xLink(href, mirror)}${quote}`);
+  const bare = new RegExp(`https?://${escapeRe(mirror)}/[^\\s"'<>]*`, "gi");
+  return hrefs.replace(bare, (url) => xLink(url, mirror));
 }
 
 /** A retweet in a Nitter feed: "RT by @handle: " before the quoted post's text. */

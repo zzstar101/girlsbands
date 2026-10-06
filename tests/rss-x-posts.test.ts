@@ -32,7 +32,7 @@ const mirrorFeed = (root: string) => `<?xml version="1.0" encoding="UTF-8"?>
 <title>感想を教えてください</title>
 <dc:creator>@bang_dream_info</dc:creator>
 <description><![CDATA[<p>続きが気になる方はぜひ<br>リアルタイムでご覧ください<br><br><a href="${root}/AveMujica">@AveMujica</a></p>
-<blockquote><a href="${root}/AveMujica/status/1870000000#m">https://x.com/AveMujica/status/1870000000</a><br>本編の感想を教えてください<br><a href="${root}/search?q=AveMujica">#AveMujica感想</a><hr></blockquote>]]></description>
+<blockquote><a href="${root}/AveMujica/status/1870000000#m">https://x.com/AveMujica/status/1870000000</a><br>本編の感想を教えてください<br><a href="${root}/search?q=AveMujica">#AveMujica感想</a> <a href="${root}/t.co/b6C8jTdCTV">${root}/t.co/b6C8jTdCTV</a><hr>— ${root}/AnichU_ntv/status/2107244693511663930#m</blockquote>]]></description>
 <pubDate>Thu, 09 Jan 2025 20:00:00 GMT</pubDate>
 <guid isPermaLink="false">1879999999</guid>
 <link>${root}/bang_dream_info/status/1879999999#m</link>
@@ -99,6 +99,8 @@ test("links inside a tweet point at x.com, not the mirror", async () => {
   assert.ok(hrefs(quoted!.bodyHtml!).includes("https://x.com/AveMujica")); // a profile
   assert.ok(hrefs(quoted!.bodyHtml!).includes("https://x.com/AveMujica/status/1870000000")); // a quoted status, without #m
   assert.ok(hrefs(quoted!.bodyHtml!).includes("https://x.com/search?q=AveMujica")); // a search that is not a hashtag
+  assert.ok(hrefs(quoted!.bodyHtml!).includes("https://t.co/b6C8jTdCTV")); // X's short link, not the mirror's proxy of it
+  assert.ok(quoted!.bodyHtml!.includes("— https://x.com/AnichU_ntv/status/2107244693511663930")); // a mirror address written out as text
   assert.ok(!tweet!.bodyHtml!.includes(host));
   assert.ok(!quoted!.bodyHtml!.includes(host));
 });
