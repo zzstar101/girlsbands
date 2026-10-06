@@ -380,3 +380,31 @@
 5. **加 livehouse 源**（B2 www-shibuya 优先，其次 B3 clubque、B4 reg-r2、B5 marz、B7 lamama）。
 6. **暂不做**：pictSQUARE（0 命中 + 需要改采集器）、TwiPla、LivePocket、LiveFans、Akaboo ジャンル页。
 7. **补测**：loft /shelter 选择器、starlounge、antiknock、basementbar 子页、l-tike。
+
+---
+
+## 七、后续调研：同人场次的出演阵容抓得到吗（未完成）
+
+**为什么有这一节**：站主在意「同人 Only 里到底哪支同人乐队上台」（例：扭蛋姬乐队），但已经决定**先不点名**——本轮只给条目打「同人 Only」标记，不写「XX 乐队出演」。这一节把「为什么现在抓不到」记下来，免得下次重新试一遍。
+
+**结论：现有可用接口全部拿不到出演者。** 逐个实测（2026-10）：
+
+| 接口 | 结果 |
+|---|---|
+| `https://www.allcpp.cn/allcpp/event/eventMainListV2.do?…`（列表） | 字段：`id, eventId, positionStatus, ticketStatus, name, type, tag, enabled, logoPicUrl, appLogoPicUrl, priority, isExclusive, timeLeft, enterTime, endTime, wannaGoCount, circleCount, doujinshiCount, provName, cityName, areaName, enterAddress, ended, isOnline` —— **没有 lineup/出演者字段**。`type` 常见值是 `"ONLY"` |
+| 同上，`tag` 字段 | 竖线分隔，如 `明日方舟\|BanGDream!\|Arknights\|Only\|Live演出\|摊位展会`，也可能只有 `BanGDream`。**`tag` 里的「Live演出」vs「摊位展会」是目前唯一机器可读的「上台还是摆摊」信号**——只能区分活动形态，不能给出乐队名 |
+| `https://www.allcpp.cn/allcpp/event/event.do?event=8205`（详情页） | HTTP 200，1224 bytes，**JS 渲染**，HTML 里没有出演/乐队/社团文字。猜的 JSON 端点 `eventInfoV2.do?eventId=`、`eventDetailV2.do?eventId=`、`getEventInfoV2.do?eventId=` 全部返回空 |
+| `https://show.bilibili.com/api/ticket/search/list?keyword=…&page=1&pagesize=20&platform=web` | 字段含 `id, ticket_id, project_name, title, cover, banner, url, project_type, type, city, venue_name, district_name, start_time, end_time, start_unix, sale_start_time, sale_end_time, tlabel, price_low, price_high, is_free, is_price, is_sale, sale_flag, sale_flag_number, status, pick_seat, countdown, tags[]` —— **没有 lineup** |
+| `https://show.bilibili.com/api/ticket/project/get?version=134&id=<id>` | `errno 0`，keys 含 `description, keywords, tags, project_label, duration, performance_image, banner, cover, post_tag, sale_begin, sale_end, venue_info`，以及 **`data.guests`** —— 已采的国内条目里**全部是 `[]`**（`id=1006197` 是 `null`）。`description` 只有模板话术：`bilibili会员购票务Only同人展:广州·BanG Dream!梦想协奏曲同人Only·终章如初` / `…漫展:北京·BanG Dream only同人嘉年华` / `…快闪:上海·…×暹罗猫小豆泥` |
+| `https://www.showstart.com/event/list?keyword=…` | 可用（81 KB），条目链接形如 `/event/311467` |
+| `https://www.showstart.com/event/311467`（详情页） | Nuxt SPA 外壳，19851 bytes，`<title>` 是通用的「秀动网」，`window.__NUXT__` 里没有 event 状态，数据走 XHR |
+| showstart 猜的 API | `GET /api/event/311467` → `{"traceId":"","success":false,"state":"sys001","msg":"参数不全"}`；`/api/event/getEventDetail?eventId=…`、`/api/event/311467?appId=1&version=1` → `{"msg":"方法受限","success":false,"state":"get_not_support"}`（GET 被拒）；`POST /api/event/detail -d '{"eventId":311467}'` → 仍是 `{"msg":"参数不全"}`（还缺签名/额外参数）；`https://api.showstart.com/event/311467` → `{"state":"90009","msg":"App版本过旧，请升级最新版本!"}` |
+
+**要做成这件事需要另找路子**（任选其一，都要新采集器或新信息源）：
+
+1. **主办方自己的账号**：同人 Only 的阵容通常只发在主办方的微博/公众号/bilibili 动态里；需要按主办方建源，而不是按活动站。
+2. **秀动 App 的签名接口**：`/api/event/detail` 还缺参数（很可能是 `appId` + 时间戳 + 签名），需要逆向；网页端不暴露。
+3. **现场海报 OCR/人工**：活动详情图里常有出演阵容，但那是图片。
+4. **`allcpp` 的 `tag` 只到「Live演出 / 摊位展会」这一层**：可以拿来做「这场有没有上台环节」的粗判，但不解决「哪支乐队」。
+
+**当前决定（站主 2026-10 确认）**：不点名，只打「同人 Only」标记；等上面某条路走通再在条目里提出演者。

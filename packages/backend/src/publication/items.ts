@@ -6,7 +6,7 @@ import { sql, type Db } from "../db.ts";
 import { looksChinese } from "../lib/text.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 import { coverOfMedia } from "./covers.ts";
-import { displayTags, entityIds, entityTags, publicSourceName } from "./rules.ts";
+import { displayTags, entityIds, entityTags, organizerColumn, organizerOf, publicSourceName } from "./rules.ts";
 import { seatedCondition } from "./scope.ts";
 
 export interface ItemRow {
@@ -17,6 +17,8 @@ export interface ItemRow {
   reason: string | null;
   category: string | null;
   tags: string[];
+  /** 谁办的活动：`official` / `fan` / null。来源身份与抽取判定合成一列（rules.ts 的 organizerColumn）。 */
+  organizer: string | null;
   score: number | null;
   selected: boolean;
   channel: "news" | "x";
@@ -49,7 +51,8 @@ export interface ItemRow {
 export const ITEM_COLUMNS = sql`
   p.article_id AS id, p.title, p.original_title, p.summary, p.reason, p.category, p.tags, p.score,
   p.selected, p.seat, p.channel, p.url, p.published_at, p.discovered_at, p.timeline_at, p.visibility,
-  p.body_mode, p.indexable, p.fact_id, s.name AS source_name, s.participation_mode AS source_mode,
+  p.body_mode, p.indexable, p.fact_id, ${organizerColumn()} AS organizer,
+  s.name AS source_name, s.participation_mode AS source_mode,
   a.x_post, a.author, a.language, a.media,
   st.public_id::text AS story_public_id, st.title AS story_title,
   CASE WHEN p.channel = 'x' THEN tr.body_text END AS zh_text, qt.text_zh AS quoted_zh`;
@@ -67,6 +70,7 @@ export const ITEM_FROM = sql`
   FROM publications p
   JOIN sources s ON s.id = p.source_id
   JOIN articles a ON a.id = p.article_id
+  LEFT JOIN analyses an ON an.id = p.analysis_id
   LEFT JOIN stories st ON st.id = p.story_id AND st.merged_into IS NULL
   LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh' AND tr.revision >= a.revision
   LEFT JOIN quote_translations qt ON p.channel = 'x' AND qt.tweet_id = substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')`;
@@ -162,6 +166,7 @@ export function toItemSummary(row: ItemRow): ItemSummary {
     category: (row.category as CategoryKey | null) ?? null,
     tags: displayTags(row.tags),
     subjects: entityIds(row.tags),
+    organizer: organizerOf(row.organizer),
     score: row.score === null ? null : Math.round(Number(row.score)),
     selected: row.selected,
     channel: row.channel,
@@ -177,7 +182,7 @@ export function toFeedItemSummary(row: ItemRow): FeedItemSummary {
   return {
     id: item.id, title: item.title, summary: item.summary, reason: item.reason,
     source: item.source, publishedAt: item.publishedAt, timelineAt: item.timelineAt,
-    category: item.category, tags: item.tags, subjects: item.subjects, score: item.score, selected: item.selected, channel: item.channel,
+    category: item.category, tags: item.tags, subjects: item.subjects, organizer: item.organizer, score: item.score, selected: item.selected, channel: item.channel,
     // 列表里的小图（336 档）。X 帖在自己的 `x.media` 里带图，卡片不会用这一张。
     cover: coverOfMedia(row.media, "card"),
     x: x ? {

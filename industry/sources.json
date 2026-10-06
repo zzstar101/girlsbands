@@ -663,7 +663,8 @@
         "urlTemplate": "https://www.allcpp.cn/allcpp/event/event.do?event={id}",
         "externalIdPath": "id",
         "_girlsbands": {
-          "initialBackfillLimit": 30
+          "initialBackfillLimit": 30,
+          "fanPlatform": true
         }
       },
       "tier": "T2_EVENT",

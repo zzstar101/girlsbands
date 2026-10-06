@@ -16,7 +16,7 @@ import { DEADLINE_KINDS, TICKET_ROUND_KINDS, type TicketRoundKind } from "@girls
 import { timezoneDate } from "@girlsbands/contracts/time";
 import { sql } from "../db.ts";
 import { deadlineInstant, isTimezone, splitDeadlineAt, timezoneOf } from "../sources/timezone.ts";
-import { entityIds, entityTags, publicSourceName, hasItemPage } from "./rules.ts";
+import { entityIds, entityTags, organizerColumn, organizerOf, publicSourceName, hasItemPage } from "./rules.ts";
 import { evidenceCondition, listedCondition } from "./scope.ts";
 import { roundNote, roundSlotKind, type RoundSlot } from "./tickets.ts";
 
@@ -99,6 +99,8 @@ interface Row {
   round_slot: string | null;
   round_timezone: string | null;
   platform: string | null;
+  /** 谁办的这场活动，`official` / `fan` / null；来源身份与抽取判定已经在 SQL 里合成一列。 */
+  organizer: string | null;
 }
 
 /**
@@ -124,7 +126,8 @@ async function deadlineWindow(
       SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at,
              s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
              d.value->>'kind' AS kind, d.value->>'at' AS at, d.value->>'note' AS note,
-             NULL::text AS round_kind, NULL::text AS round_slot, NULL::text AS round_timezone, NULL::text AS platform
+             NULL::text AS round_kind, NULL::text AS round_slot, NULL::text AS round_timezone, NULL::text AS platform,
+             ${organizerColumn()} AS organizer
       FROM publications p
       JOIN sources s ON s.id = p.source_id
       JOIN analyses an ON an.id = p.analysis_id
@@ -152,10 +155,12 @@ async function deadlineWindow(
       SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at,
              s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
              NULL::text AS kind, e.slot_at AS at, NULL::text AS note,
-             tr.kind AS round_kind, e.slot AS round_slot, tr.timezone AS round_timezone, tr.platform AS platform
+             tr.kind AS round_kind, e.slot AS round_slot, tr.timezone AS round_timezone, tr.platform AS platform,
+             ${organizerColumn()} AS organizer
       FROM ticket_rounds tr
       JOIN publications p ON p.article_id = tr.first_article_id
       JOIN sources s ON s.id = p.source_id
+      LEFT JOIN analyses an ON an.id = p.analysis_id
       CROSS JOIN LATERAL (VALUES
         ('applyStart', tr.apply_start_at), ('applyEnd', tr.apply_end_at),
         ('resultOn', tr.result_on), ('paymentDueOn', tr.payment_due_on)
@@ -195,6 +200,7 @@ async function deadlineWindow(
       url: r.url,
       category: (r.category as DeadlineView["category"]) ?? null,
       subjects: entityIds(r.tags ?? []),
+      organizer: organizerOf(r.organizer),
       source: { name: publicSourceName(r.source_name) },
       publishedAt: r.published_at ? r.published_at.toISOString() : null,
       selected: r.selected,

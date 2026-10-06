@@ -1,6 +1,8 @@
 // Publication rules. Each rule is defined once here and used by every exit.
 
+import { ORGANIZER_KINDS, type OrganizerKind } from "@girlsbands/contracts/site";
 import { seriesOf } from "@girlsbands/industry/taxonomy";
+import { sql } from "../db.ts";
 
 export interface SourceFacts {
   id: string;
@@ -128,4 +130,26 @@ export function publicSourceName(name: string): string {
   while (/（[^（）]*）/.test(bare)) bare = bare.replace(/（[^（）]*）/g, " ");
   const x = /^X[:：]\s*(.*?)\s*(?:\(@[^)]*\))?\s*$/.exec(bare);
   return (x ? x[1]! : bare).replace(/\s+/g, " ").trim() || /@\w+/.exec(name)?.[0] || name.trim();
+}
+
+/**
+ * 这场活动是谁办的（站主 2026-10-05 定：二元切「乐队会不会到场」，官方侧含第三方对盘与 Fes）。并集两个
+ * 来源：来源本身就是同人平台时（`industry/sources.json` 的 `_girlsbands.fanPlatform`，目前只有无差别同人站）
+ * 不必问模型；其余来源看 structure 抽取判出来的那一个 —— 会员购、秀动这类通用票务平台两种场都卖。
+ *
+ * 判不出来是 null，页面上什么都不加：把一场官方 Live 标成同人场是网站说错话，漏标只是回到今天的样子。
+ * 用它的 SELECT 里要有 `s`（sources）与 `an`（analyses）两张表，并且自己起别名，例如
+ * `${organizerColumn()} AS organizer`。
+ */
+export function organizerColumn() {
+  return sql`CASE
+      WHEN s.config->'_girlsbands'->>'fanPlatform' = 'true' THEN 'fan'
+      WHEN an.output->>'organizer' IN ('official', 'fan') THEN an.output->>'organizer'
+      ELSE NULL
+    END`;
+}
+
+/** 读取层收窄成契约里的两个字面量之一；任何别的值（含 null）都当没判出来。 */
+export function organizerOf(value: string | null | undefined): OrganizerKind | null {
+  return ORGANIZER_KINDS.includes(value as OrganizerKind) ? (value as OrganizerKind) : null;
 }

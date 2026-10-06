@@ -79,6 +79,11 @@ export interface ItemSummary {
    * band, and a band page can find its own reports, without the reader ever seeing `entity:` on screen.
    */
   subjects: string[];
+  /**
+   * 这条消息讲的活动是谁办的，`"official" | "fan" | null`。同人场会被打上「同人 Only」，好让读者
+   * 一眼看出乐队不会到场；判不出来时是 null，卡片上什么都不加。
+   */
+  organizer: OrganizerKind | null;
   score: number | null;
   selected: boolean;
   channel: "news" | "x";
@@ -86,7 +91,7 @@ export interface ItemSummary {
 }
 
 /** The fields rendered by a site feed card; full original text lives in the item detail. */
-export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "source" | "publishedAt" | "timelineAt" | "category" | "tags" | "subjects" | "score" | "selected" | "channel"> {
+export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "source" | "publishedAt" | "timelineAt" | "category" | "tags" | "subjects" | "organizer" | "score" | "selected" | "channel"> {
   /** Upcoming original-stated dates, from the shared calendar read layer. */
   dates?: DeadlineView[];
   datesFrom?: string;
@@ -315,6 +320,23 @@ export const TIMEZONE_OFFSETS: Record<Timezone, string> = { "Asia/Tokyo": "+09:0
 export const TIMEZONE_LABELS: Record<Timezone, string> = { "Asia/Tokyo": "日本时间", "Asia/Shanghai": "北京时间" };
 
 /**
+ * 一场有日期的活动是谁办的。只有两档：官方（乐队本尊、唱片公司、正规主办，也包括第三方对盘与
+ * Fes —— 乐队真的会到场）与同人·粉丝主办（同人 Only 展会、粉丝自己组织的 livehouse 演出）。
+ * 分界线按「乐队会不会到场」划，不按主办方叫什么名字划，因为读者会踩的坑只有那一个。
+ * null 是「判不出来」：宁漏不错 —— 把一场官方 Live 标成同人场，是网站自己说错话。
+ */
+export const ORGANIZER_KINDS = ["official", "fan"] as const;
+
+export type OrganizerKind = (typeof ORGANIZER_KINDS)[number];
+
+/** 同人场在页面上就叫这四个字。网页、日历导出与邮件读同一份，不各写各的。 */
+export const FAN_EVENT_LABEL = "同人 Only";
+
+export function isFanEvent(organizer: OrganizerKind | null | undefined): boolean {
+  return organizer === "fan";
+}
+
+/**
  * A dated event a report's own text states, for the deadline radar. `day` and `localTime` are the
  * announcement's own wall clock — the wording it gave, never converted to the reader's calendar.
  */
@@ -370,6 +392,8 @@ export interface DeadlineView {
   url: string;
   category: CategoryKey | null;
   subjects: string[];
+  /** 谁办的这场活动；判不出来时 null，页面上什么都不显示。 */
+  organizer: OrganizerKind | null;
   source: SourceRef;
   /** When the report carrying this date was published; null on a publication that carries none. */
   publishedAt: string | null;

@@ -18,7 +18,7 @@
 import { z } from "zod";
 import { CATEGORY_KEYS } from "@girlsbands/contracts/taxonomy";
 import {
-  DEADLINE_KINDS, RELEASE_EDITION_KINDS, RELEASE_KINDS, RELEASE_SERIAL_KINDS, TICKET_ROUND_KINDS,
+  DEADLINE_KINDS, ORGANIZER_KINDS, RELEASE_EDITION_KINDS, RELEASE_KINDS, RELEASE_SERIAL_KINDS, TICKET_ROUND_KINDS,
   type LiveStatus, type ReleaseEditionKind, type ReleaseKind, type ReleaseSerialKind, type TicketRoundKind,
 } from "@girlsbands/contracts/site";
 import { glossaryHits } from "@girlsbands/industry/glossary";
@@ -161,6 +161,8 @@ export const StructureSchema = z.object({
   category: z.enum(CATEGORY_KEYS).nullable().catch(null),
   tags: z.array(z.string()).max(12).catch([]),
   subjects: z.array(z.string()).max(6).catch([]),
+  // 主办方是官方还是同人·粉丝；判不出来给 null（宁漏不错），页面上就不打「同人 Only」。
+  organizer: z.enum(ORGANIZER_KINDS).nullable().catch(null),
   fact: FactSchema,
 });
 
@@ -286,6 +288,7 @@ export function normalizeStructure(data: z.infer<typeof StructureSchema>, a: Ana
   return {
     category: data.category, tags: normalizeTags(data.tags),
     subjects: [...new Set(data.subjects.map((s) => s.trim().toLowerCase()).filter((s) => s in ENTITIES))],
+    organizer: data.organizer ?? null,
     scope, fact,
   };
 }
@@ -870,6 +873,7 @@ export function normalizeAnalysis(run: AnalysisRun) {
     category: run.structure?.category ?? null,
     tags,
     subjects,
+    organizer: run.structure?.organizer ?? null,
     titleZh,
     summaryZh,
     reasonZh: run.writing?.reasonZh ?? null,
@@ -910,7 +914,7 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
     scores: out.scores, scoreModel: out.scoreModel, threshold: out.threshold, ...(out.scoreRefused ? { scoreRefused: true } : {}),
     ...(w ? { writer: w.kind, writerModel: w.model, itemType: w.itemType ?? null, authorRole: w.authorRole ?? null } : {}),
     ...(w?.identityGuard?.outcome === "fallback" ? { identityGuard: w.identityGuard } : {}),
-    scope: out.scope, fact: out.fact,
+    scope: out.scope, fact: out.fact, organizer: out.organizer,
     // What the show itself is (Live and ticket material only); lives/link.ts reads it back to name a
     // Live, and lives/tickets.ts turns `rounds` into the acceptance windows the radar shows.
     ...(run.live ? {

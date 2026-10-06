@@ -4,6 +4,7 @@
 // The calendar belongs to a subject — a project or a band, whose series dates come along — because that
 // is what a reader plans around. The export is offered whole-site as well.
 import type { CalendarResponse, DeadlineView, Timezone } from "@girlsbands/contracts/site";
+import { FAN_EVENT_LABEL, isFanEvent } from "@girlsbands/contracts/site";
 import { SITE } from "@girlsbands/industry/site";
 import { config } from "../config.ts";
 import { addDays, deadlineMonths, deadlineRange, jstDate } from "./deadlines.ts";
@@ -112,6 +113,8 @@ function event(v: DeadlineView, now: Date, host: string): string[] {
   const timed = v.localTime !== null;
   const uid = `${v.itemId}-${v.kind}-${v.at.replace(/[^0-9A-Za-z]/g, "")}@${host}`;
   const description = [v.note, `来源：${v.source.name}`, itemUrl(v.itemId)].filter(Boolean).join("\n");
+  // 同人场的标题前挂上标记，导出到读者自己的日历里也不会跟乐队的官方演出认混。
+  const summary = [isFanEvent(v.organizer) ? FAN_EVENT_LABEL : null, v.title].filter(Boolean).join("｜");
   return [
     "BEGIN:VEVENT",
     `UID:${uid}`,
@@ -120,7 +123,7 @@ function event(v: DeadlineView, now: Date, host: string): string[] {
       ? `DTSTART;TZID=${v.timezone}:${compact(v.day)}T${v.localTime!.replace(":", "")}00`
       : `DTSTART;VALUE=DATE:${compact(v.day)}`,
     ...(timed ? [] : [`DTEND;VALUE=DATE:${compact(addDays(v.day, 1))}`]),
-    `SUMMARY:${escapeText(v.title)}`,
+    `SUMMARY:${escapeText(summary)}`,
     `DESCRIPTION:${escapeText(description)}`,
     `URL:${itemUrl(v.itemId)}`,
     `CATEGORIES:${escapeText(v.kind)}`,
