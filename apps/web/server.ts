@@ -63,6 +63,9 @@ async function serveStatic(pathname: string, res: import("node:http").ServerResp
     "Content-Length": info.size,
     "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "public, max-age=3600",
     "X-Content-Type-Options": "nosniff",
+    // A CDN host may serve these for a page on another origin (ASSET_BASE_URL): module scripts, fonts
+    // and the release check are CORS requests. "*" is one answer for every caller, so no Vary.
+    "Access-Control-Allow-Origin": "*",
   });
   createReadStream(file).pipe(res);
   return true;

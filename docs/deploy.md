@@ -63,11 +63,46 @@ CADDY_HTTP_PORT=18080
 CADDY_HTTPS_PORT=18443
 ```
 
-但这时要由前面那层终结 TLS，并且把 `/.well-known/acme-challenge/` 透传给 Caddy 的 80 端口，否则 Caddy 会一直申请失败。完全交给 CDN 终结 TLS 的拓扑（`docs/refit-plan.md` §三 W4）还没有落到 `deploy/Caddyfile` 上，上线前先把它定下来。
+但这时要由前面那层终结 TLS，并且把 `/.well-known/acme-challenge/` 透传给 Caddy 的 80 端口，否则 Caddy 会一直申请失败。由 CDN 完全终结 TLS、Caddy 只当期源时换成下面的 `deploy/Caddyfile.edgeone`：它自签证书，不做 ACME，也就不需要透传挑战路径。
 
 已经有 Nginx 的话，不用 Caddy，把站点反向代理到 `http://127.0.0.1:3000`，带上 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`，并在 `.env` 里设 `TRUST_PROXY=true`。`SITE_URL` 一定要写成读者实际访问的地址：生成的链接、RSS、分享图和 MCP 都用它。
 
 MCP 默认接受 `SITE_URL` 的主机以及 `localhost`、`127.0.0.1`、`[::1]`。额外主机用 `MCP_ALLOWED_HOSTS` 配置，以逗号分隔，例如 `extra.example:8443,[2001:db8::1]`。主机名不区分大小写，IPv6 必须加方括号；可带 0–65535 的十进制端口，匹配时忽略端口。包含路径、用户信息或非法端口的配置不会生效。`127.1` 等别名需要明确列入；此配置只影响 Host 校验，不扩大浏览器 Origin 许可。
+
+### 前面接 EdgeOne（CDN 终结 TLS）
+
+腾讯云 EdgeOne 终结对外的 TLS，回源到这台机器 443 上的 Caddy（EdgeOne 不校验源站证书）。页面和静态资源分两个域名，都解析到同一台机器、同一个 `web` 容器：
+
+- `SITE_DOMAIN` 是读者访问的页面域名，`SITE_URL` 也写它。
+- `STATIC_DOMAIN` 是静态资源域名，`ASSET_BASE_URL` 写它。构建时 Vite 的 `base` 只把带哈希的客户端资源（客户端入口、CSS、字体、modulepreload 链接、SSR 清单）指到这个域名，页面路由仍在 `SITE_DOMAIN` 上；`/favicon.ico`、`/robots.txt` 这些由站点域名自己出。
+
+`.env`：
+
+```bash
+SITE_URL=https://girlsbands.com
+SITE_DOMAIN=girlsbands.com
+STATIC_DOMAIN=static.girlsbands.com
+ASSET_BASE_URL=https://static.girlsbands.com   # 构建参数，改了要重新 build
+ORIGIN_AUTH_SECRET=<一段随机字符串>
+CADDYFILE=Caddyfile.edgeone
+TRUST_PROXY=true
+PORT=127.0.0.1:3000
+```
+
+`ASSET_BASE_URL` 只在构建时读（Dockerfile 的 `ASSET_BASE_URL` 构建参数，compose 从 `.env` 传给 `setup` 的 `build.args`），不设置或留空时资源照旧从站点自己的域名出。改完启动：
+
+```bash
+docker compose --profile https up -d --build
+```
+
+`deploy/Caddyfile.edgeone` 与默认那份的区别：`tls internal` 自签证书，不做 ACME；每个请求都必须带 EdgeOne 回源时加的 `X-Origin-Auth`，和 `ORIGIN_AUTH_SECRET` 不一致的一律 403，转发前把这个头删掉，应用看不到；`X-Forwarded-For` 换成 EdgeOne 放在 `EO-Connecting-IP` 里的真实访客地址，配合 `TRUST_PROXY=true`，限流和后台看到的就是访客本人而不是 EdgeOne 节点。静态域名只放行 `/assets/*` 和 `/fonts/*`，其余 404，所以它取不到 `/api` 和 `/admin`。
+
+EdgeOne 侧要配：
+
+- 源站：这台机器的 443，协议 HTTPS。
+- 回源 Host 头：加速域名本身。
+- 回源请求头加 `X-Origin-Auth: <ORIGIN_AUTH_SECRET>`。
+- 缓存：跟随源站的 `Cache-Control`（`/assets/*` 是一年不可变，页面是几分钟）；`/admin` 和 `/api/admin` 永远不要缓存。
 
 ### 更新
 
@@ -132,6 +167,17 @@ docker compose run --rm setup && docker compose up -d
 有效配置改变后，密码会话不再接受旧密码的授权，飞书会话按登录时实际取得的 union ID 或邮箱检查当前名单（两者任一仍获授权即可）。停用飞书登录应用或更换应用 ID 会使飞书会话失效；只轮换同一应用的 secret 不会使仍获授权的飞书会话退出。轮换或移除 SESSION_SECRET 会使两种会话都失效。
 
 鉴权时确认失效的会话会被删除，恢复旧配置也不会让它复活。系统不记录全局凭据变更历史：某次配置变化若从未被进程加载，或在恢复前从未被会话检查观察到，不能据此追溯撤销会话。
+
+### 图片缓存放对象存储
+
+图片代理的缓存默认写在数据目录的 `imgcache/` 里，服务器磁盘会随图片一直涨。要让缓存改存 S3 兼容的对象存储（生产用的是 Cloudflare R2），在 `.env` 里配这几项：
+
+- `IMAGE_STORE_ACCESS_KEY_ID`、`IMAGE_STORE_SECRET_ACCESS_KEY`：对象存储的密钥。
+- `IMAGE_STORE_BUCKET`：桶名（本站生产用 `girlsbands-images`）。
+- `IMAGE_STORE_ENDPOINT`：R2 形如 `https://<账号 ID>.r2.cloudflarestorage.com`；请求按 `${endpoint}/${bucket}/${key}` 这条路走，桶要允许这种路径式访问。
+- `IMAGE_STORE_REGION`：默认 `auto`，R2 写 `auto` 就行。
+
+四项齐了缓存才走对象存储，缺任何一项都继续用本地 `imgcache/` —— 这是配置选择，不是降级：对象存储出错会当成上游失败报出来，不会悄悄写回本地；键不存在（404）才算缓存未命中。对象都放在桶里的 `imgcache/` 前缀下，键的哈希和本地文件名一致，类型写在对象的 `Content-Type` 上。换回本地时桶里的对象不受影响，只是不再被读；反过来，桶里的对象要靠对象存储自己的生命周期规则清理，`operations/retention.ts` 只管服务器上的本地缓存目录。
 
 ### 备份
 

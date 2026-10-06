@@ -7,6 +7,14 @@ import { API_BASE_URL } from "./app/lib/api.server.ts";
 
 const API = new URL(API_BASE_URL);
 
+/**
+ * Where the hashed client assets live, absolute when a CDN host serves them (ASSET_BASE_URL, e.g.
+ * https://static.example.com/) and "/" otherwise. Vite's `base` prefixes asset URLs only — page routes
+ * and public files stay on SITE_URL, and the router basename stays "/" (react-router.config.ts).
+ */
+const ASSET_BASE = process.env.ASSET_BASE_URL;
+const BASE = ASSET_BASE ? `${ASSET_BASE.replace(/\/+$/, "")}/` : "/";
+
 /** Development stand-in for the production web server: the shared redirect table and api-owned path routing. */
 function devEdge(): Plugin {
   return {
@@ -44,6 +52,7 @@ function devEdge(): Plugin {
 }
 
 export default defineConfig({
+  base: BASE,
   plugins: [devEdge(), tailwindcss(), reactRouter()],
   server: { port: 3000, strictPort: true },
   build: {

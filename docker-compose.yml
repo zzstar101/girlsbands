@@ -1,5 +1,6 @@
 # docker compose up -d --build     → http://localhost:3000   (the admin is at /admin)
-# docker compose --profile https up -d --build   → HTTPS for SITE_DOMAIN through Caddy
+# docker compose --profile https up -d --build   → HTTPS for SITE_DOMAIN through Caddy; with
+#   CADDYFILE=Caddyfile.edgeone the same Caddy is the origin behind EdgeOne (see docs/deploy.md).
 name: girlsbands
 
 x-app: &app
@@ -39,7 +40,12 @@ services:
   # builds every image before it starts any container, so api, worker and web still get the fresh one.
   setup:
     <<: *app
-    build: .
+    build:
+      context: .
+      args:
+        # Absolute CDN host for the hashed client assets (empty: this origin). Only a build arg, so it
+        # takes effect on `docker compose build`, not on restart.
+        ASSET_BASE_URL: ${ASSET_BASE_URL:-}
     restart: "no"
     command: ["sh", "-c", "node scripts/migrate.ts && node scripts/seed.ts"]
 
@@ -96,8 +102,12 @@ services:
       - "${CADDY_HTTPS_PORT:-443}:443"
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN:-localhost}
+      # Host of the CDN asset host and the secret EdgeOne adds on back-to-origin; only used when
+      # CADDYFILE selects deploy/Caddyfile.edgeone.
+      STATIC_DOMAIN: ${STATIC_DOMAIN:-}
+      ORIGIN_AUTH_SECRET: ${ORIGIN_AUTH_SECRET:-}
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/${CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy:/data
     depends_on:
       - web

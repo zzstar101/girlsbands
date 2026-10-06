@@ -1,14 +1,17 @@
 // Image fetch, resize and cache, shared by the signed image proxy and the vision analysis: a (mode, url)
-// is fetched once through the egress route and both get the same file.
+// is fetched once through the egress route and both get the same file. The cache is files under
+// <dataDir>/imgcache, or objects in an S3-compatible store when IMAGE_STORE_* is configured.
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { config } from "../config.ts";
+import { config, credential } from "../config.ts";
 import { guardedFetch, type GuardedResponse } from "../lib/http-fetch.ts";
+import { getObject, headObject, putObject, type S3Target } from "../lib/s3.ts";
 import { IMAGE_WIDTHS } from "./renditions.ts";
 
 const CACHE_DIR = path.join(config.dataDir, "imgcache");
+const OBJECT_PREFIX = "imgcache";
 const ORIGINAL_TTL_MS = 60_000;
 const ORIGINAL_MAX_BYTES = 32 * 1024 * 1024;
 const ORIGINAL_MAX_ENTRIES = 32;
@@ -130,15 +133,88 @@ export function produceImage(url: string, mode: string): Promise<PreparedImage> 
   return job;
 }
 
-function cacheFile(url: string, mode: string): string {
-  const key = createHash("sha256").update(`${mode}|${url}`).digest("hex");
+/** The cache key of one (source, mode) rendition: the same hash names the disk file and the object. */
+function cacheKey(url: string, mode: string): string {
+  return createHash("sha256").update(`${mode}|${url}`).digest("hex");
+}
+
+function cachePath(key: string): string {
   return path.join(CACHE_DIR, key.slice(0, 2), key);
 }
 
-async function cachedImage(file: string, body: Buffer, type: string): Promise<PreparedImage> {
+interface StoredImage {
+  body: Buffer;
+  type: string;
+}
+
+/** One prepared rendition's bytes, wherever the cache keeps them. */
+interface ImageCache {
+  read(key: string): Promise<StoredImage | null>;
+  write(key: string, image: StoredImage): Promise<void>;
+  /** Replaces body and type in one step, so a reader never sees the new bytes with the old type. */
+  replace(key: string, image: StoredImage): Promise<void>;
+  prepared(key: string): Promise<boolean>;
+  markPrepared(key: string): Promise<void>;
+}
+
+const diskCache: ImageCache = {
+  async read(key) {
+    const file = cachePath(key);
+    const [body, type] = await Promise.all([readFile(file).catch(() => null), readFile(`${file}.type`, "utf8").catch(() => null)]);
+    return body && type ? { body, type } : null;
+  },
+  async write(key, image) {
+    const file = cachePath(key);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, image.body);
+    await writeFile(`${file}.type`, image.type);
+  },
+  async replace(key, image) {
+    // A deploy can briefly overlap worker processes; neither may rename the other's temp files.
+    const file = cachePath(key);
+    const tmp = `${file}.${randomUUID()}.tmp`;
+    await writeFile(tmp, image.body);
+    await writeFile(`${tmp}.type`, image.type);
+    await rename(tmp, file);
+    await rename(`${tmp}.type`, `${file}.type`);
+  },
+  prepared: (key) => readFile(`${cachePath(key)}.prepared`).then(() => true, () => false),
+  markPrepared: (key) => writeFile(`${cachePath(key)}.prepared`, "original"),
+};
+
+/** The same cache as objects: the hashed keys under imgcache/, the type as the object's Content-Type. */
+function objectCache(store: S3Target): ImageCache {
+  const objectKey = (key: string) => `${OBJECT_PREFIX}/${key.slice(0, 2)}/${key}`;
+  return {
+    read: (key) => getObject(store, objectKey(key)),
+    write: (key, image) => putObject(store, objectKey(key), image.body, image.type),
+    // A single PUT is atomic, so replacing a GIF with its prepared WebP needs no temp key.
+    replace: (key, image) => putObject(store, objectKey(key), image.body, image.type),
+    // The marker is the object-store twin of the disk cache's <key>.prepared file.
+    prepared: (key) => headObject(store, `${objectKey(key)}.prepared`),
+    markPrepared: (key) => putObject(store, `${objectKey(key)}.prepared`, Buffer.from("original"), "text/plain"),
+  };
+}
+
+/** The object store when every IMAGE_STORE_* variable is set; development and tests keep the disk. */
+function objectStore(): S3Target | null {
+  const get = (k: string) => process.env[k] || credential("integrations", k) || null;
+  const accessKey = get("IMAGE_STORE_ACCESS_KEY_ID");
+  const secretKey = get("IMAGE_STORE_SECRET_ACCESS_KEY");
+  const bucket = get("IMAGE_STORE_BUCKET");
+  const endpoint = get("IMAGE_STORE_ENDPOINT");
+  if (!accessKey || !secretKey || !bucket || !endpoint) return null;
+  return { accessKey, secretKey, bucket, endpoint, region: get("IMAGE_STORE_REGION") ?? "auto" };
+}
+
+function imageCache(): ImageCache {
+  const store = objectStore();
+  return store ? objectCache(store) : diskCache;
+}
+
+async function cachedImage(cache: ImageCache, key: string, body: Buffer, type: string): Promise<PreparedImage> {
   if (type !== "image/gif") return { body, type };
-  const prepared = await readFile(`${file}.prepared`).then(() => true, () => false);
-  if (prepared) return { body, type };
+  if (await cache.prepared(key)) return { body, type };
   const meta = await sharp(body, { animated: true, limitInputPixels: false }).metadata();
   const pixels = (meta.width ?? 0) * (meta.pageHeight ?? 0) * (meta.pages ?? 1);
   // Unsupported large animations are kept as-is; shortening their cache would only add traffic.
@@ -146,19 +222,14 @@ async function cachedImage(file: string, body: Buffer, type: string): Promise<Pr
 }
 
 async function produce(url: string, mode: string): Promise<PreparedImage> {
-  const file = cacheFile(url, mode);
-  try {
-    const [body, meta] = await Promise.all([readFile(file), readFile(`${file}.type`, "utf8")]);
-    return cachedImage(file, body, meta);
-  } catch {
-    // not cached
-  }
+  const key = cacheKey(url, mode);
+  const cache = imageCache();
+  const cached = await cache.read(key);
+  if (cached) return cachedImage(cache, key, cached.body, cached.type);
   const res = await original(url);
   const image = await resizeImage(res.body, res.headers.get("content-type") ?? "", mode);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, image.body);
-  await writeFile(`${file}.type`, image.type);
-  return cachedImage(file, image.body, image.type);
+  await cache.write(key, image);
+  return cachedImage(cache, key, image.body, image.type);
 }
 
 /** Most frames × pixels an animation may have to be re-encoded (all frames are decoded at once). */
@@ -171,10 +242,12 @@ const ANIMATION_MAX_PIXELS = 200_000_000;
  * request. Returns the bytes saved (0 when nothing changed).
  */
 export async function convertAnimated(url: string, mode: string): Promise<number> {
-  const file = cacheFile(url, mode);
-  const [body, type] = await Promise.all([readFile(file).catch(() => null), readFile(`${file}.type`, "utf8").catch(() => null)]);
-  if (!body || type !== "image/gif") return 0;
-  if (await readFile(`${file}.prepared`).then(() => true, () => false)) return 0;
+  const key = cacheKey(url, mode);
+  const cache = imageCache();
+  const cached = await cache.read(key);
+  if (!cached || cached.type !== "image/gif") return 0;
+  if (await cache.prepared(key)) return 0;
+  const body = cached.body;
   const meta = await sharp(body, { animated: true, limitInputPixels: false }).metadata();
   const frames = meta.pages ?? 1;
   if (!meta.width || !meta.pageHeight || meta.width * meta.pageHeight * frames > ANIMATION_MAX_PIXELS) return 0;
@@ -186,15 +259,10 @@ export async function convertAnimated(url: string, mode: string): Promise<number
   if (!webp || webp.length > body.length * 0.85) {
     // Preparation finished, but this GIF cannot be converted or the original is smaller.
     // Keep it normally cached instead of repeatedly queueing the same immutable source.
-    await writeFile(`${file}.prepared`, "original");
+    await cache.markPrepared(key);
     return 0;
   }
-  // A deploy can briefly overlap worker processes; neither may rename the other's temp files.
-  const tmp = `${file}.${randomUUID()}.tmp`;
-  await writeFile(tmp, webp);
-  await writeFile(`${tmp}.type`, "image/webp");
-  await rename(tmp, file);
-  await rename(`${tmp}.type`, `${file}.type`);
+  await cache.replace(key, { body: webp, type: "image/webp" });
   return body.length - webp.length;
 }
 

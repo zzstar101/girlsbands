@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
+import { readdir } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
@@ -196,4 +197,13 @@ test("browser caching preserves noindex and private sign-in responses", async ()
 test("a visitor cannot name its own address to the api without a trusted proxy in front", async () => {
   const res = await fetch(`${origin}/api/site/echo-client`, { headers: { "X-Forwarded-For": "6.6.6.6", "X-Real-IP": "6.6.6.6" } });
   assert.deepEqual(await res.json(), { forwarded: "127.0.0.1", real: "127.0.0.1" });
+});
+
+test("the asset host may be another origin, so hashed assets answer CORS", async () => {
+  const [asset] = (await readdir(new URL("../build/client/assets", import.meta.url))).filter((name) => name.endsWith(".js"));
+  const res = await fetch(`${origin}/assets/${asset}`, { headers: { Origin: "https://girlsbands.com" } });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("Access-Control-Allow-Origin"), "*");
+  assert.match(res.headers.get("Cache-Control")!, /immutable/);
+  await res.text();
 });
