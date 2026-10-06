@@ -262,6 +262,8 @@ export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
     const url = (c.urlTemplate && renderTemplate(c.urlTemplate, item)) || (c.urlTemplateFallback && renderTemplate(c.urlTemplateFallback, item));
     if (!title || !url) continue;
     const externalId = c.externalIdPath ? getPath(item, c.externalIdPath) : null;
+    // detailIdPath: the id a detail API wants, when it is not the listing's own row id (allcpp: id vs eventId).
+    const detailId = typeof c.detailIdPath === "string" ? getPath(item, c.detailIdPath) : null;
     // A composed line gives the writer (and the deadline step) the fields the reader needs in the
     // item's own words: what day it is, where, and for what. `summaryPaths` stays the fallback.
     const summary = (c.summaryTemplate ? renderFields(String(c.summaryTemplate), item, String(c.publishedAtUtcOffset ?? "+08:00")) : null)
@@ -284,7 +286,7 @@ export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
       bodyText: summaryIsBody ? stripTags(summary!) : null,
       bodyStatus: summaryIsBody ? "ok" : "pending",
       media: image ? [{ kind: "image", url: image, width: null, height: null }] : [],
-      raw: { externalId: externalId ?? null },
+      raw: { externalId: externalId ?? null, ...(detailId != null ? { detailId } : {}) },
     });
   }
   if (items.length > 0 && out.length === 0 && !c.requireBoolean && !c.minNumeric) throw new FetchError("no items mapped (check title/url paths)");

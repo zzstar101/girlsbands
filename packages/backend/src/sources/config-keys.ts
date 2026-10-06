@@ -17,7 +17,7 @@ const KEYS: Record<SourceRow["kind"], string[]> = {
   json_list: [
     ...COLLECTED, "urls", "url", "mode", "method", "headers", "bodyJson", "jsonKey", "windowVar", "itemsPath", "itemsObjectValues",
     "titlePaths", "summaryPaths", "summaryTemplate", "summaryIsBody", "authorPaths", "publishedAtPath", "publishedAtUnit",
-    "publishedAtUtcOffset", "externalIdPath", "urlTemplate", "urlTemplateFallback", "rawDropKeys", "requireBoolean", "minNumeric",
+    "publishedAtUtcOffset", "externalIdPath", "detailIdPath", "urlTemplate", "urlTemplateFallback", "rawDropKeys", "requireBoolean", "minNumeric",
     "imageField", "imagePrefix", "detailAdapter", "detailUrlTemplate",
   ],
   // X accounts are mostly read in shards, which apply only these.

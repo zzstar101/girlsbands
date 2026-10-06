@@ -8,6 +8,7 @@ import { enrichCandidate } from "@girlsbands/backend/sources/detail-adapters";
 import { unsupportedConfig } from "@girlsbands/backend/sources/config-keys";
 
 const fixture = {
+  cpplist: { result: { list: [{ id: 7445, eventId: 8210, name: "珠海音乐企划ONLY" }] } },
   list: { data: { result: [{ id: 42, project_name: "演出活动", cover: "https://i2.hdslb.com/poster.jpg", start_time: 1790000000 }] } },
   bili: { data: { name: "正式演出", cover: "//i2.hdslb.com/poster.jpg", price_low: 6800, price_high: 12800, sale_begin: "2026-08-01 10:00", sale_end: "2026-08-31 23:59", performance_desc: { list: [
     { module: "base_info", details: [{ title: "活动日期", content: "2026年9月1日" }, { title: "场馆地址", content: "上海" }] },
@@ -18,6 +19,7 @@ const fixture = {
 const server = http.createServer((req, res) => {
   res.setHeader("content-type", "application/json; charset=utf-8");
   if (req.url === "/list") res.end(JSON.stringify(fixture.list));
+  else if (req.url === "/cpplist") res.end(JSON.stringify(fixture.cpplist));
   else if (req.url === "/bili/42") res.end(JSON.stringify(fixture.bili));
   else if (req.url === "/cpp/8") res.end(JSON.stringify(fixture.cpp));
   else { res.writeHead(503); res.end(JSON.stringify({ error: "offline" })); }
@@ -56,3 +58,9 @@ test("detail errors retain the listing candidate and config validates adapter va
   assert.deepEqual(unsupportedConfig("json_list", { detailAdapter: "unknown" }), ["detailAdapter=unknown"]);
 });
 
+
+test("allcpp listings carry the event id the detail API and page use, not the listing row id", async () => {
+  const [candidate] = await fetchJsonList({ config: { url: `${root}/cpplist`, itemsPath: "result.list", titlePaths: ["name"], urlTemplate: "https://www.allcpp.cn/allcpp/event/event.do?event={eventId}", externalIdPath: "id", detailIdPath: "eventId" } } as never);
+  assert.equal(candidate!.url, "https://www.allcpp.cn/allcpp/event/event.do?event=8210");
+  assert.deepEqual(candidate!.raw, { externalId: 7445, detailId: 8210 });
+});

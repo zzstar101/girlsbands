@@ -225,7 +225,8 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
       let used = 0;
       for (const [key, candidate] of unique) {
         if (used >= 20) break;
-        const externalId = (candidate.raw as { externalId?: unknown } | null)?.externalId;
+        const raw = candidate.raw as { externalId?: unknown; detailId?: unknown } | null;
+        const externalId = raw?.detailId ?? raw?.externalId;
         if (externalId === null || externalId === undefined || !String(externalId).trim()) continue;
         used += 1;
         try {
