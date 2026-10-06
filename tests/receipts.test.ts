@@ -260,3 +260,20 @@ test("an unknown outcome is released automatically once, so a lost answer costs 
   await assert.rejects(paidRequest(req, lost), ReceiptUnknownError);
   assert.equal(sent, 2);
 });
+
+test("sends wait for a slot under the per-minute budget instead of bursting past it", async () => {
+  const { waitForSendSlot } = await import("@girlsbands/backend/providers/receipts");
+  const service = `rl-${tag()}`;
+  await sql`INSERT INTO budgets (service, per_minute, per_hour, per_day) VALUES (${service}, 2, 100, 100)`;
+  let t = 1_000_000;
+  const now = () => t;
+  await waitForSendSlot(service, now);
+  await waitForSendSlot(service, now);
+  let third = false;
+  const pending = waitForSendSlot(service, () => t).then(() => (third = true));
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(third, false, "a third send in the same minute waits");
+  t += 60_001; // the window slides past the first two sends
+  await pending;
+  assert.equal(third, true);
+});

@@ -113,6 +113,43 @@ async function checkBudget(tx: Db, service: string): Promise<void> {
 }
 
 /**
+ * Smooths this process's sends under each service's per-minute budget. The budget check above is a
+ * circuit breaker: over it, the whole article goes back to the queue for a minute and its analysis
+ * chain stops halfway. Waiting here for a slot instead keeps bursts (six articles analysed at once,
+ * each a chain of model calls) under the provider's own rate limit, which answers 429 beyond it.
+ * Only the worker sends model requests, so a per-process window is the whole picture; the budget
+ * check still counts every process from the database.
+ */
+const sendWindows = new Map<string, number[]>();
+const perMinuteCache = new Map<string, { value: number | null; at: number }>();
+
+async function perMinute(service: string): Promise<number | null> {
+  const hit = perMinuteCache.get(service);
+  if (hit && Date.now() - hit.at < 30_000) return hit.value;
+  const [row] = await sql<{ per_minute: number }[]>`SELECT per_minute FROM budgets WHERE service = ${service}`;
+  const value = row ? row.per_minute : null;
+  perMinuteCache.set(service, { value, at: Date.now() });
+  return value;
+}
+
+export async function waitForSendSlot(service: string, now: () => number = Date.now): Promise<void> {
+  for (;;) {
+    const limit = await perMinute(service);
+    if (!limit || limit <= 0) return; // unlimited, or stopped (the budget check refuses those)
+    const t = now();
+    const window = sendWindows.get(service) ?? [];
+    while (window.length && window[0]! <= t - 60_000) window.shift();
+    if (window.length < limit) {
+      window.push(t);
+      sendWindows.set(service, window);
+      return;
+    }
+    shutdownSignal.signal.throwIfAborted();
+    await new Promise((resolve) => setTimeout(resolve, Math.min(window[0]! + 60_000 - t + 10, 5_000)));
+  }
+}
+
+/**
  * Runs a paid request at most once per logical key and returns its raw response.
  * The caller parses the response and commits business results, then calls completeReceipt.
  */
@@ -159,6 +196,19 @@ export async function paidRequest(req: ReceiptRequest, call: () => Promise<CallO
   }
 
   const { id: receiptId, attemptId } = claimed;
+  // A reused answer costs nothing and takes no slot; only a request that really goes out waits.
+  try {
+    await waitForSendSlot(req.service);
+  } catch (error) {
+    // Interrupted while waiting (a deploy): nothing was sent, so the attempt is a clean failure that
+    // may be retried, not an unknown outcome waiting for the admin.
+    const message = `not sent: ${String(error).slice(0, 300)}`;
+    await sql.begin(async (tx) => {
+      await tx`UPDATE receipts SET status = 'failed', error = ${message}, updated_at = now() WHERE id = ${receiptId}`;
+      await tx`UPDATE receipt_attempts SET status = 'failed', error = ${message}, latency_ms = 0, finished_at = now() WHERE id = ${attemptId}`;
+    });
+    throw error;
+  }
   const started = Date.now();
   let outcome: CallOutcome;
   try {
