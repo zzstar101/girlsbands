@@ -97,7 +97,7 @@ export function isTeaser(text: string): boolean {
 const isXMirror = (source: SourceRow) => /^(?:https?:\/\/)?(?:www\.)?(?:x|twitter)\.com\//i.test(String(source.config.itemUrlPrefixRewrite?.to ?? ""));
 
 /** The host a feed's item links live on, which a body's links point at as well. */
-function mirrorHost(link: string): string | null {
+export function mirrorHost(link: string): string | null {
   try {
     const url = new URL(link);
     return /^https?:$/.test(url.protocol) ? url.host : null;
@@ -138,7 +138,7 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * Every link of a tweet's body that points at the mirror, as its x.com address — the hrefs, and the
  * mirror addresses written out as text (a quoted tweet ends with "— http://<mirror>/user/status/…#m").
  */
-function mirrorBody(html: string, mirror: string): string {
+export function mirrorBody(html: string, mirror: string): string {
   const hrefs = html.replace(A_HREF, (_m, head: string, quote: string, href: string) => `${head}${quote}${xLink(href, mirror)}${quote}`);
   const bare = new RegExp(`https?://${escapeRe(mirror)}/[^\\s"'<>]*`, "gi");
   return hrefs.replace(bare, (url) => xLink(url, mirror));
