@@ -28,7 +28,7 @@ RSS、分享链接、站点地图和 Agent Markdown 中的绝对链接都使用�
 docker compose up -d --build
 ```
 
-启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。这时站点是空的，而且是故意的：`COLLECT_ENABLED` 和 `MODEL_CALLS_ENABLED` 默认都是 `false`，不会抓信源也不会调模型。先确认页面打得开、后台进得去、`SITE_URL` 填的是读者实际访问的地址，再把这两行改成 `true`，然后 `docker compose restart api worker` 开始收录：一两分钟后开始出现内容，第一批一百多条资料大约半小时处理完（每条都要预筛、评分、结构化、写标题摘要，再归组），对应大约 930 次模型调用。只想先看看界面就别开。
+启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。这时站点是空的，而且是故意的：`COLLECT_ENABLED` 和 `MODEL_CALLS_ENABLED` 默认都是 `false`，不会抓信源也不会调模型。先确认页面打得开、后台进得去、`SITE_URL` 填的是读者实际访问的地址，再把这两行改成 `true`，然后 `docker compose up -d api worker` 开始收录：一两分钟后开始出现内容，第一批一百多条资料大约半小时处理完（每条都要预筛、评分、结构化、写标题摘要，再归组），对应大约 930 次模型调用。只想先看看界面就别开。
 
 `docker compose` 会起五个容器：`db`（PostgreSQL 17）、`setup`（每次启动先跑数据库迁移和种子数据，然后退出）、`api`、`worker`（抓取、模型处理、定时任务）、`web`（网页）。用 `--profile https` 时再加一个 `caddy`，一共六个。
 

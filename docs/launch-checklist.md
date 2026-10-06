@@ -66,18 +66,18 @@ node scripts/smoke.ts --base http://127.0.0.1:3000    # 应打印 all checks pas
 
 ### 3. 打开收录
 
-先只开抓取，确认能拿到东西、再开始花钱（可选，但推荐）：
+先只开抓取，确认能拿到东西、再开始花钱（可选，但推荐）。改完 `.env` 要用 `up -d` 重建容器——`docker compose restart` 不会重新读 `.env`，开关改了也不生效：
 
 ```bash
 COLLECT_ENABLED=true      # .env
-docker compose restart api worker
+docker compose up -d api worker
 ```
 
 等一轮抓取，看后台「信源」页有没有新资料进来。确认没问题后再开模型：
 
 ```bash
 MODEL_CALLS_ENABLED=true
-docker compose restart api worker
+docker compose up -d api worker
 ```
 
 第一批一百多条资料约半小时、约 930 次模型调用（`docs/deploy.md` 的「花多少钱」）。所有付费服务都有每分钟/小时/天上限，后台「设置 → 付费请求上限」能改，填 0 就是立刻停用。
@@ -90,7 +90,7 @@ docker compose restart api worker
 
 ```bash
 INDEXNOW_SUBMIT_ENABLED=true   # .env，另需 INDEXNOW_KEY
-docker compose restart worker
+docker compose up -d worker
 ```
 
 再到百度搜索资源平台、Google Search Console 提交 sitemap。

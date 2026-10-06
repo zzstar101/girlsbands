@@ -34,7 +34,7 @@ for (const name of VALVES) text = text.replace(new RegExp(`^${name}=.*$`, "m"), 
 text = `${text.replace(/\n*$/, "\n")}
 # 上面 ${VALVES.length} 个开关现在都是 false：站点能打开、后台能登录，但不抓信源、不调模型、不发飞书、
 # 不交 IndexNow、不发邮件。确认 SITE_URL 填的是读者实际访问的地址、备案号填好了、后台也看过一遍，
-# 再按需要逐个改成 true，然后 docker compose restart api worker。
+# 再按需要逐个改成 true，然后 docker compose up -d api worker。
 `;
 writeFileSync(".env", text, { mode: 0o600 });
 console.log("已生成 .env。");
