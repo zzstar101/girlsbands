@@ -51,7 +51,19 @@ async function build(): Promise<string> {
     { loc: "/changelog", lastmod: now, changefreq: "weekly", priority: 0.5 },
     { loc: GUIDE_PATH, changefreq: "monthly", priority: 0.5 },
   );
-  const reports = await sql<{ kind: string; key: string; generated_at: Date }[]>`SELECT kind, key, generated_at FROM reports ORDER BY kind, key DESC`;
+  // 一期报告只在它还有「列得出来」的引用条目时才提交：整期引用的条目都被下架后，这一期没有可读内容，
+  // 却还留在 sitemap 里（页面上是划掉的引文）。可见性判断复用 scope.ts 的 listedCondition，与报告读取层
+  // 同一套口径；引用的 itemId 一律指向文章 id，直接从 content 里取 —— 顶层条目、条目下的相关报道、flash
+  // 都是这个字段名（reports.ts 的 citationFrom 也按这些 itemId 判定）。
+  const reports = await sql<{ kind: string; key: string; generated_at: Date }[]>`
+    SELECT r.kind, r.key, r.generated_at
+    FROM reports r
+    WHERE EXISTS (
+      SELECT 1 FROM publications p
+      WHERE ${listedCondition(new Date())}
+        AND p.article_id IN (SELECT jsonb_array_elements_text(jsonb_path_query_array(r.content, '$.**.itemId')))
+    )
+    ORDER BY r.kind, r.key DESC`;
   for (const r of reports) entries.push({ loc: `/${r.kind}/${r.key}`, lastmod: r.generated_at, changefreq: r.kind === "daily" ? "never" : "monthly", priority: r.kind === "daily" ? 0.6 : 0.6 });
   for (const t of await topicPageCounts()) {
     if (!t.indexable) continue;

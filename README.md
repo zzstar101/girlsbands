@@ -135,6 +135,7 @@ docker compose up -d --build
 | [事件归组与关系评测](docs/grouping.md) | 事件关系怎么判断，怎么用自己的 pairwise gold set 评测 |
 | [邮件订阅](docs/subscribe.md) | 截止提醒与精选摘要怎么发、SMTP 怎么配、四套邮件外观、退订与合规 |
 | [部署](docs/deploy.md) | Docker、域名和 HTTPS、中国大陆、更新、备份、花多少钱 |
+| [上线检查单](docs/launch-checklist.md) | 上线前逐项核对的单子：已经验过的、站主要拍板的、当天开开关的顺序 |
 | [架构](docs/architecture.md) | 三个进程、几条不变的规则、目录、对外出口 |
 
 技术栈：Node.js 24 · TypeScript · React Router（服务端渲染）· Fastify · PostgreSQL · pg-boss · Tailwind CSS · Docker Compose。

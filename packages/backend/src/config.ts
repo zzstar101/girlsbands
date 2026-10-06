@@ -49,7 +49,8 @@ export const config = {
   // Name of this deployment in alerts ("production" sends them without a prefix).
   environmentName: str("GIRLSBANDS_ENVIRONMENT", isProduction ? "production" : "development"),
   // External-action valve: off unless the environment turns it on, like COLLECT_ENABLED (read by the
-  // worker). .env.example turns both on.
+  // worker). .env.example ships both off, and scripts/init-env.ts writes them off again when it copies
+  // the template, so a fresh deployment comes up quiet until the operator turns it on on purpose.
   modelCallsEnabled: bool("MODEL_CALLS_ENABLED", false),
   // Email subscriptions. Same shape as the valves above: off by default. With it off nothing touches
   // SMTP, the subscribe endpoint says so plainly, and the two reminder schedules do not run.
@@ -89,7 +90,11 @@ export function credential(group: CredentialGroup, name: string): string | null 
   return value && value.trim() !== "" ? value : null;
 }
 
-const PLACEHOLDER = /^(changeme|placeholder|dummy|test|xxx+|your[-_ ].*|<.*>)$/i;
+// A value that calls itself a placeholder, or that is one of the development secrets this repository
+// hands out (dev-admin-password, dev-session-secret-not-for-production, dev-img-proxy-secret), is not a
+// production secret. Only a length check would pass all three, so a .env copied from a development
+// checkout would sign sessions for the public internet instead of failing loudly here.
+const PLACEHOLDER = /^(changeme|placeholder|dummy|test|dev[-_].*|xxx+|your[-_ ].*|<.*>)$/i;
 
 /** Production refuses to start with missing or placeholder critical secrets, or dev-login bypasses. */
 export function assertProductionSecrets(names: Array<[CredentialGroup, string]>): void {

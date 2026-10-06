@@ -23,11 +23,11 @@ flowchart LR
 
 ## 几条不变的规则
 
-- **一个公开读取层**：网页、RSS、API、MCP、站点地图、分享图读的都是 `packages/backend/src/publication/`。公开范围、精选席位（机器出口每条新闻只出一条）与事实证据条件只在 `publication/scope.ts` 定义；新增出口也遵循当前的撤回和全文许可。
+- **一个公开读取层**：网页、RSS、API、MCP、站点地图、分享图读的都是 `packages/backend/src/publication/`。公开范围、精选席位（机器出口每条新闻只出一条）与事实证据条件只在 `publication/scope.ts` 定义；新增出口也遵循当前的撤回和全文许可。撤回（`editorial_overrides.visibility = 'withdrawn'`）让条目自己的页面、接口、RSS、日历和搜索索引消失，收敛时间等于各自的缓存（页面 5 分钟、sitemap 1 小时）；**唯一的例外是已经发出的日报、周报**：那里保留一条划掉的引文，标题还在，摘要和原文链接不再发出（`publication/reports.ts`），整期引用的条目都被下架时这一期不再进 sitemap。
 - **页面不调模型**：读者打开页面只读数据库里已经有的结果；模型只在 worker 的任务里调用。
 - **花钱的请求有回执**：每个付费请求（模型、X、公众号、Jina）先记一张回执，拿到结果先存再用。进程重启、任务重试时，复用已经付过钱的结果，不重复花钱（`providers/receipts.ts`）。结果不明的回执超过 30 分钟后自动放行一次；因它停在失败状态的文章会重新入队，继续未完成的正文提取或分析。再次结果不明时，由管理员在“运行”页核对后放行。
 - **预算熔断**：每个付费服务有每分钟、每小时、每天的上限，超过就暂停（后台“设置 → 付费请求上限”）。
-- **安全阀**：`COLLECT_ENABLED`、`MODEL_CALLS_ENABLED`、`FEISHU_CONTENT_PUSH_ENABLED`、`FEISHU_INTERNAL_ENABLED`、`INDEXNOW_SUBMIT_ENABLED` 只决定“发不发出去”，不决定走哪套逻辑；只有设成 `true` 才打开。开发时关着；测试里推送一直关着，采集和模型调用只连本地假服务。
+- **安全阀**：`COLLECT_ENABLED`、`MODEL_CALLS_ENABLED`、`FEISHU_CONTENT_PUSH_ENABLED`、`FEISHU_INTERNAL_ENABLED`、`INDEXNOW_SUBMIT_ENABLED` 只决定“发不发出去”，不决定走哪套逻辑；只有设成 `true` 才打开。开发时关着；测试里推送一直关着，采集和模型调用只连本地假服务。`EMAIL_ENABLED`（邮件订阅）同样默认关。`.env.example` 与 `scripts/init-env.ts` 生成的 `.env` 里这些都写 `false`，上线时逐个打开。
 - **公开内容匿名**：管理员和访客看到的一样；读者的收藏、已读存在浏览器里。后台只允许管理员。
 - **旧文不刷屏**：发现时已发布超过 48 小时的资料、新信源的存量、回灌的推送，按原文时间归档，不进“今天”、不推送。
 - **来源可追溯**：每条精选都链接原文；站内是否显示全文由信源的 `site_fulltext` 决定 —— 本站的 `editorial` 源**全开**（`database/migrations/0056_site_fulltext_editorial.sql` 把 `participation_mode = 'editorial'` 的源设成 `true`，正文整篇搬进站内并译成中文），`hot_signal` 源没有公开页面、保持关闭；`syndicate_fulltext`（再把全文分发出去）全站关闭。

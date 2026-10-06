@@ -1,5 +1,7 @@
 # 部署
 
+正式对外之前先过一遍 [上线检查单](launch-checklist.md)：哪些已经验过、哪些只有站主本人能定、上线当天按什么顺序开开关。
+
 ## 用 Docker（推荐）
 
 需要一台装了 Docker（带 Compose）的机器。云服务器建议至少 2 核、4 GB 内存，构建镜像时要用到。
@@ -10,7 +12,7 @@ cd myband
 node scripts/init-env.ts --llm-key <你的模型 API Key>
 ```
 
-`init-env.ts` 会生成 `.env`，填好随机密钥和管理员密码，并把密码打印一次。机器上没有 Node 的话，把 `.env.example` 复制成 `.env`，自己填 `ADMIN_PASSWORD`（至少 12 位）、`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`POSTGRES_PASSWORD`（各用 `openssl rand -hex 32` 生成）和 `LLM_API_KEY`。
+`init-env.ts` 会生成 `.env`，填好随机密钥和管理员密码，并把密码打印一次；它还会把所有对外开关（抓取、模型调用、飞书推送、IndexNow、邮件）写成 `false`，所以第一次启动的站是安静的。机器上没有 Node 的话，把 `.env.example` 复制成 `.env`，自己填 `ADMIN_PASSWORD`（至少 12 位）、`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`POSTGRES_PASSWORD`（各用 `openssl rand -hex 32` 生成）和 `LLM_API_KEY`。自己填的值别写成 `dev-` 开头或 `test`、`changeme` 这类占位词：生产环境会拒绝启动（见 `packages/backend/src/config.ts` 的 `assertProductionSecrets`）。
 
 启动前检查 `.env` 的 `SITE_URL`：本机试用保留 `http://localhost:3000`；部署到服务器时改成读者实际访问的地址。例如通过服务器 IP 访问时（把示例 IP 换成自己的）：
 
@@ -26,9 +28,9 @@ RSS、分享链接、站点地图和 Agent Markdown 中的绝对链接都使用�
 docker compose up -d --build
 ```
 
-启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。第一次启动会导入示范信源，一两分钟后开始出现内容；第一次导入的一百多条资料大约半小时处理完（每条都要预筛、评分、结构化、写标题摘要，再归组）。
+启动后打开 `http://服务器地址:3000`，后台在 `/admin`，用管理员密码登录。这时站点是空的，而且是故意的：`COLLECT_ENABLED` 和 `MODEL_CALLS_ENABLED` 默认都是 `false`，不会抓信源也不会调模型。先确认页面打得开、后台进得去、`SITE_URL` 填的是读者实际访问的地址，再把这两行改成 `true`，然后 `docker compose restart api worker` 开始收录：一两分钟后开始出现内容，第一批一百多条资料大约半小时处理完（每条都要预筛、评分、结构化、写标题摘要，再归组），对应大约 930 次模型调用。只想先看看界面就别开。
 
-`docker compose` 会起五个容器：`db`（PostgreSQL 17）、`setup`（每次启动先跑数据库迁移和种子数据，然后退出）、`api`、`worker`（抓取、模型处理、定时任务）、`web`（网页）。
+`docker compose` 会起五个容器：`db`（PostgreSQL 17）、`setup`（每次启动先跑数据库迁移和种子数据，然后退出）、`api`、`worker`（抓取、模型处理、定时任务）、`web`（网页）。用 `--profile https` 时再加一个 `caddy`，一共六个。
 
 ### 在中国大陆的服务器上
 
@@ -54,6 +56,15 @@ TRUST_PROXY=true           # 访客地址从 Caddy 转来的请求头里读
 docker compose --profile https up -d --build
 ```
 
+Caddy 默认占用宿主机的 80 和 443，证书走 80 端口上的 HTTP 挑战。这台机器前面还有 CDN 或别的 Web 服务器时，把 Caddy 挤到高位端口：
+
+```bash
+CADDY_HTTP_PORT=18080
+CADDY_HTTPS_PORT=18443
+```
+
+但这时要由前面那层终结 TLS，并且把 `/.well-known/acme-challenge/` 透传给 Caddy 的 80 端口，否则 Caddy 会一直申请失败。完全交给 CDN 终结 TLS 的拓扑（`docs/refit-plan.md` §三 W4）还没有落到 `deploy/Caddyfile` 上，上线前先把它定下来。
+
 已经有 Nginx 的话，不用 Caddy，把站点反向代理到 `http://127.0.0.1:3000`，带上 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`，并在 `.env` 里设 `TRUST_PROXY=true`。`SITE_URL` 一定要写成读者实际访问的地址：生成的链接、RSS、分享图和 MCP 都用它。
 
 MCP 默认接受 `SITE_URL` 的主机以及 `localhost`、`127.0.0.1`、`[::1]`。额外主机用 `MCP_ALLOWED_HOSTS` 配置，以逗号分隔，例如 `extra.example:8443,[2001:db8::1]`。主机名不区分大小写，IPv6 必须加方括号；可带 0–65535 的十进制端口，匹配时忽略端口。包含路径、用户信息或非法端口的配置不会生效。`127.1` 等别名需要明确列入；此配置只影响 Host 校验，不扩大浏览器 Origin 许可。
@@ -73,7 +84,7 @@ docker compose run --rm setup && docker compose up -d
 
 #### 升级到公开接口 3.0.0
 
-- **安全阀默认关**：`COLLECT_ENABLED`、`MODEL_CALLS_ENABLED` 只有写成 `true` 才打开，没写就是关。用 `scripts/init-env.ts` 生成的 `.env` 已经有这两行；自己写的 `.env` 没有的话要补上，否则升级后不再采集、不再调用模型。
+- **安全阀默认关**：`COLLECT_ENABLED`、`MODEL_CALLS_ENABLED` 只有写成 `true` 才打开，没写就是关。`scripts/init-env.ts` 生成的 `.env` 里这两行一直是 `false`（它会把抓取、模型、飞书推送、IndexNow、邮件共六个开关一起写成 `false`），要开得自己改；自己写的 `.env` 也要有这几行，否则升级后不再采集、不再调用模型。
 - **周报月报接口换了形状**：`/api/v1/weeklies`、`/api/v1/monthlies` 的列表和每一期都带 `periodStart`、`periodEnd`，正文改成 `sections[]`（每栏 `label`、`summary`、`items`），不再有 `title`、`themes`，列表的 `limit` 最多 60。读这两个接口的程序要跟着改；MCP 和 `/openapi-v1.json` 的版本号随之升到 3.0.0。
 - **精选的机器出口每条新闻一条**：API 的 `mode=selected`、同步接口和精选 RSS 里，同一条新闻只留代表报道，其他报道以 `remove` 出现在同步的变更里（`mode=all` 里还在）。升级前已经入选的旧报道不会被重新整理，等这条新闻再有报道发布时才归并。
 - **精选要等去重确认**：分数够了的资料，要等归组确认它不是精选里已有新闻的重复、带来了新信息，才进精选；确认之前只在“全部动态”。归组用的模型回答不合格式时会停在那里，后台“运行”页能看到。
@@ -102,7 +113,7 @@ docker compose run --rm setup && docker compose up -d
 
 - **迁移 `0056_site_fulltext_editorial.sql` 只改 `sources` 行，不会重算已经发布出去的内容**：它把 `participation_mode = 'editorial'` 的源设成 `site_fulltext = true`，但 `publications.body_mode` 还是升级前的值（`summary`）。要让老内容真的变成全文，得让这些源重新投影一次 —— 在后台信源页改一下任一发布字段（`participation_mode`、`site_fulltext`、`syndicate_fulltext`、`tier`、`name`、`first_party`、`owner_entity_id`）就会自动排 `publication.republish-source`。改 `industry/sources.json` 本身不会触发，`scripts/seed.ts` 是 `ON CONFLICT (id) DO NOTHING`，也不会。
 - **删除请求走后台，不用改数据库**：单条在内容页「公开范围」里选「下架」（所有出口移除，链接 404）；整个来源在信源页点「整源下架」，它会把该源已经发布出去的条目整批写成 `withdrawn`、逐条重新投影、并暂停这个源，之后不再采集。两种操作都写进审计日志（`content.visibility` / `source.withdraw`）。
-- **联系入口**：`industry/site.ts` 的 `contactEmail`。现在填的是 `contact@girlsbands.com` 占位，**上线前必须确认这个邮箱真的能收信**（它还喂 `/.well-known/security.txt`、llms.txt 和 RSS 的 author）。读者看到的说明在 `/rights`（`industry/pages/rights.md`）。
+- **联系入口**：`industry/site.ts` 的 `contactEmail`，现在填的是 `contact@girlsbands.com`（本站已经确认这个邮箱能收信）。它还喂 `/.well-known/security.txt`、llms.txt 和 RSS 的 author，换邮箱时这里和 `industry/pages/` 下的说明要一起改。读者看到的说明在 `/rights`（`industry/pages/rights.md`）。
 
 #### 补上 GIRLS BAND CRY 的两支乐队（2026-10-05）
 

@@ -27,7 +27,9 @@ const KEYS: Record<SourceRow["kind"], string[]> = {
 
 // Objects with fixed keys (headers and bodyJson are request data, free-form).
 const NESTED: Record<string, string[]> = {
-  _girlsbands: ["initialBackfillLimit", "initialBackfillMonths"],
+  // fanPlatform marks a source that is itself a fan platform (publication/rules.ts reads it to tag the
+  // organizer of a 同人 Only event); it sits in the source's own config, next to the backfill flags.
+  _girlsbands: ["initialBackfillLimit", "initialBackfillMonths", "fanPlatform"],
   ingestNoiseFilter: ["dropMarkers", "dropMarkersTitleOnly", "keepIfMatches"],
   itemUrlPrefixRewrite: ["from", "to"],
   requireBoolean: ["path", "equals"],

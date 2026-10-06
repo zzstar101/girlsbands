@@ -1216,7 +1216,7 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 
 **文案与文档校正（2026-10-05，站主选「先收尾遗留项」）**
 
-先逐条核了挂着的四个遗留项，**三条早已完成**：docs 改名到 `RinneBeat/girlsbands` 在 W0 就做完了（`README.md:97,144`、`CONTRIBUTING.md:7`、`SECURITY.md:3,11`、三个 `.github/ISSUE_TEMPLATE/*`、`docs/deploy.md:8` 全是新地址，`AniBand` 只剩本文档记录改名的表格）；`NOTICE:13-15` 已经写的是「republishes each item in full together with a Chinese translation」，不矛盾；国内阈值标定在 W6 第二版就完成了（`industry/selection.ts:42` 的 `T2_EVENT = 54`，dev 库实测 15 条里 **14 条 `selected = t`**，样本集 acc 0.912 / P 0.97 / R 0.889）。真正没办的只有 `contactEmail`，站主选「先留着，以后再说」—— `docs/deploy.md:105` 已记「上线前必须确认这个邮箱真的能收信」。
+先逐条核了挂着的四个遗留项，**三条早已完成**：docs 改名到 `RinneBeat/girlsbands` 在 W0 就做完了（`README.md:97,144`、`CONTRIBUTING.md:7`、`SECURITY.md:3,11`、三个 `.github/ISSUE_TEMPLATE/*`、`docs/deploy.md:8` 全是新地址，`AniBand` 只剩本文档记录改名的表格）；`NOTICE:13-15` 已经写的是「republishes each item in full together with a Chinese translation」，不矛盾；国内阈值标定在 W6 第二版就完成了（`industry/selection.ts:42` 的 `T2_EVENT = 54`，dev 库实测 15 条里 **14 条 `selected = t`**，样本集 acc 0.912 / P 0.97 / R 0.889）。真正没办的只有 `contactEmail`，站主选「先留着，以后再说」—— `docs/deploy.md:105` 已记「上线前必须确认这个邮箱真的能收信」。（2026-10-06 补：站主已确认该邮箱能收信，保留原样，见 §七。）
 
 核的过程中翻出**五处「站点早已全文 + 中译，文案还写着只给摘要」**，一并改掉：
 
@@ -1415,6 +1415,39 @@ GIRLS BAND CRY 的乐队名单一直只有 トゲナシトゲアリ、クズミ�
 | 迁移 | `0067_feedback_targets.sql` 已应用 dev 库，重跑只有 NOTICE（幂等） |
 | 未做 | 众包直接改库 / 投票点赞 / 排行榜 / 投稿人账号 / 公开更正日志出口（更正出口仍是 W14 的变更 Diff）；已处理的纠错**不发邮件回执**（站主拍板） |
 
+**上线前体检（2026-10-06）：修掉四个会让首次部署失败的问题**
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | **exit 0** |
+| 全量 `npm test`（带 libpq PATH） | **718 通过 / 0 失败**（715 + 新增 3 条） |
+| web | `npm run build -w @girlsbands/web` 通过；`node --test apps/web/tests/*.test.ts` **42 通过 / 0 失败** |
+| 空库迁移 + 种子（PG 17.11-alpine） | 64 个迁移全部 applied，`sources: 110 added`，setup 退出码 0 |
+| 冷构建镜像 | `docker compose build` 从零成功（日志只有一次构建） |
+| `docker compose up -d --build`（全新卷） | **1 分 39 秒**：`db` healthy → `setup` Exited(0) → `api` healthy → `web`/`worker`；`/admin` 302 |
+| `scripts/smoke.ts` | **34 项全 PASS** |
+
+修掉的四个会让首次部署失败的问题：
+
+1. **冷构建必然失败**：`setup`/`api`/`worker`/`web` 都从同一上下文构建同一 `image: girlsbands-app`，Compose 5.1.3 并发导出同一 tag ⇒ `image "…:latest": already exists`。`docker-compose.yml` 改为只让 `setup` 声明 `build`（Compose 先建完所有镜像再起容器，其余三个仍拿到新镜像）。
+2. **空库 `setup` 崩，`api`/`worker` 永远等不到**：`industry/sources.json` 的 `json-cpp-only-events` 用了 `_girlsbands.fanPlatform`，而 `sources/config-keys.ts` 的 `NESTED._girlsbands` 没有它 ⇒ `seed.ts` 抛 `UnsupportedConfig`。补进白名单，并在 `tests/architecture.test.ts` 加一条「industry 包里每个信源的 config 键都被它的 kind 实现」，遍历全部 110 个源——这次漂移就是没有任何测试拦住的那种。
+3. **`web` 早于 `api` 就绪**：`api` 加 healthcheck（打 `/api/health`，它会 `SELECT 1`，所以这是 readiness），`web` 的 `depends_on` 由 `service_started` 改成 `service_healthy`。
+4. **本机开发密钥能被生产接受**：`config.ts` 的 `PLACEHOLDER` 认不出 `dev-` 前缀，本机三个密钥（18 / 37 / 20 位）都能通过 `assertProductionSecrets` ⇒ 复制 `.env` 到服务器会用公开可猜的会话密钥启动。正则加 `dev[-_].*`。
+
+同时修掉两处下架漏出口（审计：`tests/architecture.test.ts` 只查 import 与表归属，查不出行为）：
+
+- `publication/sitemap.ts` 无条件列出每一条 `reports` 行 ⇒ 整期引用的条目都被下架的期刊仍被提交。改成复用 `scope.ts` 的 `listedCondition` 的 `EXISTS` 子查询。
+- `publication/members.ts` 的角色页头部读 10 分钟陈旧的成员索引（列表却已经当场查）⇒ 下架后标题还在点名。改成当场按 `member_id` 重读（`member_mentions` 主键 `0063` 覆盖，只多一次查询）。
+- 新增 `tests/publication-withdrawal.test.ts`：走 `admin/content.ts:90` 的 `setVisibility(..., 'withdrawn')`，断言角色页头部与 sitemap 当场变化；把两处决定性行改回去会 **2 条全红**。
+
+上线开关与文档：`.env.example` 的两个总开关改成 `false`（原来 `true`，照 `docs/deploy.md` 走一遍会默认打开抓取和付费模型调用）；`scripts/init-env.ts` 生成 `.env` 时把六个对外开关统一写 `false` 并附说明；`docs/deploy.md` 相应改写；新增 **`docs/launch-checklist.md`**（本地验过的清单 + 站主待定项 + 上线当天顺序 + 开关一览 + 已知边界）。
+
+**上线前体检踩到的坑**
+
+- **`docker compose build` 能过、`up -d --build` 不能过**：镜像已存在时 build 会复用缓存，看不出竞态；失败条件是「镜像不存在 + 多个服务带 `build`」。
+- **`docker pull` 在本机不通**：Docker Hub 直连 `dial tcp 108.160.165.147:443: i/o timeout`；`dockerproxy.net/library/<image>` 拉下来再 `docker tag` 成正式名即可（`postgres:17-alpine`、`node:24-trixie-slim` 都这么办的）。
+- **`.env.example` 里「注释着的键」也必须真的写进文件**：`tests/architecture.test.ts` 的 `listed` 正则 `^#?\s*([A-Z][A-Z0-9_]+)=` 认注释行，所以新增 `CADDY_HTTP_PORT` 这类键要写进模板，否则架构测试报「未声明」。
+
 **W18 踩到的坑**
 - **`sql<BeforeJson<X["field"]>[]>` 会在字段本身已是数组时报 TS2322**（`RowList<...[][]>`）：`AdminFeedbackTargets["submissions"]` 与 `["groups"]` 已经是数组类型，泛型里**不能再加 `[]`**（分组那条要用 `["groups"][number]`）。同一处栽了两次。
 - **`RingMark` 的转圈属性是 `spinning` 不是 `spin`**：`apps/web` 的 typecheck 只在这一步报 `Property 'spin' does not exist`，六段里最后一段才发现。
@@ -1450,7 +1483,7 @@ W7–W18 一共 12 个包，其中 11 个包各有一到几处**必须由站主�
 - ~~**W14**~~ ✅ 已定（2026-10-05）：变更清单进 v1 API（`StoryDetail.changes` + 时间线卡片 `change?: CardChange`），**不另做公开的「更正日志」出口**，**不复用** `events/corrections.ts` 的分组更正语义；**不动 `facts` 三列**（「`facts.subject/action/object` 永不更新」这个上游问题不在 W14 修，要改单独评估 —— 改了会影响现有聚簇与 digest 输入）。已落地：见 §六「W14（2026-10-05 完成）：情报变更 Diff」。
 - ~~**W16**~~ ✅ 已定（2026-10-05）：曲目单**落库**（`setlist_entries`，不从正文现算，歌名核不到正文就不落）；歌名**不进** `industry/glossary`（进词表 ⇒ `GLOSSARY_VERSION` 变 ⇒ 已入库条目重译一遍），曲名照原文、不中译；众包**复用 `/feedback`** + 后台点采纳（不建第二张投稿表）；粉丝现场 repo 与官方照片只给一行外链、不抓图不聚合。已落地：见 §六「W16（2026-10-05 完成）：Setlist 与事后档案」。
 
-- **联系邮箱**：`industry/site.ts:29` 现在填的是 `contact@girlsbands.com`。站主 2026-10-05 选「先留着，以后再说」；它同时喂 `/.well-known/security.txt`、`llms.txt` 的联系行与 RSS 的 author，**上线前必须确认这个邮箱真的能收信**（同 `docs/deploy.md:105`），否则改成一个能收的地址或置 `null`（`security.txt` 会回到 404）。
+- ✅ **联系邮箱**（2026-10-06 定）：`industry/site.ts:29` 的 `contact@girlsbands.com` 保留原样，站主确认这个邮箱真的能收信，不用改也不用置 `null`。它同时喂 `/.well-known/security.txt`、llms.txt 的联系行与 RSS 的 author；`docs/deploy.md:116` 已按此改写（换邮箱时那里和 `industry/pages/` 下的说明要一起改）。
 
 ### 我已经替你定的小事（不同意就说）
 

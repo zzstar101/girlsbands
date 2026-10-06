@@ -33,27 +33,46 @@ interface Mention {
 
 type MemberIndex = Map<string, Mention[]>;
 
+interface MentionRow {
+  member_id: string;
+  id: string;
+  at: Date;
+  title: string;
+  category: string | null;
+}
+
 /**
- * 每条还列得出来的报道提到了谁。与页面读的是同一批报道（listedCondition：公开、已收录、已过静默期），
- * 所以下架或撤收录的文章会同时从角色页消失，不需要第二套过滤。
+ * 还列得出来的提及行。与页面读的是同一批报道（listedCondition：公开、已收录、已过静默期），
+ * 所以下架或撤收录的文章会同时从角色页消失，不需要第二套过滤。给 memberId 就只读那一个角色。
  */
+const mentionRows = (now: Date, memberId?: string) => sql<MentionRow[]>`
+  SELECT mm.member_id, p.article_id AS id, p.timeline_at AS at, p.title, p.category
+  FROM member_mentions mm
+  JOIN publications p ON p.article_id = mm.article_id
+  WHERE ${listedCondition(now)}${memberId ? sql` AND mm.member_id = ${memberId}` : sql``}
+  ORDER BY p.timeline_at DESC, p.article_id DESC`;
+
+const toMention = (row: MentionRow): Mention => ({
+  id: row.id,
+  at: row.at,
+  title: row.title,
+  category: (row.category as CategoryKey | null) ?? null,
+});
+
+/** 整个角色名册的索引：每条还列得出来的报道提到了谁。 */
 async function readMentions(now: Date): Promise<MemberIndex> {
-  const rows = await sql<{ member_id: string; id: string; at: Date; title: string; category: string | null }[]>`
-    SELECT mm.member_id, p.article_id AS id, p.timeline_at AS at, p.title, p.category
-    FROM member_mentions mm
-    JOIN publications p ON p.article_id = mm.article_id
-    WHERE ${listedCondition(now)}
-    ORDER BY p.timeline_at DESC, p.article_id DESC`;
   const index: MemberIndex = new Map(MEMBER_ENTITIES.map((m) => [m.id, []]));
-  for (const row of rows) {
-    index.get(row.member_id)?.push({
-      id: row.id,
-      at: row.at,
-      title: row.title,
-      category: (row.category as CategoryKey | null) ?? null,
-    });
-  }
+  for (const row of await mentionRows(now)) index.get(row.member_id)?.push(toMention(row));
   return index;
+}
+
+/**
+ * 单个角色名下还列得出来的提及，当场重读。角色页头部（最新一篇、总数、页码、分类计数）不能用上面那份
+ * 索引：索引最多还能活 10 分钟，列表却已经是当场查的 —— 下架之后标题还在点名，卡片已经不在了。
+ * 按 member_id 读由 member_mentions 的主键（0063）覆盖，只读一个角色，比重建整份索引便宜。
+ */
+async function readMemberMentions(memberId: string, now: Date): Promise<Mention[]> {
+  return (await mentionRows(now, memberId)).map(toMention);
 }
 
 const indexCache = cached(() => readMentions(new Date()), { freshMs: 60_000, maxStaleMs: 10 * 60_000 });
@@ -160,7 +179,8 @@ export async function loadMemberPage(id: string, page: number, now?: Date): Prom
   const entity = memberById(id);
   if (!entity || !Number.isInteger(page) || page < 1) return null;
   const at = now ?? new Date();
-  const mentions = (await memberIndex(now)).get(id) ?? [];
+  // 头部与分页都按当场读到的提及算，不吃 10 分钟的索引缓存（见 readMemberMentions）。
+  const mentions = await readMemberMentions(id, at);
   const pageCount = Math.max(1, Math.ceil(mentions.length / MEMBER_PAGE_SIZE));
   if (page > pageCount) return null;
 
@@ -170,7 +190,7 @@ export async function loadMemberPage(id: string, page: number, now?: Date): Prom
   }
 
   const ids = mentions.slice((page - 1) * MEMBER_PAGE_SIZE, page * MEMBER_PAGE_SIZE).map((m) => m.id);
-  // 按索引里的 id 取当页报道；再查一次是为了让下架、更正、刚发布的内容立刻生效（与主题页同样）。
+  // 按上面的 id 取当页报道；再查一次是为了让下架、更正、刚发布的内容立刻生效（与主题页同样）。
   const rows =
     ids.length === 0
       ? []

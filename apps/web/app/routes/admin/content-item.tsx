@@ -305,7 +305,7 @@ export default function ContentItem({ loaderData }: Route.ComponentProps) {
       <ReasonDialog
         open={dialog === "visibility"}
         title="公开范围"
-        description="改动会同时作用于网页、API、RSS、MCP、同步流和搜索索引，并刷新缓存。来源方要求下架时，先核实身份与范围。"
+        description="改动会同时作用于网页、API、RSS、MCP、同步流和搜索索引，并刷新缓存。来源方要求下架时，先核实身份与范围。已经发出的日报和周报里会保留一条划掉的引文：标题还在，摘要和原文链接不再发出。"
         danger={visibility === "withdrawn"}
         confirmLabel="应用"
         busy={pending === "visibility"}

@@ -6,6 +6,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@girlsbands/backend/db";
+import { unsupportedConfig } from "@girlsbands/backend/sources/config-keys";
+import type { SourceRow } from "@girlsbands/backend/sources/types";
 
 after(closeDb);
 
@@ -142,6 +144,19 @@ test("every environment variable the code reads is listed in a template, and eve
   assert.deepEqual([...read].filter((name) => !listed.has(name) && !compose.has(name)), [],
     "list it in .env.example (or set it in docker-compose.yml), or stop reading it");
   assert.deepEqual([...listed].filter((name) => !readAnywhere.has(name)), [], "no code reads it: remove it from the template");
+});
+
+// The industry pack is what a fresh install seeds. A config key its kind does not implement makes
+// scripts/seed.ts throw, and the setup service then stops the whole deployment before the api and worker
+// start — a fresh database is the only place this shows, so nothing else in the suite would catch it.
+test("every source in the industry pack carries only config keys its kind implements", () => {
+  const pack = JSON.parse(readFileSync(path.join(ROOT, "industry/sources.json"), "utf8")) as {
+    sources: Array<{ id: string; kind: SourceRow["kind"]; config: Record<string, unknown> }>;
+  };
+  const found = pack.sources.flatMap(({ id, kind, config }) => unsupportedConfig(kind, config).map((key) => `${id} (${kind}): ${key}`));
+  assert.deepEqual(found, [], "register the key in packages/backend/src/sources/config-keys.ts, or drop it from the source");
+  const ids = pack.sources.map(({ id }) => id);
+  assert.equal(new Set(ids).size, ids.length, "two sources share an id: seed's ON CONFLICT keeps the first");
 });
 
 test("every field of the website's own interfaces is read by the website", () => {
