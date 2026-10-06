@@ -684,23 +684,23 @@ body:not(:has([data-admin])) [data-pill-track] [aria-current="page"] { color: va
 .hero-side > :not(.hs-tabs) { animation: hs-in .45s ease-out both; }
 @keyframes hs-in { from { opacity: 0; translate: 0 8px; } }
 
-/* 手机：hero 只放口号，铺满第一屏；右边四种（海报墙/大票/歌单/月历）不放 */
+/* 手机：hero 不硬撑满屏 —— 口号占约三分之一屏高，下面紧跟乐队条、简介、数字，近期日程在第一屏底部露头；右边四种（海报墙/大票/歌单/月历）不放 */
 @media (max-width: 720px) {
   .hero-side { display: none !important; }
-  .hero { padding: 18px 0 22px; }
-  .hero-main { display: flex !important; flex-direction: column; min-height: calc(100svh - var(--bar-h, 56px) - 64px); }
-  .hero-copy { flex: 1; min-width: 0; width: 100%; display: flex; flex-direction: column; justify-content: center; padding: 8vh 0 6vh; }
+  .hero { padding: 14px 0 18px; }
+  .hero-main { display: flex !important; flex-direction: column; }
+  .hero-copy { min-width: 0; width: 100%; display: flex; flex-direction: column; padding: 0; }
   .hero-copy > * { min-width: 0; max-width: 100%; }
-  .hero-copy .issue { position: absolute; top: 0; left: 0; right: 0; }
-  .hero h1.hero-slogan { margin-top: 0; font-size: 26vw; line-height: 1; }
-  .hero h1 .sl-top { font-size: calc(.3em * var(--fit, 1)); margin-bottom: .14em; letter-spacing: -.01em; }
+  .hero h1.hero-slogan { margin-top: 22px; font-size: 26vw; line-height: 1; }
+  .hero h1 .sl-top { font-size: max(22px, calc(.28em * var(--fit, 1))); margin-bottom: .12em; letter-spacing: -.01em; }
   .hero h1 .sl-big { line-height: 1; }
+  .hero h1 .sl-big:not(.en) { white-space: normal; max-width: calc(var(--cols, 4) * .97em + .45em); line-height: 1.02; }
   .hero h1 .sl-big.en { line-height: .9; }
-  .hero-copy .project-names { margin-top: 4vh; align-self: flex-start; }
-  .hero-lede { display: block; margin-top: 18px; font-size: 14px; }
-  .hero-main > .stats { align-self: stretch; width: 100%; margin-top: auto; padding-right: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 2px solid var(--ink); padding-top: 12px; }
+  .hero-copy .project-names { margin-top: 18px; align-self: flex-start; }
+  .hero-lede { display: block; margin-top: 14px; font-size: 13.5px; }
+  .hero-main > .stats { align-self: stretch; width: 100%; margin-top: 20px; padding-right: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 2px solid var(--ink); padding-top: 10px; }
   .hero-main > .stats .stat { margin: 0; padding: 0 0 0 10px; border-left: 1px solid var(--line); border-right: 0; }
   .hero-main > .stats .stat:first-child { padding-left: 0; border-left: 0; }
-  .hero-main > .stats .stat .n { font-size: 40px; line-height: 1; }
+  .hero-main > .stats .stat .n { font-size: 34px; line-height: 1; }
   .hero-main > .stats .stat .l { margin-top: 4px; font-size: 11px; white-space: nowrap; }
 }

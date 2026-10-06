@@ -85,9 +85,33 @@ export function HeroCopy({ home }: { home: HomeResponse }) {
     const el = ref.current;
     if (!el) return;
     const fit = () => {
+      const room = (el.parentElement?.clientWidth ?? el.clientWidth) - 10;
+      const width = (part: HTMLElement) => part.getBoundingClientRect().width / (Number(getComputedStyle(part).scale) || 1);
+      // 手机：大字放到占满屏宽（≤6 字一行，再长折成两行），高度不超过屏高约三分之一，下面的近期日程要能露出来
+      const phone = matchMedia("(max-width: 720px)").matches;
       for (const part of el.querySelectorAll<HTMLElement>(".sl-top, .sl-big")) {
         part.style.setProperty("--fit", "1");
-        const room = (el.parentElement?.clientWidth ?? el.clientWidth) - 10, need = part.getBoundingClientRect().width / (Number(getComputedStyle(part).scale) || 1);
+        part.style.removeProperty("--cols");
+        if (phone && part.classList.contains("sl-big")) {
+          const em = parseFloat(getComputedStyle(el).fontSize);
+          const boxed = /look-(tape|inverse)/.test(part.className) ? 0.4 : 0.08;
+          let fit: number, lines = 1;
+          if (part.classList.contains("en")) {
+            fit = Math.min(1.8, room / width(part));
+          } else {
+            const n = big.length;
+            const cols = n <= 6 ? n : Math.ceil(n / 2);
+            lines = Math.ceil(n / cols);
+            part.style.setProperty("--cols", String(cols));
+            fit = room / ((cols * 0.97 + boxed) * em);
+          }
+          fit = Math.min(fit, (innerHeight * 0.3) / (lines * em));
+          part.style.setProperty("--fit", String(fit));
+          const w = width(part);
+          if (w > room) part.style.setProperty("--fit", String(fit * room / w));
+          continue;
+        }
+        const need = width(part);
         if (need > room) part.style.setProperty("--fit", String(Math.max(0.12, room / need)));
       }
     };
