@@ -460,7 +460,8 @@
         "feedUrl": "https://b.hatena.ne.jp/search/text?q=%E3%83%88%E3%82%B2%E3%83%8A%E3%82%B7%E3%83%88%E3%82%B2%E3%82%A2%E3%83%AA&mode=rss",
         "_girlsbands": {
           "initialBackfillLimit": 10
-        }
+        },
+        "relay": true
       },
       "tier": "T2",
       "owner_entity_id": "togenashi-togeari",
@@ -480,7 +481,8 @@
         "feedUrl": "https://b.hatena.ne.jp/search/tag?q=%E3%82%AC%E3%83%BC%E3%83%AB%E3%82%BA%E3%83%90%E3%83%B3%E3%83%89%E3%82%AF%E3%83%A9%E3%82%A4&mode=rss",
         "_girlsbands": {
           "initialBackfillLimit": 10
-        }
+        },
+        "relay": true
       },
       "tier": "T2",
       "owner_entity_id": "girls-band-cry",
@@ -662,7 +664,7 @@
         "summaryTemplate": "活动时间：{date:enterTime}｜城市：{cityName}｜区县：{areaName}｜会场：{enterAddress}｜标签：{tag}｜想去：{wannaGoCount} 人",
         "summaryIsBody": true,
         "urlTemplate": "https://www.allcpp.cn/allcpp/event/event.do?event={eventId}",
-      "detailIdPath": "eventId",
+        "detailIdPath": "eventId",
         "externalIdPath": "id",
         "_girlsbands": {
           "initialBackfillLimit": 30,

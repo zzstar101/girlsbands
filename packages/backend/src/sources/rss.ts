@@ -355,6 +355,20 @@ export interface RssRead {
   owner?: XFeedOwner | null;
 }
 
+/**
+ * A feed whose host blocks the server's network (hatena answers the Hong Kong data centre with 403) is
+ * fetched through the relay Worker (deploy/relay-worker.js) when the source says `relay: true` and the
+ * server has FETCH_RELAY_URL and FETCH_RELAY_SECRET. Without them it is fetched directly, as before.
+ */
+export function viaRelay(url: string, relay: boolean): { fetchUrl: string; relayHeaders: Record<string, string> } {
+  const base = process.env.FETCH_RELAY_URL;
+  const secret = process.env.FETCH_RELAY_SECRET;
+  if (!relay || !base || !secret) return { fetchUrl: url, relayHeaders: {} };
+  const u = new URL(base);
+  u.searchParams.set("url", url);
+  return { fetchUrl: u.toString(), relayHeaders: { "x-relay-key": secret } };
+}
+
 export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}): Promise<RssRead> {
   const url = String(source.config.feedUrl ?? "");
   if (!url) throw new FetchError("feedUrl missing");
@@ -364,10 +378,11 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
   const headers: Record<string, string> = { accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8" };
   if (previous?.etag) headers["if-none-match"] = previous.etag;
   if (previous?.lastModified) headers["if-modified-since"] = previous.lastModified;
-  let res = await guardedFetch(url, { headers, timeoutMs: 25_000 });
+  const { fetchUrl, relayHeaders } = viaRelay(url, source.config.relay === true);
+  let res = await guardedFetch(fetchUrl, { headers: { ...headers, ...relayHeaders }, timeoutMs: 25_000 });
   // A redirect may have changed destinations, whose ETag namespace is unrelated to the old one.
   if (res.status === 304 && previous && res.url !== previous.responseUrl) {
-    res = await guardedFetch(url, { headers: { accept: headers.accept! }, timeoutMs: 25_000 });
+    res = await guardedFetch(fetchUrl, { headers: { accept: headers.accept!, ...relayHeaders }, timeoutMs: 25_000 });
   }
   const validator: RssValidator = {
     configHash, responseUrl: res.url,

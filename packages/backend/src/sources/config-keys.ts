@@ -9,7 +9,7 @@ const PUBLISHER = ["publisherRole", "publisherUrlPrefixes"];
 const COLLECTED = [...PUBLISHER, "_girlsbands", "allowUrlPrefixes", "denyUrlPrefixes", "ingestNoiseFilter", "itemUrlPrefixRewrite", "sortByPublishedAt", "timezone", "detail", "fetchPublicContent"];
 
 const KEYS: Record<SourceRow["kind"], string[]> = {
-  rss: [...COLLECTED, "feedUrl", "summaryIsBody", "preserveUrlFragment", "allowCategories", "denyCategories"],
+  rss: [...COLLECTED, "feedUrl", "summaryIsBody", "preserveUrlFragment", "allowCategories", "denyCategories", "relay"],
   web_list: [
     ...COLLECTED, "urls", "url", "baseUrl", "parseMode", "adapter", "cacheToleranceSeconds", "linksStartLine", "preserveUrlFragment",
     "itemSelector", "linkSelector", "titleSelector", "summarySelector", "summaryIsBody", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset",
