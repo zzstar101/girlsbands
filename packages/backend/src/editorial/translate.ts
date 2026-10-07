@@ -351,7 +351,8 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
       if (error instanceof TranslationInterruptedError) break;
       const message = (error as Error).message;
       // Switched-off model calls or an exhausted budget: stop this run without counting an attempt.
-      if (/disabled|not configured|budget/i.test(message)) break;
+      // The upstream rate limit (HTTP 429) is the same kind of wait: it says nothing about this article.
+      if (/disabled|not configured|budget|HTTP 429|rate.?limit/i.test(message)) break;
       done.push({ articleId: r.article_id, status: "skipped", reason: message.slice(0, 200) });
       outcome = "failed";
       reason = message.slice(0, 300);
@@ -370,7 +371,7 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
     try {
       quotes = await translateQuotes({ budgetMs: left });
     } catch (error) {
-      if (error instanceof TranslationInterruptedError || /disabled|not configured|budget/i.test((error as Error).message)) return { done, quotes };
+      if (error instanceof TranslationInterruptedError || /disabled|not configured|budget|HTTP 429|rate.?limit/i.test((error as Error).message)) return { done, quotes };
       throw error;
     }
   }
