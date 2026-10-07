@@ -81,3 +81,12 @@ export function subjectAfter(text: string, noun?: string): string {
   const gap = /^[A-Za-z0-9]/.test(SITE.subject) ? " " : "";
   return `${text}${gap}${noun ? withSubject(noun) : SITE.subject}`;
 }
+
+/**
+ * 友站：某个企划或乐队有自己的中文社区时，在它的企划页、乐队页页头链过去（站主 2026-10-07）。
+ * 键是 industry/taxonomy.ts 的实体 id。
+ */
+export const FRIEND_SITES: Readonly<Record<string, { name: string; url: string; note: string }>> = {
+  "girls-band-cry": { name: "GBC同好站", url: "https://www.gbcclub.com/", note: "GIRLS BAND CRY 中文同好站" },
+  "togenashi-togeari": { name: "GBC同好站", url: "https://www.gbcclub.com/", note: "GIRLS BAND CRY 中文同好站" },
+};

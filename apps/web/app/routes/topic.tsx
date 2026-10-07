@@ -1,7 +1,7 @@
 import { seriesOf } from "@girlsbands/industry/taxonomy";
 import type { loader as rootLoader } from "../root";
 import type { CSSProperties } from "react";
-import { SITE } from "@girlsbands/industry/site";
+import { FRIEND_SITES, SITE } from "@girlsbands/industry/site";
 import { Link, redirect, useLoaderData, useRouteLoaderData } from "react-router";
 import type { Route } from "./+types/topic";
 import type { CalendarResponse, CoverView, TopicPage, TopicScope } from "@girlsbands/contracts/site";
@@ -241,6 +241,7 @@ export default function TopicRoute() {
   const back = parent ? { to: `/topics/${parent.id}`, label: parent.label } : { to: "/", label: "首页" };
   // A band or project page carries that band's own accent, on rules and links only — never the page.
   const band = subject ? subjectOfId(topic.slug) : null;
+  const friend = FRIEND_SITES[topic.slug];
   const style = band?.accent ? ({ "--band-accent": band.accent, "--accent": band.accent, "--pink": band.accent } as CSSProperties) : undefined;
   return (
     <div className="pb-6" style={style}>
@@ -262,6 +263,14 @@ export default function TopicRoute() {
             </span>
           </h1>
           <p className="mt-1.5 text-pretty text-[13.5px] leading-relaxed text-ink-3">{topic.definition}</p>
+          {friend && (
+            <p className="mt-1.5 text-[13px] text-ink-3">
+              {friend.note} ·{" "}
+              <a href={friend.url} target="_blank" rel="noopener" className="font-semibold text-accent transition-colors hover:text-accent-ink">
+                {friend.name} ↗
+              </a>
+            </p>
+          )}
           <p className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-ink-4">
             <span>
               <span className="num font-semibold text-ink-2">{topic.total.toLocaleString("zh-CN")}</span> 条精选
