@@ -288,16 +288,22 @@ export function setThemePreference(pref: ThemePreference) {
   invalidate(KEYS.theme);
 }
 
+const systemTheme = (): "light" | "dark" =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
+/** No choice made means 跟随系统: the page takes the system's light or dark. */
 export function resolvedTheme(pref: ThemePreference = getThemePreference()): "light" | "dark" {
-  return pref ?? "dark";
+  return pref ?? systemTheme();
 }
 
 /** The browser chrome colour per theme; the same values as the `--bg` design token in app.css. */
 export const THEME_COLOR = { light: "#efebe2", dark: "#0b0a0d" } as const;
 
-/** Puts a theme on the page: the document's data-theme and the browser's theme colour. */
+/** Puts a theme on the page: the document's data-theme, which choice it came from, and the browser's theme colour. */
 export function applyTheme(theme: "light" | "dark", followsSystem: boolean) {
-  document.documentElement.setAttribute("data-theme", theme);
+  const root = document.documentElement;
+  root.setAttribute("data-theme", theme);
+  root.setAttribute("data-theme-pref", followsSystem ? "auto" : theme);
   // The two theme-color tags answer the system scheme; a chosen theme sets both to its own colour.
   for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
     const scheme = meta.media.includes("dark") ? "dark" : "light";
@@ -311,11 +317,19 @@ export function applyTheme(theme: "light" | "dark", followsSystem: boolean) {
  */
 export function useThemeSync() {
   const pref = useThemePreference();
-  useEffect(() => applyTheme(resolvedTheme(getThemePreference()), false), [pref]);
+  useEffect(() => {
+    const current = getThemePreference();
+    applyTheme(resolvedTheme(current), current === null);
+    if (current !== null) return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const follow = () => applyTheme(media.matches ? "dark" : "light", true);
+    media.addEventListener("change", follow);
+    return () => media.removeEventListener("change", follow);
+  }, [pref]);
 }
 
 /** Inline script run before paint so the first frame already has the reader's theme. */
-export const THEME_BOOT_SCRIPT = `(function(){try{var t=localStorage.getItem('${KEYS.theme}');if(t==='light'||t==='dark'){var c=t==='dark'?'${THEME_COLOR.dark}':'${THEME_COLOR.light}';document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.content=c})}else{t='dark'}document.documentElement.setAttribute('data-theme',t)}catch(e){document.documentElement.setAttribute('data-theme','dark')}})();`;
+export const THEME_BOOT_SCRIPT = `(function(){try{var p='auto',t=localStorage.getItem('${KEYS.theme}');if(t==='light'||t==='dark'){var c=t==='dark'?'${THEME_COLOR.dark}':'${THEME_COLOR.light}';document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.content=c});p=t}else{t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t);document.documentElement.setAttribute('data-theme-pref',p)}catch(e){document.documentElement.setAttribute('data-theme','light')}})();`;
 
 // changelog red dot
 function getChangelogSeen(): string | null {

@@ -234,9 +234,11 @@
   }
   /* Wide 2K/4K screens at 100% scaling: the whole page grows instead of leaving bands of empty space
      beside a 1320px column. The sizes are in px, so a root font-size would not reach them. */
-  @media (min-width: 2200px) { body { zoom: 1.2; } }
-  @media (min-width: 2900px) { body { zoom: 1.45; } }
-  @media (min-width: 3600px) { body { zoom: 1.75; } }
+  /* --page-zoom mirrors body zoom: viewport units inside a zoomed body are scaled again, so anything
+     sized to the screen (sticky sidebar, lightbox) divides by it to stay on screen. */
+  @media (min-width: 2200px) { :root { --page-zoom: 1.2; } body { zoom: 1.2; } }
+  @media (min-width: 2900px) { :root { --page-zoom: 1.45; } body { zoom: 1.45; } }
+  @media (min-width: 3600px) { :root { --page-zoom: 1.75; } body { zoom: 1.75; } }
   ::selection {
     background: var(--selection);
   }

@@ -1,11 +1,12 @@
 // An X item's post as X itself shows it: who posted (avatar, name, @handle), who retweeted it, the text,
 // its pictures as a grid that opens large, the quoted post as a card inside, and the time and a way to
 // the original underneath. The site's own touch is the band colour on the avatar ring and the card's edge.
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import type { XPostView } from "@girlsbands/contracts/site";
 import { SourceAvatar } from "../../components/ui/SourceAvatar";
 import { fullDateTime } from "../../lib/format";
 import { ArticleBody } from "./ArticleBody";
+import { Lightbox } from "../../components/ui/Lightbox";
 import { stripQuoteEcho } from "./quoteEcho";
 import { MediaGallery } from "./MediaGallery";
 
@@ -69,6 +70,9 @@ export function XPostCard({
   const post = x as XView;
   const quoted = post.quoted?.text ? post.quoted : null;
   const quotedText = quoted ? (original ? quoted.text : quoted.translation ?? quoted.text) : null;
+  const quotedMedia = (quoted?.media ?? []).slice(0, 4);
+  const quotedPictures = quotedMedia.filter((m) => m.kind !== "video");
+  const [quotedOpen, setQuotedOpen] = useState<number | null>(null);
   const style = { "--x-accent": accent ?? "var(--accent)" } as CSSProperties;
   return (
     <figure className="x-card" style={style}>
@@ -106,22 +110,37 @@ export function XPostCard({
       {x.media.length > 0 && <MediaGallery media={x.media} postUrl={postUrl} />}
 
       {quoted && (
-        <a href={quoted.url || postUrl} target="_blank" rel="noopener noreferrer" className="x-quote mt-4 block">
-          <div className="flex items-center gap-2 text-[14px]">
-            <SourceAvatar name={quoted.authorName || quoted.handle} avatarUrl={quoted.avatarUrl} avatarSrcSet={quoted.avatarSrcSet} size={22} />
-            <span className="truncate font-bold text-ink">{quoted.authorName || `@${quoted.handle}`}</span>
-            {quoted.authorName && <span className="truncate text-ink-4">@{quoted.handle}</span>}
-          </div>
-          <p className="mt-1.5 whitespace-pre-line text-[15px] leading-[1.7] text-ink-2">{quotedText}</p>
-          {!original && quoted.translation && <p className="mt-2 line-clamp-3 whitespace-pre-line text-[13px] leading-[1.6] text-ink-4">{quoted.text}</p>}
-          {quoted.media && quoted.media.length > 0 && (
+        <div className="x-quote mt-4">
+          <a href={quoted.url || postUrl} target="_blank" rel="noopener noreferrer" className="block">
+            <div className="flex items-center gap-2 text-[14px]">
+              <SourceAvatar name={quoted.authorName || quoted.handle} avatarUrl={quoted.avatarUrl} avatarSrcSet={quoted.avatarSrcSet} size={22} />
+              <span className="truncate font-bold text-ink">{quoted.authorName || `@${quoted.handle}`}</span>
+              {quoted.authorName && <span className="truncate text-ink-4">@{quoted.handle}</span>}
+            </div>
+            <p className="mt-1.5 whitespace-pre-line text-[15px] leading-[1.7] text-ink-2">{quotedText}</p>
+            {!original && quoted.translation && <p className="mt-2 line-clamp-3 whitespace-pre-line text-[13px] leading-[1.6] text-ink-4">{quoted.text}</p>}
+          </a>
+          {quotedMedia.length > 0 && (
             <div className="mt-2.5 grid grid-cols-2 gap-1.5 overflow-hidden rounded-tile">
-              {quoted.media.slice(0, 4).map((m) => (
-                <img key={m.url} src={m.poster ?? m.url} srcSet={m.srcSet} sizes="240px" alt={m.alt ?? ""} loading="lazy" decoding="async" className={`block w-full bg-bg-sunk object-cover ${quoted.media!.length === 1 ? "col-span-2 max-h-[280px]" : "aspect-[16/10]"}`} />
-              ))}
+              {quotedMedia.map((m, i) => {
+                const cls = `block w-full bg-bg-sunk object-cover ${quotedMedia.length === 1 ? "col-span-2 max-h-[280px]" : "aspect-[16/10]"}`;
+                const pic = <img src={m.poster ?? m.url} srcSet={m.srcSet} sizes="240px" alt={m.alt ?? ""} loading="lazy" decoding="async" className={cls} />;
+                // Videos play on X; pictures open here, large and zoomable.
+                return m.kind === "video" ? (
+                  <a key={m.url} href={m.url} target="_blank" rel="noopener noreferrer" className={`relative block ${quotedMedia.length === 1 ? "col-span-2" : ""}`} aria-label="在 X 播放视频">
+                    {pic}
+                    <span className="absolute inset-0 grid place-items-center"><span className="grid size-10 place-items-center rounded-full bg-black/60 text-white">▶</span></span>
+                  </a>
+                ) : (
+                  <button key={m.url} type="button" onClick={() => setQuotedOpen(quotedPictures.findIndex((q) => q.url === m.url))} className={`block cursor-zoom-in ${quotedMedia.length === 1 ? "col-span-2" : ""}`} aria-label={`查看大图 ${i + 1}`}>
+                    {pic}
+                  </button>
+                );
+              })}
             </div>
           )}
-        </a>
+          <Lightbox images={quotedPictures.map((m) => ({ src: m.fullUrl ?? m.url, alt: m.alt }))} index={quotedOpen} onIndex={setQuotedOpen} onClose={() => setQuotedOpen(null)} />
+        </div>
       )}
 
       <figcaption className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line-soft pt-3 text-[13.5px] text-ink-4">

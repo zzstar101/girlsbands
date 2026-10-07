@@ -77,8 +77,20 @@ function original(url: string): Promise<GuardedResponse> {
   return job;
 }
 
+/** Image hosts that answer a crawler user agent with 403 (allcpp's CDN); they get a plain browser one with their own site as referer. */
+const BROWSER_ONLY_HOSTS: Array<{ suffix: string; referer: string }> = [{ suffix: "allcpp.cn", referer: "https://www.allcpp.cn/" }];
+const BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+
+function imageHeaders(url: string): Record<string, string> {
+  const headers: Record<string, string> = { accept: "image/avif,image/webp,image/*,*/*;q=0.8" };
+  let host = "";
+  try { host = new URL(url).hostname; } catch { return headers; }
+  const rule = BROWSER_ONLY_HOSTS.find((r) => host === r.suffix || host.endsWith(`.${r.suffix}`));
+  return rule ? { ...headers, "user-agent": BROWSER_UA, referer: rule.referer } : headers;
+}
+
 async function fetchOriginal(url: string): Promise<GuardedResponse> {
-  const res = await guardedFetch(url, { timeoutMs: 20_000, maxBytes: 15 * 1024 * 1024, headers: { accept: "image/avif,image/webp,image/*,*/*;q=0.8" } });
+  const res = await guardedFetch(url, { timeoutMs: 20_000, maxBytes: 15 * 1024 * 1024, headers: imageHeaders(url) });
   if (res.status !== 200) throw new Error(`upstream ${res.status}`);
   return res;
 }
