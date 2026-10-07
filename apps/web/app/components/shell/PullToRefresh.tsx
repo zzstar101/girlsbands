@@ -5,13 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import { useRevalidator } from "react-router";
 import { RingMark } from "../Logo";
 import { isPhone } from "./screens";
+import { standalone } from "./InstallGuide";
 
 const TRIGGER = 64; // pulled this far (after resistance), letting go reloads
 const MAX = 96;
 
-function standalone(): boolean {
-  return window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-}
 
 export function PullToRefresh() {
   const revalidator = useRevalidator();

@@ -11,6 +11,7 @@ import "./flyer.css";
 import { Sidebar } from "./components/shell/Sidebar";
 import { TabBar } from "./components/shell/TabBar";
 import { PullToRefresh } from "./components/shell/PullToRefresh";
+import { InstallCard } from "./components/shell/InstallGuide";
 import { usePageTransition } from "./components/shell/transitions";
 import { SearchOverlay } from "./features/search/SearchOverlay";
 import { BackToTop, NavigationProgress } from "./components/shell/Chrome";
@@ -52,6 +53,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="theme-color" media="(prefers-color-scheme: light)" content={THEME_COLOR.light} />
         <meta name="theme-color" media="(prefers-color-scheme: dark)" content={THEME_COLOR.dark} />
         <meta name="apple-mobile-web-app-title" content={SITE.name} />
+        {/* Home-screen app: the status bar is transparent and the phone top bar reaches up under it. */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <Meta />
         <Links />
@@ -93,6 +98,7 @@ function SiteShell({ changelogVersion, home, children }: { changelogVersion: str
       <TabBar changelogVersion={changelogVersion} urgent={(home?.stats.soon ?? 0) > 0} />
       {interactive && <SearchOverlay />}
       {interactive && <PullToRefresh />}
+      {interactive && <InstallCard />}
       <BackToTop />
     </div>
   );

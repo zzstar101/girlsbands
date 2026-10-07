@@ -9,6 +9,7 @@ import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { useStarred } from "../lib/local-state";
 import { ThemeSwitch } from "../components/shell/ThemeSwitch";
+import { InstallSheet, useInstallable } from "../components/shell/InstallGuide";
 import { IconBookmark, IconCalendar, IconChevronRight, IconHeart, IconMail, IconMessage, IconMoon, IconPin, IconPlug, IconRss, IconSparkles, IconUsers } from "../components/icons";
 
 export const handle: Screen = { tab: "me", name: "我的" };
@@ -66,6 +67,8 @@ export default function MorePage() {
   const starred = useStarred();
   // The count is this browser's: shown once the page runs here, never in the shared server copy.
   const [here, setHere] = useState(false);
+  const installable = useInstallable();
+  const [installOpen, setInstallOpen] = useState(false);
   useEffect(() => setHere(true), []);
   return (
     <div className="mx-auto max-w-[var(--page-max-reading)] pb-8">
@@ -81,6 +84,16 @@ export default function MorePage() {
             <span className="flex-1">外观</span>
             <ThemeSwitch className="w-[168px]" />
           </li>
+          {installable && (
+            <li>
+              <button type="button" onClick={() => setInstallOpen(true)} className="flex min-h-[52px] w-full items-center gap-3 px-4 text-left text-[16px] font-medium text-ink transition-colors active:bg-bg-sunk">
+                <span className="text-ink-3"><IconSparkles size={20} /></span>
+                <span className="flex-1">添加到主屏幕</span>
+                <span className="text-[13px] text-ink-3">像 App 一样打开</span>
+                <IconChevronRight size={16} className="text-ink-4" />
+              </button>
+            </li>
+          )}
         </Group>
         <Group title="工具与入口">
           {TOOLS.map((r) => (
@@ -101,6 +114,7 @@ export default function MorePage() {
         <a href="/feed.xml" className="hover:text-ink-2">RSS</a>
         {SITE.icp && <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-ink-2">{SITE.icp}</a>}
       </div>
+      <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
     </div>
   );
 }

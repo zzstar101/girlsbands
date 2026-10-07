@@ -13,6 +13,7 @@ export const KEYS = {
   feedbackDraft: "girlsbands-feedback-draft-v1",
   recentSearches: "girlsbands-recent-searches",
   follows: "girlsbands-follows",
+  installHint: "girlsbands-install-hint",
 } as const;
 
 const STARRED_LIMIT = 500;

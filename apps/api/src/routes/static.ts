@@ -77,8 +77,8 @@ function manifest() {
     scope: "/",
     display: "standalone",
     // The app's primary look is the dark LIVEBOARD theme; these mirror the `--bg` token in apps/web/app/app.css.
-    background_color: "#0b0b0f",
-    theme_color: "#0b0b0f",
+    background_color: "#0b0a0d",
+    theme_color: "#0b0a0d",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon.png", sizes: "512x512", type: "image/png" },

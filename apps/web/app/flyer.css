@@ -486,12 +486,10 @@ body:not(:has([data-admin])) [data-pill-track] [aria-current="page"] { color: va
   .poster:hover::before { transform: rotate(-9deg) translate(-3px, -4px) skewX(-6deg); box-shadow: 0 4px 5px rgba(0,0,0,.28); }
 }
 
-/* 07 拉闸换场: the new theme opens as an iris from the switch; 黑场 flickers once as the lights come up. */
-:root[data-theme-vt]::view-transition-old(root) { animation: none; }
-:root[data-theme-vt]::view-transition-new(root) { animation: iris-open 700ms cubic-bezier(.65,0,.25,1) both; }
-:root[data-theme-vt="dark"]::view-transition-new(root) { animation: iris-open 700ms cubic-bezier(.65,0,.25,1) both, lights-up 900ms linear both; }
-@keyframes iris-open { from { clip-path: circle(0 at var(--iris-x, 50%) var(--iris-y, 50%)); } to { clip-path: circle(150vmax at var(--iris-x, 50%) var(--iris-y, 50%)); } }
-@keyframes lights-up { 0%, 62% { filter: none; } 66% { filter: brightness(.45); } 71% { filter: none; } 76% { filter: brightness(.6); } 82%, 100% { filter: none; } }
+/* 07 拉闸换场: a disc of the new paper grows from the switch (ThemeSwitch.tsx), the theme swaps under it, then it lifts.
+   Only transform/opacity animate, so phones keep up; while swapping, transitions are off so the page restyles in one go. */
+.theme-curtain { position: fixed; z-index: 9999; border-radius: 50%; pointer-events: none; transform: scale(0); will-change: transform, opacity; contain: strict; }
+.theme-swapping *, .theme-swapping *::before, .theme-swapping *::after { transition: none !important; }
 
 /* 08 荧光笔划重点 */
 .marked .hl { color: inherit; padding: 0 1px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
@@ -758,3 +756,9 @@ body:not(:has([data-admin])) [data-pill-track] [aria-current="page"] { color: va
 /* 黑场的荧光笔口号：米白字压在黄条上看不清，给字加一圈底色描边（描边画在填色下面，不吃字形）。 */
 [data-theme="dark"] .mood-mark .sl-big:not(.en) { -webkit-text-stroke: .05em var(--wall, #0b0a0d); paint-order: stroke fill; }
 [data-theme="dark"] .mood-mark .sl-big.en { -webkit-text-stroke: .03em var(--wall, #0b0a0d); paint-order: stroke fill; }
+
+/* 主屏幕 App（iOS black-translucent）：状态栏透明、字固定白色，顶部栏延伸到状态栏下面。
+   白纸主题下状态栏那一条保持深色，否则白字看不见。 */
+@media (display-mode: standalone) {
+  :root[data-theme="light"] [data-phone-bar]::before { content: ""; position: absolute; inset: 0 0 auto 0; height: env(safe-area-inset-top); background: #0b0a0d; pointer-events: none; }
+}
