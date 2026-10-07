@@ -317,7 +317,7 @@ export default function StoryPage() {
         </section>
       )}
 
-      <div className="bleed sticky top-[var(--bar-h)] z-20 mt-5 bg-bg/90 py-2 backdrop-blur-md lg:mx-0 lg:px-0">
+      <div className="bleed sticky top-[calc(var(--bar-h)+var(--pwa-top))] z-20 mt-5 bg-bg/90 py-2 backdrop-blur-md lg:mx-0 lg:px-0">
         <PillTabs
           size="sm"
           layoutId="story-sections"

@@ -53,10 +53,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="theme-color" media="(prefers-color-scheme: light)" content={THEME_COLOR.light} />
         <meta name="theme-color" media="(prefers-color-scheme: dark)" content={THEME_COLOR.dark} />
         <meta name="apple-mobile-web-app-title" content={SITE.name} />
-        {/* Home-screen app: the status bar is transparent and the phone top bar reaches up under it. */}
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <Meta />
         <Links />

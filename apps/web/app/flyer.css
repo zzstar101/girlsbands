@@ -319,8 +319,8 @@ a:hover > .tip.l, a:hover > .tip.r, a:focus-visible > .tip.l, a:focus-visible > 
 .theme-seg { display: grid; grid-template-columns: 1fr 1fr 1fr; border: 1.5px solid var(--ink); }
 .theme-seg button { height: 28px; font-size: 12px; font-weight: 800; }
 [data-theme-pref="dark"] .theme-seg [data-t="dark"], [data-theme-pref="light"] .theme-seg [data-t="light"], [data-theme-pref="auto"] .theme-seg [data-t="auto"] { background: var(--ink); color: var(--bg); }
-.flyer-day { top: var(--bar-h); margin-bottom: 12px; }
-.flyer-home:has(.ticker) .flyer-day { top: calc(var(--bar-h) + 34px); }
+.flyer-day { top: calc(var(--bar-h) + var(--pwa-top)); margin-bottom: 12px; }
+.flyer-home:has(.ticker) .flyer-day { top: calc(var(--bar-h) + var(--pwa-top) + 34px); }
 .timeline-slot { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 14px; padding-bottom: 12px; }
 .slot-time { font-family: var(--font-display); font-size: 19px; line-height: 1; padding-top: 18px; text-align: right; color: var(--ink-3); }
 .flyer-card { background: linear-gradient(100deg, color-mix(in srgb, var(--k1, transparent) 16%, var(--surface)) 0, var(--surface) 42%); border: 1px solid var(--line); padding: 15px 18px 14px 24px; transition: transform 200ms, box-shadow 200ms; }
@@ -352,7 +352,7 @@ a:hover > .tip.l, a:hover > .tip.r, a:focus-visible > .tip.l, a:focus-visible > 
 @media (hover: hover) { .flyer-card:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--ink); } .flyer-card:hover h3 { text-decoration: underline; text-decoration-color: var(--pink); text-underline-offset: 4px; text-decoration-thickness: 2px; } }
 @media (max-width: 1180px) { .hero { grid-template-columns: minmax(0,1fr) 360px; gap: 24px; } .body-grid { grid-template-columns: minmax(0,1fr); } .feed-aside { position: static; grid-template-columns: repeat(2, minmax(0,1fr)); } .track .code { font-size: 44px; } }
 @media (max-width: 960px) {
-  .ticker { top: var(--bar-h); margin-inline: calc(-1 * var(--gutter-l)) calc(-1 * var(--gutter-r)); }
+  .ticker { top: calc(var(--bar-h) + var(--pwa-top)); margin-inline: calc(-1 * var(--gutter-l)) calc(-1 * var(--gutter-r)); }
   .ticker-row { padding-left: 84px; }
   .hero { display: block; padding: 26px 0; }
   .hero h1 { font-size: clamp(36px, 7vw, 46px); }
@@ -757,8 +757,8 @@ body:not(:has([data-admin])) [data-pill-track] [aria-current="page"] { color: va
 [data-theme="dark"] .mood-mark .sl-big:not(.en) { -webkit-text-stroke: .05em var(--wall, #0b0a0d); paint-order: stroke fill; }
 [data-theme="dark"] .mood-mark .sl-big.en { -webkit-text-stroke: .03em var(--wall, #0b0a0d); paint-order: stroke fill; }
 
-/* 主屏幕 App（iOS black-translucent）：状态栏透明、字固定白色，顶部栏延伸到状态栏下面。
-   白纸主题下状态栏那一条保持深色，否则白字看不见。 */
-@media (display-mode: standalone) {
-  :root[data-theme="light"] [data-phone-bar]::before { content: ""; position: absolute; inset: 0 0 auto 0; height: env(safe-area-inset-top); background: #0b0a0d; pointer-events: none; }
+/* 主屏幕 App：顶部栏贴着状态栏太挤，整体往下挪一点；吸顶的条目跟着让出同样的距离。 */
+:root { --pwa-top: 0px; }
+@media (display-mode: standalone) and (max-width: 1023.98px) {
+  :root { --pwa-top: 10px; }
 }
