@@ -60,7 +60,7 @@ await Promise.all(Array.from({ length: concurrency }, worker));
 const KIND_ZH: Record<string, string> = {
   new_anime: "新动画", new_project: "新企划", new_band: "新乐队", live_new: "新 Live", live_supplement: "Live 补充说明",
   release: "BD/CD 等新作发售", merch: "通贩与周边", bonus: "特典", ticket_window: "抽选/票务开始与截止",
-  personal_event: "声优个人活动", member_change: "成员变动", schedule_change: "中止延期与变更",
+  personal_event: "声优个人活动", doujin_event: "国内同人 Only", member_change: "成员变动", schedule_change: "中止延期与变更",
 };
 const date = (d: Date | null) => (d ? new Date(d.getTime() + 9 * 3600_000).toISOString().slice(5, 16).replace("T", " ") : "—");
 const why = (j: Judged) => (j.kind ? KIND_ZH[j.kind]! : `不在清单（模型判 ${j.claimed ?? "—"}${j.claimed && j.claimed !== "none" ? "，原文无对应句或缺图" : ""}，旧分数 ${j.score ?? "—"}）`);

@@ -45,7 +45,7 @@
  */
 export const MUST_SEE_KINDS = [
   "new_anime", "new_project", "new_band", "live_new", "live_supplement", "release", "merch", "bonus",
-  "ticket_window", "personal_event", "member_change", "schedule_change",
+  "ticket_window", "personal_event", "doujin_event", "member_change", "schedule_change",
 ] as const;
 /** 这些类的资料必须带图（商品物料图）才进精选。 */
 export const NEEDS_IMAGE_KINDS: readonly string[] = ["merch"];
