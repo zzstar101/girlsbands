@@ -43,12 +43,19 @@ async function worker() {
     const scoreIn = sum !== null && th !== null && sum >= th * SCORE_CALLS;
     let kind: string | null = null, claimed: string | null = null, quote: string | null = null, error: string | undefined;
     if (th !== null) {
-      try {
-        const input = await loadAnalyzeInput(r.article_id);
-        const m = input ? await runMustSee(input, { force: true }) : null;
-        kind = m?.kind ?? null; claimed = m?.claimed ?? null; quote = m?.quote ?? null;
-      } catch (e) {
-        error = e instanceof Error ? e.message.slice(0, 200) : String(e);
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const input = await loadAnalyzeInput(r.article_id);
+          const m = input ? await runMustSee(input, { force: true }) : null;
+          kind = m?.kind ?? null; claimed = m?.claimed ?? null; quote = m?.quote ?? null;
+          error = undefined;
+          break;
+        } catch (e) {
+          error = e instanceof Error ? e.message.slice(0, 200) : String(e);
+          // The per-minute model budget is shared with the worker: wait for the next minute and try again.
+          if (!/Budget for llm exhausted/.test(error) || attempt >= 10) break;
+          await new Promise((resolve) => setTimeout(resolve, 20_000));
+        }
       }
     }
     judged.push({ ...r, newTier, kind, claimed, quote, scoreIn, now: !!kind, ...(error ? { error } : {}) });
