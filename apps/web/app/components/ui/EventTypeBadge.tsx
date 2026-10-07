@@ -18,6 +18,7 @@ const CODES: Record<CategoryKey, string> = {
   member: "MEMBER",
   media: "MEDIA",
   other: "OTHER",
+  daily: "DAILY",
 };
 
 export function EventTypeBadge({ category, className = "" }: { category: CategoryKey | null | undefined; className?: string }) {

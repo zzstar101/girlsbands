@@ -23,7 +23,13 @@ export const CATEGORIES = [
   { key: "member", label: "成员", section: "成员动态", guide: "成员与出演者本人：加入、毕业、退出、活动休止与复归、出演节目、个人活动、个人发售，以及本人发布的重要告知。纯日常（吃了什么、随手拍照）没有资讯价值，判为噪声而非本类。" },
   { key: "media", label: "媒体", section: "媒体与访谈", guide: "媒体内容本身：访谈、专栏、电视、广播、杂志、Podcast、乐评、幕后花絮。版权方自己的宣传短文不算媒体内容。", commentary: true },
   { key: "other", label: "其他", section: "其他", guide: "确实属于这个企划或乐队、但落不进上面任何一类的材料：企划整体动向、商业模式、粉丝活动、行业层面的消息。无依据的传闻与转述不属于本类。" },
-] as const satisfies ReadonlyArray<{ key: string; label: string; section: string; guide: string; commentary?: true }>;
+  // 成员（声优）个人账号的纯日常，站主 2026-10-07 拍板：收，但单独一栏 —— 不进首页、全部消息、日报和推送，
+  // 只在侧栏「日常」与乐队页的入口里看。lane 表示它不是结构抽取能选的类别：只由预筛的 DAILY 判定写入。
+  { key: "daily", label: "日常", section: "成员日常", guide: "成员个人账号的日常：吃了什么、随手拍、闲聊、问候。只由预筛判定，结构抽取不要选这一类。", lane: true },
+] as const satisfies ReadonlyArray<{ key: string; label: string; section: string; guide: string; commentary?: true; lane?: true }>;
+
+/** 单独一栏的类别（不进公共列表，只按 key 单独查看）：现在只有成员日常。 */
+export const LANE_CATEGORIES: ReadonlySet<string> = new Set(CATEGORIES.filter((c) => "lane" in c).map((c) => c.key));
 
 /**
  * 筛选栏“来源”一栏的说法。key 由框架固定：news 是抓来的报道，x 是 X 上的帖子，firstParty 是 T1 官方一手源。

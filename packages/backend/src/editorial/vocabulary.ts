@@ -24,8 +24,8 @@ export function normalizeTags(v: unknown): string[] {
   return [category, ...tags.filter((t) => t !== category)].slice(0, 6);
 }
 
-/** The category boundaries the structure step reads, one line per category. */
-export const CATEGORY_GUIDE = CATEGORIES.map((c) => `- ${c.key}（${c.label}）：${c.guide}`).join("\n");
+/** The category boundaries the structure step reads, one line per category (a lane is not one it picks). */
+export const CATEGORY_GUIDE = CATEGORIES.filter((c) => !("lane" in c)).map((c) => `- ${c.key}（${c.label}）：${c.guide}`).join("\n");
 
 /** The industry's headline launch (RELEASE): narrower than its category, which also holds prices and benchmarks. */
 export const isRelease = (category: string | null, tags: readonly string[]) => RELEASE !== null && category === RELEASE.category && tags.includes(RELEASE.tag);

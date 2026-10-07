@@ -22,7 +22,7 @@ import {
   type LiveStatus, type ReleaseEditionKind, type ReleaseKind, type ReleaseSerialKind, type TicketRoundKind,
 } from "@girlsbands/contracts/site";
 import { glossaryHits } from "@girlsbands/industry/glossary";
-import { CATEGORIES, LIVE_CATEGORIES } from "@girlsbands/industry/taxonomy";
+import { CATEGORIES, LANE_CATEGORIES, LIVE_CATEGORIES } from "@girlsbands/industry/taxonomy";
 import { SELECTION } from "@girlsbands/industry/selection";
 import { sql } from "../db.ts";
 import { readsRelease } from "../releases/derive.ts";
@@ -128,7 +128,7 @@ const DEADLINE_AT = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 const PrefilterSchema = z.object({
-  label: z.preprocess((v) => String(v ?? "").trim().toUpperCase(), z.enum(["PASS", "BLOCK", "UNKNOWN"])),
+  label: z.preprocess((v) => String(v ?? "").trim().toUpperCase(), z.enum(["PASS", "BLOCK", "UNKNOWN", "DAILY"])),
   reason: z.string().max(200).catch(""),
 });
 
@@ -235,7 +235,7 @@ const ZH_COUNT = ["零", "一", "二", "三", "四", "五", "六", "七", "八",
 
 /** The structure step owns the public category and tags, as well as grouping evidence (filled from the pack's vocabulary). */
 export const STRUCTURE_SYSTEM = promptText("structure", {
-  categoryCount: ZH_COUNT[CATEGORIES.length] ?? String(CATEGORIES.length),
+  categoryCount: ZH_COUNT[CATEGORIES.length - LANE_CATEGORIES.size] ?? String(CATEGORIES.length - LANE_CATEGORIES.size),
   categoryGuide: CATEGORY_GUIDE,
   categoryTags: CATEGORY_TAGS.join("、"),
   topicTags: TOPIC_TAGS.join("、"),
@@ -286,7 +286,8 @@ export function normalizeStructure(data: z.infer<typeof StructureSchema>, a: Ana
     }).slice(0, 6),
   };
   return {
-    category: data.category, tags: normalizeTags(data.tags),
+    // A lane (the members' daily posts) is the prefilter's call, never the structure step's.
+    category: data.category && LANE_CATEGORIES.has(data.category) ? "member" : data.category, tags: normalizeTags(data.tags),
     subjects: [...new Set(data.subjects.map((s) => s.trim().toLowerCase()).filter((s) => s in ENTITIES))],
     organizer: data.organizer ?? null,
     scope, fact,
@@ -503,7 +504,7 @@ export function readsLive(category: string | null, fact: { deadlines?: readonly 
 }
 
 export interface AnalysisRun {
-  prefilter: { label: "PASS" | "BLOCK" | "UNKNOWN"; reason: string; model: string; receiptId: number; reused: boolean };
+  prefilter: { label: "PASS" | "BLOCK" | "UNKNOWN" | "DAILY"; reason: string; model: string; receiptId: number; reused: boolean };
   /**
    * The independent score calls and the tier threshold they are held against; absent when the material
    * is not scored. `refused`: the model's content filter declined it, so it is not selected.
@@ -527,6 +528,8 @@ export interface AnalysisRun {
   live: (LiveRead & { model: string; receiptId: number; reused: boolean }) | null;
   /** What the release is; null when the material is not a release, or states nothing about it. */
   release: (ReleaseRead & { model: string; receiptId: number; reused: boolean }) | null;
+  /** A member's daily post (prefilter DAILY): the band its account belongs to, which it is filed under. */
+  daily?: { owner: string | null };
 }
 
 const isContentFilter = (error: unknown) => error instanceof ProviderRejectedError && !error.retryable && /contentFilter|"1301"/.test(error.message);
@@ -565,9 +568,16 @@ async function runPrefilter(a: AnalyzeInputArticle, opts: StepOpts): Promise<Ana
     maxTokens: 512,
     attemptTag: opts.attemptTag,
   });
-  // A BLOCK without material to back it counts as UNKNOWN (which goes on).
-  const label = res.data.label === "BLOCK" && missingEvidence(a) ? "UNKNOWN" : res.data.label;
+  // A BLOCK without material to back it counts as UNKNOWN (which goes on). DAILY is a lane for a
+  // member's own account only: anywhere else a daily post is just off-topic.
+  const raw = res.data.label === "DAILY" && !isMemberAccount(a) ? "BLOCK" : res.data.label;
+  const label = raw === "BLOCK" && missingEvidence(a) ? "UNKNOWN" : raw;
   return { label, reason: res.data.reason, model: res.model, receiptId: res.receiptId, reused: res.reused };
+}
+
+/** A member's (voice actor's) own account tied to a band: tagged 成员, with an owner entity. */
+export function isMemberAccount(a: Pick<AnalyzeInputArticle, "source">): boolean {
+  return !!a.source.ownerEntityId && (a.source.tags ?? []).includes("成员");
 }
 
 /** The production prefilter step, exposed separately so SelectBench can preserve partial receipt evidence. */
@@ -703,7 +713,8 @@ export async function runRelease(
     user: dates ? `${material}\n\n【结构步骤已抽出的日期】\n${dates}` : material,
     schema: ReleaseSchema,
     temperature: 0,
-    maxTokens: 1200,
+    // Long track lists and store-bonus tables ran past 1200 and came back as cut-off JSON.
+    maxTokens: 2400,
     attemptTag: tagged(opts.attemptTag, "release"),
   });
   const release = normalizeRelease(res.data, a);
@@ -817,6 +828,12 @@ export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts = {}): 
   const prefilter = await runSelectionPrefilter(a, opts);
   // UNKNOWN is let through (its material is as complete as it will get); BLOCK stops here.
   if (prefilter.label === "BLOCK") return { prefilter, scores: null, writing: null, structure: null, live: null, release: null };
+  // A member's daily post goes to its own lane: a Chinese title and summary, nothing else. No scores
+  // (it is never selected), no structure (no facts, dates or grouping come from a lunch photo).
+  if (prefilter.label === "DAILY") {
+    const writing = await ensureCopy(a, opts, await runSummarize(a, opts));
+    return { prefilter, scores: null, writing, structure: null, live: null, release: null, daily: { owner: a.source.ownerEntityId ?? null } };
+  }
   // The structure step needs nothing from the scores: it runs beside them.
   const structure = runStructure(a, opts).then((value) => ({ value }), (error: unknown) => ({ error }));
   try {
@@ -848,7 +865,7 @@ export function normalizeAnalysis(run: AnalysisRun) {
   const summaryZh = (run.writing?.summaryZh ?? "").trim();
   // Past the prefilter (PASS or UNKNOWN) an item is relevant, but without a usable Chinese title and
   // summary it cannot be published: it is marked failed rather than parked in "analyzed".
-  const relevance = label === "BLOCK" ? "block" : run.writing && (!titleZh || !summaryZh) ? "unknown" : "pass";
+  const relevance = label === "BLOCK" ? "block" : run.writing && (!titleZh || !summaryZh) ? "unknown" : label === "DAILY" ? "daily" : "pass";
   // Selected when the two scores add up to twice the tier threshold; the mean, floored, is the score
   // shown (it never decides a half point on its own).
   const values = run.scores && !run.scores.refused ? run.scores.values : null;
@@ -856,7 +873,8 @@ export function normalizeAnalysis(run: AnalysisRun) {
   const score = sum === null ? null : Math.floor(sum / SCORE_CALLS);
   const threshold = run.scores?.threshold ?? null;
   const selected = relevance === "pass" && sum !== null && threshold !== null && sum >= threshold * SCORE_CALLS;
-  const subjects = run.structure?.subjects ?? [];
+  // A daily post is filed under the band whose member posted it, in the daily lane.
+  const subjects = run.daily ? (run.daily.owner ? [run.daily.owner] : []) : run.structure?.subjects ?? [];
   const tags = [...(run.structure?.tags ?? [])];
   for (const s of subjects) {
     const display = ENTITIES[s]?.displayTag;
@@ -870,7 +888,7 @@ export function normalizeAnalysis(run: AnalysisRun) {
     scoreModel: run.scores?.model ?? null,
     scoreRefused: run.scores?.refused ?? false,
     threshold,
-    category: run.structure?.category ?? null,
+    category: run.daily ? "daily" : run.structure?.category ?? null,
     tags,
     subjects,
     organizer: run.structure?.organizer ?? null,

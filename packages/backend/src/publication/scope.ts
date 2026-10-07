@@ -18,6 +18,14 @@ export function listedCondition(now: Date) {
   return sql`p.visibility = 'public' AND p.eligible AND ${releasedCondition(now)}`;
 }
 
+/**
+ * The members' daily lane (category `daily`, industry/taxonomy.ts): public posts with Chinese copy,
+ * never pool eligible, so no other list, report or push meets them. Only /all?category=daily reads it.
+ */
+export function dailyCondition() {
+  return sql`p.visibility = 'public' AND p.category = 'daily' AND p.title IS NOT NULL AND p.summary IS NOT NULL`;
+}
+
 /** Story reports include older editorial material outside the pool, but never withdrawn or not yet released content. */
 export function storyReportCondition(now: Date) {
   return sql`p.visibility = 'public' AND s.participation_mode = 'editorial' AND ${releasedCondition(now)}`;

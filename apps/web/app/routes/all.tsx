@@ -48,7 +48,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
     title: q ? `搜索：${q}` : ALL_TITLE,
     description: `${SITE.name} 收录的${subjectAfter("全部", "相关动态")}，可按频道、类别与标签筛选，支持中英文搜索。`,
     path,
-    noindex: !!q || followed,
+    noindex: !!q || followed || f?.category === "daily",
     jsonLd: q || followed ? undefined : itemListLd(path, ALL_TITLE, loaderData?.data.items.map((i) => i.title) ?? []),
   });
 }
@@ -83,7 +83,8 @@ export default function AllPage() {
     else sp.delete("tab");
     return `/all?${sp}`;
   };
-  const title = f.q ? `搜索“${f.q}”` : f.tag ? `#${f.tag}` : f.subjects.length > 0 ? "只看关注" : null;
+  const daily = f.category === "daily";
+  const title = f.q ? `搜索“${f.q}”` : f.tag ? `#${f.tag}` : daily ? "成员日常" : f.subjects.length > 0 ? "只看关注" : null;
   const updated = beijingTime(data.freshness);
   // Searches are remembered in this browser for the phone search (listed in the privacy notice).
   useEffect(() => {
@@ -121,6 +122,12 @@ export default function AllPage() {
           <SearchField defaultValue={f.q ?? ""} keep={keep} />
         </div>
       </div>
+
+      {daily && !f.q && (
+        <p className="mb-4 mt-1 text-[13px] leading-relaxed text-ink-3 lg:-mt-2">
+          声优与成员个人账号的日常：随手拍、问候、闲聊。单独放在这一栏，不进首页、全部消息、日报和邮件推送。
+        </p>
+      )}
 
       {f.q && (
         <div className="mb-3 mt-1 flex flex-wrap items-center justify-between gap-2 lg:mt-0">
