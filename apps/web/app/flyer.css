@@ -761,4 +761,7 @@ body:not(:has([data-admin])) [data-pill-track] [aria-current="page"] { color: va
 :root { --pwa-top: 0px; }
 @media (display-mode: standalone) and (max-width: 1023.98px) {
   :root { --pwa-top: 18px; }
+  /* iOS 26 的主屏幕 App 里，状态栏下面还会画出滚上去的页面（带一层模糊）。
+     顶部栏往上补一块同色的底，滚上去的内容就被盖住，状态栏那块是干净的纯色。 */
+  [data-phone-bar]::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 160px; background: var(--wall); pointer-events: none; }
 }
