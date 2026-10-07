@@ -289,11 +289,17 @@ export async function composeDueReports(now = new Date(), limit = 8): Promise<{ 
     { kind: "weekly", due: dueWeekly(now), next: nextWeek, compose: composeWeekly },
     { kind: "monthly", due: dueMonthly(now), next: nextMonth, compose: composeMonthly },
   ];
+  // A weekly or monthly issue is made of daily issues: a period that ended before the first daily issue
+  // (the weeks before launch) has nothing to make it from. It is not due, not a failure retried every run.
+  const [firstDaily] = await sql<{ key: string }[]>`SELECT min(key) AS key FROM reports WHERE kind = 'daily'`;
+  const periodEnd = (kind: ReportKind, key: string) =>
+    kind === "weekly" ? isoWeekRange(key)?.end ?? key : kind === "monthly" ? addDays(`${nextMonth(key)}-01`, -1) : key;
   kinds: for (const k of kinds) {
     const have = new Set((await sql<{ key: string }[]>`SELECT key FROM reports WHERE kind = ${k.kind}`).map((r) => r.key));
     const first = [...have].sort()[0] ?? k.due;
     for (let key = first; key <= k.due; key = k.next(key)) {
       if (have.has(key)) continue;
+      if (k.kind !== "daily" && (!firstDaily?.key || periodEnd(k.kind, key) < firstDaily.key)) continue;
       if (shutdownSignal.signal.aborted || generated.length >= limit) break kinds;
       try {
         await k.compose(key);

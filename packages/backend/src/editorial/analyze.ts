@@ -713,8 +713,10 @@ export async function runRelease(
     user: dates ? `${material}\n\n【结构步骤已抽出的日期】\n${dates}` : material,
     schema: ReleaseSchema,
     temperature: 0,
-    // Long track lists and store-bonus tables ran past 1200 and came back as cut-off JSON.
-    maxTokens: 2400,
+    // Long track lists and store-bonus tables (each with its quote) ran past 1200, then past 2400
+    // (夢限大みゅーたいぷ 5th Single: about 20 shops), and came back as cut-off JSON. A cap only
+    // bounds a runaway answer; a normal one stops far below it.
+    maxTokens: 8192,
     attemptTag: tagged(opts.attemptTag, "release"),
   });
   const release = normalizeRelease(res.data, a);

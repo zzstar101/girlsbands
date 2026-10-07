@@ -84,3 +84,15 @@ test("empty older gaps cannot starve a later daily, weekly or monthly, and failu
     assert.ok(await report(kind!, key!), `${kind} ${key} was recovered past the empty gaps`);
   }
 });
+
+test("weeks and months that ended before the first daily issue are not due, so they do not fail every run", async () => {
+  // The site went live mid-week: the first daily is a Wednesday. The week and month before have no dailies.
+  await item("2024-03-05T12:00:00Z");
+  await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at)
+    VALUES ('daily', '2024-03-06', now(), now(), ${sql.json({ sections: [] })}, now())`;
+  // 2024-03-06 10:00 Beijing: weekly due 2024-W09 (ends 03-03), monthly due 2024-02 — both before launch.
+  const result = await composeDueReports(new Date("2024-03-06T02:00:00Z"));
+  assert.deepEqual(result.failed, []);
+  assert.equal(await report("weekly", "2024-W09"), undefined);
+  assert.equal(await report("monthly", "2024-02"), undefined);
+});
