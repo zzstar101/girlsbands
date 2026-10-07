@@ -1,13 +1,18 @@
 # Checks on GitHub-hosted runners: install, typecheck, web build, the web and backend tests on a fresh
 # PostgreSQL, the built site's smoke check on the empty database, and the Docker image brought up with docker compose.
-# On main, once both pass: the production image is pushed to GHCR and the server is told to pull it (deploy).
+# On main the production image is built and pushed to GHCR alongside the checks; once all of them pass,
+# the server is told to pull it (deploy).
 # Only GitHub-owned actions, pinned to a full commit SHA.
 name: Check
 
+# Pushes that only touch docs or promo material skip the whole run. industry/ is read at runtime
+# (prompts, pages), so its .md files still count; later patterns override earlier ones.
 on:
   push:
     branches: [main]
+    paths: ["**", "!docs/**", "!promo/**", "!**/*.md", "industry/**"]
   pull_request:
+    paths: ["**", "!docs/**", "!promo/**", "!**/*.md", "industry/**"]
   workflow_dispatch:
 
 permissions:
@@ -115,11 +120,11 @@ jobs:
         if: always()
         run: docker compose down -v
 
-  # The production image, tagged with the commit and `latest`. ASSET_BASE_URL is baked into the web
-  # build, so it comes from the repository variable of the same name (the CDN host in .env on the server).
+  # The production image, tagged with the commit. It builds alongside the checks to save time, so nothing
+  # here may make it live: only `deploy`, which waits for all three jobs, does that. ASSET_BASE_URL is baked
+  # into the web build, so it comes from the repository variable of the same name (the CDN host in .env on the server).
   publish:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [check, docker]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -142,12 +147,12 @@ jobs:
             --label org.opencontainers.image.revision="$GITHUB_SHA" \
             --cache-from type=registry,ref="$IMAGE:buildcache" \
             --cache-to type=registry,ref="$IMAGE:buildcache",mode=max \
-            -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest"
+            -t "$IMAGE:$GITHUB_SHA"
 
   # SSHes to the server with a key that can only run deploy/ci-deploy.sh (forced command in authorized_keys),
   # passing the commit and, on stdin, this job's token so the server can pull the private image.
   deploy:
-    needs: publish
+    needs: [check, docker, publish]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production

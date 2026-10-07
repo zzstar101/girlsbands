@@ -119,7 +119,9 @@ docker compose run --rm setup && docker compose up -d
 
 #### 由 GitHub Actions 构建镜像并部署（本站的做法）
 
-推送到 `main` 后，`.github/workflows/check.yml` 先跑完 `check` 和 `docker` 两项检查，再由 `publish` 把生产镜像推到 `ghcr.io/zzstar101/girlsbands:<提交 SHA>`（同时打 `latest`），最后由 `deploy` 登录服务器让它拉这个镜像。服务器不再自己构建，2 核 4G 的机器也不用为构建留内存。
+推送到 `main` 后，`.github/workflows/check.yml` 的 `check`、`docker` 两项检查和 `publish` 同时开跑：`publish` 把生产镜像推到 `ghcr.io/zzstar101/girlsbands:<提交 SHA>`（不打 `latest`，因为它推上去时检查还没跑完），三项都通过后才由 `deploy` 登录服务器让它拉这个镜像；检查没过，镜像留在 GHCR 但不会上线。服务器不再自己构建，2 核 4G 的机器也不用为构建留内存。从推送到上线约 5 分半，网站中断约 20 秒（停服务、迁移、启动那一段）。
+
+只改了 `docs/`、`promo/` 或 `industry/` 以外的 `.md` 的推送不跑检查也不部署。`main` 上的运行排队执行、不互相取消；排队时只留最新的一个，所以连推几次最多多跑一轮，攒几个提交一起推最省事。
 
 服务器上要准备的（只做一次）：
 
