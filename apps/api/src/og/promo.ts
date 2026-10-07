@@ -10,7 +10,7 @@ import type { TitleKind } from "@girlsbands/industry/email/title";
 import { ENTITIES, FRANCHISES } from "@girlsbands/industry/taxonomy";
 import { h, LATIN_DISPLAY_FAMILY, renderPng, type Node } from "./render.ts";
 
-export const PROMO_TEMPLATE_VERSION = "promo-2026-10-08.2";
+export const PROMO_TEMPLATE_VERSION = "promo-2026-10-08.3";
 
 const INK = "#141216";
 const PINK = "#e6005f";
@@ -72,7 +72,7 @@ async function tree(kind: TitleKind, date: string): Promise<Node> {
 }
 
 export function promoEtag(kind: TitleKind, date: string): string {
-  return createHash("sha256").update(PROMO_TEMPLATE_VERSION).update(`${kind}|${date}|${projectNames()}`).digest("hex").slice(0, 24);
+  return createHash("sha256").update(PROMO_TEMPLATE_VERSION).update(`${kind}|${date}|${projectNames()}|${PROMO_LINES[kind].kicker}|${PROMO_LINES[kind].big}`).digest("hex").slice(0, 24);
 }
 
 export async function renderPromo(kind: TitleKind, date: string): Promise<{ png: Buffer; etag: string }> {

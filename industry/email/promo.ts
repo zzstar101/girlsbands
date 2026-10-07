@@ -1,7 +1,7 @@
 // 邮件头图第二版：网站自己的宣传图，不再用乐队。
 //
 // 站主 2026-10-08：头图「不用乐队的，用跟网站关联的，类似宣传图」。所以这一张跟首页大字报同一套：
-// 网站 logo、ISSUE 日期章、一句首页 hero 上轮播的口号（小字引子 + 胶带黄大字）、底下一条企划名胶带。
+// 网站 logo、ISSUE 日期章、一句专为邮件写的口号（小字引子 + 胶带黄大字）、底下一条企划名胶带。
 // 配色走网站白纸主题的淡粉，不用米色。
 //
 // 这里只生成地址和 alt；画在 apps/api/src/og/promo.ts，路由 /og/email/promo/<kind>-<YYYY-MM-DD>.png。
@@ -14,11 +14,14 @@ export const PROMO_SIZE = { width: 600, height: 225 } as const;
 /** 图片没加载时那一格的底色：和画布的淡粉一致，不闪白。 */
 export const PROMO_BG = "#ffe4ee";
 
-/** 每种信一句口号，都是首页 hero 轮播里的原句。 */
+/**
+ * 每种信一句口号：小字引子 + 胶带大字。专为邮件写的，不复用首页 hero（站主 2026-10-08）。
+ * 大字控制在 4 个字左右，600 宽的手机屏上也读得清。
+ */
 export const PROMO_LINES: Record<TitleKind, { kicker: string; big: string }> = {
-  digest: { kicker: "官推刷不完", big: "交给我们" },
-  deadline: { kicker: "抽选截止前", big: "记得报名" },
-  confirm: { kicker: "下一场", big: "一起去吧" },
+  digest: { kicker: "今天的少女乐队", big: "一封看完" },
+  deadline: { kicker: "截止日不等人", big: "倒数开始" },
+  confirm: { kicker: "欢迎入场", big: "就差一步" },
 };
 
 const KINDS = new Set<string>(["digest", "deadline", "confirm"]);
