@@ -267,6 +267,8 @@ export interface AdminFeedbackRow {
   target_id: string | null;
   target_field: string | null;
   expected: string | null;
+  /** Answers sent from the admin, oldest first. */
+  replies: Array<{ id: number; body: string; actor: string; status: "sent" | "failed"; created_at: Timestamp }>;
 }
 
 export interface AdminFeedback {

@@ -88,3 +88,22 @@ export function isValidDate(date: string): boolean {
   const t = Date.parse(`${date}T00:00:00Z`);
   return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === date;
 }
+
+/**
+ * 日本深夜档把时刻写成超过 24 点的「25:30」「26:05」。站内的标题和摘要换成次日凌晨的普通时刻：
+ * 带日期的连日期一起进一天（「10月6日 26:05」→「10月7日凌晨 2:05」），「今晚 26:05」→「次日凌晨 2:05」，
+ * 其余单独的时刻 →「次日凌晨 2:05」。只用于标题和摘要；原文和正文译文照旧。
+ */
+export function lateNightClock(text: string): string {
+  if (!/(^|[^\d:])(2[4-9]|30)[:：][0-5]\d/.test(text)) return text;
+  const clock = (h: string, mm: string) => `凌晨 ${Number(h) - 24}:${mm}`;
+  return text
+    .replace(/(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(?:[（(][^）)]{1,4}[）)])?\s*(2[4-9]|30)[:：]([0-5]\d)/g, (_all, m: string, d: string, h: string, mm: string) => {
+      // 年份不重要，只要能正确进位到下个月；用闰年，2 月 29 日也走得通。
+      const next = new Date(Date.UTC(2024, Number(m) - 1, Number(d) + 1));
+      return `${next.getUTCMonth() + 1}月${next.getUTCDate()}日${clock(h, mm)}`;
+    })
+    .replace(/(每周[一二三四五六日天])\s*(2[4-9]|30)[:：]([0-5]\d)/g, (_all, w: string, h: string, mm: string) => `${w}深夜（次日${clock(h, mm)}）`)
+    .replace(/(今晚|今夜|当晚|当夜|本日|今天)\s*(2[4-9]|30)[:：]([0-5]\d)/g, (_all, _w: string, h: string, mm: string) => `次日${clock(h, mm)}`)
+    .replace(/(^|[^\d:])(2[4-9]|30)[:：]([0-5]\d)(?![\d:])/g, (_all, pre: string, h: string, mm: string) => `${pre}次日${clock(h, mm)}`);
+}

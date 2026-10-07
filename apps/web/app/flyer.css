@@ -37,6 +37,8 @@
 [data-theme-pref="dark"] .theme-seg [data-t="dark"], [data-theme-pref="light"] .theme-seg [data-t="light"], [data-theme-pref="auto"] .theme-seg [data-t="auto"] { background: var(--ink); color: var(--bg); }
 .side-links { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: 11.5px; color: var(--ink-4); }
 .side-links a:hover { color: var(--pink); }
+.side-friends { margin-top: 4px; }
+.side-friends > span { color: var(--ink-4); opacity: .7; }
 
 /* 侧栏右缘一条竖排跑马，慢到几乎察觉不到。 */
 .side-rail { position: absolute; top: 0; right: 0; bottom: 0; width: 18px; border-left: 1px solid var(--line); overflow: hidden; }

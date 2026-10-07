@@ -11,6 +11,7 @@ import { contentChain, overrideFields, rerun, searchContent, setSeoIndexed, setV
 import { detachFromFact, mergeStories } from "@girlsbands/backend/events/corrections";
 import { banSource, eraseFeedback, feedbackScreenshot, listFeedback, listFeedbackTargets, unbanSource, updateFeedback } from "@girlsbands/backend/admin/feedback";
 import { adoptReaderSetlist } from "@girlsbands/backend/lives/setlists";
+import { replyFeedback } from "@girlsbands/backend/operations/feedback-mail";
 import { requeueFailedArticles, runsOverview } from "@girlsbands/backend/admin/runs";
 import { reviewSample } from "@girlsbands/backend/admin/review";
 import { resolveDelivery } from "@girlsbands/backend/notify/deliver";
@@ -80,6 +81,13 @@ export function registerAdmin(app: FastifyInstance) {
   app.get("/api/admin/feedback/targets", adminHandler(async () => listFeedbackTargets()));
   app.patch("/api/admin/feedback/:id", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await updateFeedback(Number(param(req, "id")), body(req) as never, actorOf(admin)))));
   app.post("/api/admin/feedback/:id/erase", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await eraseFeedback(Number(param(req, "id")), String(body(req).reason ?? ""), actorOf(admin)))));
+  // 用网站的发信地址回信给留了邮箱的读者；每封回信都记在 feedback_replies。
+  app.post("/api/admin/feedback/:id/reply", adminHandler(async (req, reply, admin) => {
+    const result = await replyFeedback(Number(param(req, "id")), String(body(req).body ?? ""), actorOf(admin));
+    if (!result) return notFound(req, reply);
+    if (result.status !== "sent") return sendProblem(req, reply, { status: 502, code: "upstream_error", detail: `邮件没有发出去：${result.response}` });
+    return result;
+  }));
   // 把这条反馈里的「一行一首」采纳成某场演出的曲目单（写入点只有 lives/setlists.ts 一处）。
   app.post("/api/admin/feedback/:id/setlist", adminHandler(async (req, reply, admin) => {
     const result = await adoptReaderSetlist(Number(param(req, "id")), actorOf(admin));

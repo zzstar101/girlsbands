@@ -26,6 +26,7 @@ const TONE: Record<string, "accent" | "warn" | "ok" | "muted"> = { new: "accent"
 function FeedbackCard({ f }: { f: AdminFeedbackRow }) {
   const { run, pending } = useAdminAction();
   const [note, setNote] = useState(f.note ?? "");
+  const [answer, setAnswer] = useState("");
   const [dialog, setDialog] = useState<null | "ban" | "erase">(null);
   const base = `/api/admin/feedback/${f.id}`;
   const version = new Date(f.updated_at).toISOString();
@@ -41,7 +42,7 @@ function FeedbackCard({ f }: { f: AdminFeedbackRow }) {
         {f.from_source > 1 && <Badge tone="info" title="同一来源（IP 与浏览器家族的不可逆标识）">同来源 {f.from_source} 条</Badge>}
         {f.banned && <Badge tone="bad">来源已封禁</Badge>}
         {!f.forwarded_at && f.status === "new" && (
-          <Badge tone="warn" title={f.forward_error && f.forward_error !== "pending" ? `还没有转发到内部飞书群：${f.forward_error}` : "还没有转发到内部飞书群"}>未转发</Badge>
+          <Badge tone="warn" title={f.forward_error && f.forward_error !== "pending" ? `还没有转发到站主邮箱或飞书：${f.forward_error}` : "还没有转发到站主邮箱或飞书"}>未转发</Badge>
         )}
       </div>
       {/* 读者说的是哪一条内容的哪一处（W18）：后台据此跳转与聚合，历史反馈没有这一段。 */}
@@ -61,6 +62,42 @@ function FeedbackCard({ f }: { f: AdminFeedbackRow }) {
       )}
       {f.screenshot === "feishu" && <p className="mt-2 text-[12.5px] text-ink-4">截图已随反馈转到内部飞书群。</p>}
       {f.screenshot === "gone" && <p className="mt-2 text-[12.5px] text-ink-4">截图未能转到飞书，已删除。</p>}
+      {f.replies.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {f.replies.map((r) => (
+            <li key={r.id} className="rounded-control bg-bg-sunk/60 px-3 py-2 ring-1 ring-line-soft">
+              <div className="flex flex-wrap items-center gap-2 text-[12px] text-ink-4">
+                <span>已回复</span>
+                <Badge tone={r.status === "sent" ? "ok" : "bad"}>{r.status === "sent" ? "已发出" : "发送失败"}</Badge>
+                <span>{r.actor}</span>
+                <Time at={r.created_at} />
+              </div>
+              <p className="mt-1 whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink-2">{r.body}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      {f.email && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+          <Textarea
+            rows={3}
+            placeholder={`回复 ${f.email}（用网站邮箱发出，信里会附上对方原来写的内容）`}
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+          />
+          <Button
+            size="md"
+            tone="primary"
+            disabled={!answer.trim() || !!pending}
+            busy={pending === "reply"}
+            onClick={async () => {
+              if ((await run("POST", `${base}/reply`, { body: answer }, { label: "reply", success: "回复已发出" })) !== null) setAnswer("");
+            }}
+          >
+            发送回复
+          </Button>
+        </div>
+      )}
       <div className="mt-3 grid gap-2 sm:grid-cols-[180px_1fr_auto] sm:items-start">
         <Select
           aria-label="处理状态"

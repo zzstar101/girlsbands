@@ -18,7 +18,8 @@ export async function listFeedback(f: { status?: string; q?: string; page?: numb
            fb.forwarded_at, fb.forward_error, fb.created_at, fb.updated_at,
            fb.target_kind, fb.target_id, fb.target_field, fb.expected,
            EXISTS (SELECT 1 FROM feedback_bans b WHERE b.source_hash = fb.source_hash) AS banned,
-           (SELECT count(*)::int FROM feedback o WHERE o.source_hash = fb.source_hash) AS from_source
+           (SELECT count(*)::int FROM feedback o WHERE o.source_hash = fb.source_hash) AS from_source,
+           (SELECT coalesce(json_agg(json_build_object('id', r.id, 'body', r.body, 'actor', r.actor, 'status', r.status, 'created_at', r.created_at) ORDER BY r.created_at), '[]'::json) FROM feedback_replies r WHERE r.feedback_id = fb.id) AS replies
     FROM feedback fb
     WHERE (${f.status ?? null}::text IS NULL OR fb.status = ${f.status ?? null})
       AND (${q}::text IS NULL OR fb.content ILIKE ${q} OR fb.email ILIKE ${q} OR fb.page_url ILIKE ${q})
@@ -47,7 +48,8 @@ export async function listFeedbackTargets(): Promise<BeforeJson<AdminFeedbackTar
              'created_at', fb.created_at, 'updated_at', fb.updated_at,
              'target_kind', fb.target_kind, 'target_id', fb.target_id, 'target_field', fb.target_field, 'expected', fb.expected,
              'banned', EXISTS (SELECT 1 FROM feedback_bans b WHERE b.source_hash = fb.source_hash),
-             'from_source', (SELECT count(*)::int FROM feedback o WHERE o.source_hash = fb.source_hash)
+             'from_source', (SELECT count(*)::int FROM feedback o WHERE o.source_hash = fb.source_hash),
+             'replies', (SELECT coalesce(json_agg(json_build_object('id', r.id, 'body', r.body, 'actor', r.actor, 'status', r.status, 'created_at', r.created_at) ORDER BY r.created_at), '[]'::json) FROM feedback_replies r WHERE r.feedback_id = fb.id)
            ) ORDER BY fb.created_at DESC) AS rows
     FROM feedback fb
     WHERE fb.target_kind IS NOT NULL AND fb.target_kind <> 'source'
@@ -58,7 +60,8 @@ export async function listFeedbackTargets(): Promise<BeforeJson<AdminFeedbackTar
            fb.forwarded_at, fb.forward_error, fb.created_at, fb.updated_at,
            fb.target_kind, fb.target_id, fb.target_field, fb.expected,
            EXISTS (SELECT 1 FROM feedback_bans b WHERE b.source_hash = fb.source_hash) AS banned,
-           (SELECT count(*)::int FROM feedback o WHERE o.source_hash = fb.source_hash) AS from_source
+           (SELECT count(*)::int FROM feedback o WHERE o.source_hash = fb.source_hash) AS from_source,
+           (SELECT coalesce(json_agg(json_build_object('id', r.id, 'body', r.body, 'actor', r.actor, 'status', r.status, 'created_at', r.created_at) ORDER BY r.created_at), '[]'::json) FROM feedback_replies r WHERE r.feedback_id = fb.id) AS replies
     FROM feedback fb WHERE fb.target_kind = 'source' ORDER BY fb.created_at DESC LIMIT 50`;
   return { groups, submissions };
 }

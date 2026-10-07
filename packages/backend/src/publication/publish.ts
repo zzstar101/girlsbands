@@ -1,6 +1,7 @@
 // Publishing: derive the public projection of one article from its material, the latest judgement,
 // manual overrides and grouping, then record selected-set changes in the sync ledger.
 // Rebuilding only re-reads stored results; it never calls a model.
+import { lateNightClock } from "@girlsbands/contracts/time";
 import { toPublicApiCategory } from "@girlsbands/contracts/taxonomy";
 import { SITE } from "@girlsbands/industry/site";
 import { one, sql, type Tx } from "../db.ts";
@@ -253,9 +254,10 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   const isChineseTitle = article.language === "zh" || looksChinese(article.title);
   // An X post carries its Chinese in the summary and translation; without a Chinese title its own
   // text is the title, where an article would still be a half-finished card.
-  const zhTitle = analysis?.title_zh?.trim() ? analysis.title_zh : null;
+  // 「今晚 26:05」这种日本深夜档写法只在模型写的标题和摘要里换成次日凌晨；原文标题照旧。
+  const zhTitle = analysis?.title_zh?.trim() ? lateNightClock(analysis.title_zh) : null;
   const title = pickString(f.title, zhTitle ?? (isChineseTitle || article.x_post ? collapseWhitespace(article.title) : null));
-  const summary = pickString(f.summary, analysis?.summary_zh ?? null);
+  const summary = pickString(f.summary, analysis?.summary_zh ? lateNightClock(analysis.summary_zh) : null);
   const category = pickString(f.category, analysis?.category ?? null);
   const tags = Array.isArray(f.tags) ? (f.tags as string[]) : [...new Set([...(analysis?.tags ?? []), ...(analysis?.subjects ?? []).map((s) => `entity:${s}`)])];
   const score = typeof f.score === "number" ? f.score : analysis?.score ?? null;

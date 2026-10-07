@@ -68,18 +68,26 @@ export function mailer(): MailerState {
   return { ready: true, mailer };
 }
 
-async function send(mail: Mail): Promise<{ status: "sent" | "failed"; response: string }> {
+/** 一封不走订阅日志的信（反馈转发、后台回复）：可以改回复地址、带附件。 */
+export interface DirectMail extends Mail {
+  replyTo?: string | null;
+  attachments?: Array<{ filename: string; content: Buffer; contentType?: string }>;
+}
+
+export async function send(mail: DirectMail): Promise<{ status: "sent" | "failed"; response: string }> {
   const state = mailer();
   if (!state.ready) return { status: "failed", response: state.reason };
+  const replyTo = mail.replyTo === undefined ? state.mailer.replyTo : mail.replyTo;
   try {
     const info = await state.mailer.transporter.sendMail({
       from: state.mailer.from,
       to: mail.to,
-      ...(state.mailer.replyTo ? { replyTo: state.mailer.replyTo } : {}),
+      ...(replyTo ? { replyTo } : {}),
       subject: mail.subject,
       text: mail.text,
       html: mail.html,
       ...(mail.headers ? { headers: mail.headers } : {}),
+      ...(mail.attachments?.length ? { attachments: mail.attachments } : {}),
     });
     return { status: "sent", response: (info.messageId ?? "sent").slice(0, 500) };
   } catch (error) {

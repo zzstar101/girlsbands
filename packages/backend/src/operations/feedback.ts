@@ -9,6 +9,7 @@ import { config } from "../config.ts";
 import { Rejected, rateLimit, sourceFingerprint } from "./abuse.ts";
 import { sql } from "../db.ts";
 import { feishuInternalEnabled, forwardFeedbackToFeishu } from "../notify/feishu.ts";
+import { feedbackEmail, forwardFeedbackByEmail } from "./feedback-mail.ts";
 
 /** 反馈被拒绝的公开错误；与订阅共用同一套 429/400 语义。 */
 export { Rejected as FeedbackRejected } from "./abuse.ts";
@@ -91,25 +92,55 @@ export async function submitFeedback(input: FeedbackInput): Promise<{ id: number
     VALUES (${content}, ${email}, ${pageUrl}, ${screenshotKey}, ${source}, 'pending',
             ${target.kind}, ${target.id}, ${target.field}, ${target.expected}) RETURNING id`;
   const id = row!.id;
-  void forwardFeedbackToFeishu(id).catch(() => {});
+  void forwardFeedback(id).catch(() => {});
   return { id };
 }
 
 /**
- * Every few minutes: feedback that did not reach the internal chat (Feishu down, a screenshot upload
+ * Sends one feedback everywhere it goes: the owner's mailbox (FEEDBACK_EMAIL) and the internal Feishu
+ * chat, each at most once. The email goes first because the Feishu upload removes the local screenshot.
+ * forwarded_at is set once it has reached one of them; a failure leaves the reason for the sweep.
+ */
+export async function forwardFeedback(id: number): Promise<"sent" | "disabled"> {
+  let sent = false;
+  let failure: unknown = null;
+  try {
+    if ((await forwardFeedbackByEmail(id)) === "sent") sent = true;
+  } catch (error) {
+    failure = error;
+  }
+  if (feishuInternalEnabled()) {
+    try {
+      if ((await forwardFeedbackToFeishu(id)) === "sent") sent = true;
+    } catch (error) {
+      failure ??= error;
+    }
+  }
+  if (failure) {
+    await sql`UPDATE feedback SET forward_error = ${String(failure instanceof Error ? failure.message : failure).slice(0, 300)} WHERE id = ${id}`;
+    throw failure;
+  }
+  if (sent) await sql`UPDATE feedback SET forwarded_at = coalesce(forwarded_at, now()), forward_error = NULL WHERE id = ${id}`;
+  return sent ? "sent" : "disabled";
+}
+
+/**
+ * Every few minutes: feedback that did not reach the owner (mail or Feishu down, a screenshot upload
  * failing) is tried again for a week. Newer than a few minutes is still being sent by its submission.
  */
 export async function forwardPendingFeedback(): Promise<{ sent: number; failed: number }> {
-  if (!feishuInternalEnabled()) return { sent: 0, failed: 0 };
+  const email = !!feedbackEmail();
+  if (!feishuInternalEnabled() && !email) return { sent: 0, failed: 0 };
   const rows = await sql<{ id: number }[]>`
-    SELECT id FROM feedback WHERE forwarded_at IS NULL AND forward_error IS NOT NULL
+    SELECT id FROM feedback
+    WHERE (forwarded_at IS NULL AND forward_error IS NOT NULL OR (${email} AND emailed_at IS NULL AND forward_error IS NOT NULL))
       AND created_at < now() - interval '5 minutes' AND created_at > now() - interval '7 days'
     ORDER BY id LIMIT 20`;
   let sent = 0;
   let failed = 0;
   for (const r of rows) {
     try {
-      if ((await forwardFeedbackToFeishu(r.id)) === "sent") sent += 1;
+      if ((await forwardFeedback(r.id)) === "sent") sent += 1;
     } catch {
       failed += 1;
     }
