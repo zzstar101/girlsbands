@@ -42,7 +42,7 @@ async function worker() {
     const sum = scores?.length === SCORE_CALLS ? scores.reduce((t, v) => t + v, 0) : null;
     const scoreIn = sum !== null && th !== null && sum >= th * SCORE_CALLS;
     let kind: string | null = null, claimed: string | null = null, quote: string | null = null, error: string | undefined;
-    if (newTier === "OFFICIAL") {
+    if (th !== null) {
       try {
         const input = await loadAnalyzeInput(r.article_id);
         const m = input ? await runMustSee(input, { force: true }) : null;
@@ -51,18 +51,19 @@ async function worker() {
         error = e instanceof Error ? e.message.slice(0, 200) : String(e);
       }
     }
-    judged.push({ ...r, newTier, kind, claimed, quote, scoreIn, now: !!kind || scoreIn, ...(error ? { error } : {}) });
+    judged.push({ ...r, newTier, kind, claimed, quote, scoreIn, now: !!kind, ...(error ? { error } : {}) });
     if (judged.length % 25 === 0) console.log(`${judged.length}/${rows.length}`);
   }
 }
 await Promise.all(Array.from({ length: concurrency }, worker));
 
 const KIND_ZH: Record<string, string> = {
-  live_new: "Live 公布与追加", ticket_window: "票务受理与截止", release: "新作发售", member_change: "成员变动",
-  schedule_change: "中止延期与变更", live_supplement: "已公布 Live 的补充说明",
+  new_anime: "新动画", new_project: "新企划", new_band: "新乐队", live_new: "新 Live", live_supplement: "Live 补充说明",
+  release: "BD/CD 等新作发售", merch: "通贩与周边", bonus: "特典", ticket_window: "抽选/票务开始与截止",
+  personal_event: "声优个人活动", member_change: "成员变动", schedule_change: "中止延期与变更",
 };
 const date = (d: Date | null) => (d ? new Date(d.getTime() + 9 * 3600_000).toISOString().slice(5, 16).replace("T", " ") : "—");
-const why = (j: Judged) => (j.kind ? `规则：${KIND_ZH[j.kind]}` : `分数 ${j.score ?? "—"}（${j.newTier} 门槛 ${tierThreshold(j.newTier, true)}）`);
+const why = (j: Judged) => (j.kind ? KIND_ZH[j.kind]! : `不在清单（模型判 ${j.claimed ?? "—"}${j.claimed && j.claimed !== "none" ? "，原文无对应句或缺图" : ""}，旧分数 ${j.score ?? "—"}）`);
 const line = (j: Judged) => `| ${date(j.published_at)} | ${j.source_name} | ${(j.title_zh ?? "").replace(/\|/g, "／").slice(0, 70)} | ${why(j)} | https://girlsbands.com/items/${j.article_id} |`;
 const sorted = [...judged].sort((a, b) => (b.published_at?.getTime() ?? 0) - (a.published_at?.getTime() ?? 0));
 const added = sorted.filter((j) => j.now && !j.selected);

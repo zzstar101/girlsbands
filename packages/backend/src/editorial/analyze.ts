@@ -23,7 +23,7 @@ import {
 } from "@girlsbands/contracts/site";
 import { glossaryHits } from "@girlsbands/industry/glossary";
 import { CATEGORIES, LANE_CATEGORIES, LIVE_CATEGORIES } from "@girlsbands/industry/taxonomy";
-import { MUST_SEE_KINDS, SELECTION, type MustSeeKind } from "@girlsbands/industry/selection";
+import { MUST_SEE_KINDS, NEEDS_IMAGE_KINDS, SELECTION, type MustSeeKind } from "@girlsbands/industry/selection";
 import { sql } from "../db.ts";
 import { readsRelease } from "../releases/derive.ts";
 import { chatJson, MODELS, ModelOutputError, type ContentPart } from "../providers/llm.ts";
@@ -665,20 +665,26 @@ export async function runSelectionScores(
   return threshold === null ? null : runScores(a, threshold, opts, onReceipt);
 }
 
-/** The must-see judgement (industry/prompts/selection-kind.md), asked of official sources only. */
+/** The selection judgement (industry/prompts/selection-kind.md): which listed kind the material is, if any. */
 export const MUST_SEE_SYSTEM = promptText("selection-kind");
 const MustSeeSchema = z.object({
   kind: z.enum([...MUST_SEE_KINDS, "none"]).catch("none"),
   quote: z.string().max(600).catch(""),
 });
 
+/** The material carries a picture of its own (the post's media or the article's images). */
+function hasImage(a: AnalyzeInputArticle): boolean {
+  return [...(a.xPost?.media ?? []), ...(a.xPost?.quoted?.media ?? []), ...(a.media ?? [])].some((m: any) => m?.kind === "image" && m.url);
+}
+
 /**
- * Whether an official source's material is one of the things a fan must not miss: the kind, with the
- * sentence that shows it, copied from the original. Without that sentence in the original it is `none`.
+ * Whether the material is one of the things on the 精选 list (industry/selection.ts MUST_SEE_KINDS): the
+ * kind, with the sentence that shows it, copied from the original. Without that sentence in the original,
+ * or a merch announcement without a picture of the goods, it is not.
  */
 export async function runMustSee(a: AnalyzeInputArticle, opts: StepOpts & { force?: boolean } = {}): Promise<AnalysisRun["mustSee"]> {
   if (!opts.force && !selectionRulesOn()) return null;
-  if (selectionTier(a.source, true) !== "OFFICIAL") return null;
+  if (tierThreshold(selectionTier(a.source, true), true) === null) return null;
   const model = await modelFor("structure");
   checkAnalysisRunning();
   const res = await chatJson({
@@ -694,7 +700,8 @@ export async function runMustSee(a: AnalyzeInputArticle, opts: StepOpts & { forc
     attemptTag: tagged(opts.attemptTag, "must-see"),
   });
   const quote = res.data.kind === "none" ? null : groundedFor(a)(res.data.quote);
-  const kind = quote ? (res.data.kind as MustSeeKind) : null;
+  const pictured = !NEEDS_IMAGE_KINDS.includes(res.data.kind) || hasImage(a);
+  const kind = quote && pictured ? (res.data.kind as MustSeeKind) : null;
   return { kind, quote, claimed: res.data.kind, model: res.model, receiptId: res.receiptId, reused: res.reused };
 }
 
@@ -932,9 +939,12 @@ export function normalizeAnalysis(run: AnalysisRun) {
   const sum = values?.length === SCORE_CALLS ? values.reduce((total, v) => total + v, 0) : null;
   const score = sum === null ? null : Math.floor(sum / SCORE_CALLS);
   const threshold = run.scores?.threshold ?? null;
-  // An official source's must-see material is in on its kind alone; everything else on the scores.
+  // With the 精选 list on (SELECTION_RULES=on) the kind alone decides; the scores stay for display and for
+  // which steps run. With it off, the legacy thresholds decide.
   const mustSee = run.mustSee?.kind ?? null;
-  const selected = relevance === "pass" && (!!mustSee || (sum !== null && threshold !== null && sum >= threshold * SCORE_CALLS));
+  const selected = relevance === "pass" && (selectionRulesOn()
+    ? !!mustSee
+    : sum !== null && threshold !== null && sum >= threshold * SCORE_CALLS);
   // A daily post is filed under the band whose member posted it, in the daily lane.
   const subjects = run.daily ? (run.daily.owner ? [run.daily.owner] : []) : run.structure?.subjects ?? [];
   const tags = [...(run.structure?.tags ?? [])];

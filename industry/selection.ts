@@ -39,8 +39,16 @@
 // 官网与官方账号合成一档 OFFICIAL：同一件事不再因为发在官网还是 X 上判得不一样；成员个人账号单独
 // 一档 MEMBER。国内同人 Only 与 livehouse 不在 mustSee 里，仍按 T2_EVENT 的评分门槛走。
 
-/** 官方信源里直接够格的「不能错过的事」（prompts/selection-kind.md 里各类的定义）。 */
-export const MUST_SEE_KINDS = ["live_new", "ticket_window", "release", "member_change", "schedule_change", "live_supplement"] as const;
+/**
+ * 精选清单（第三版，SELECTION_RULES=on 时生效）：只有判成这些类的资料进精选，清单之外分数再高也不进。
+ * 各类的定义在 prompts/selection-kind.md；同一件事只收第一次公布，提醒与重复宣传判 none。
+ */
+export const MUST_SEE_KINDS = [
+  "new_anime", "new_project", "new_band", "live_new", "live_supplement", "release", "merch", "bonus",
+  "ticket_window", "personal_event", "member_change", "schedule_change",
+] as const;
+/** 这些类的资料必须带图（商品物料图）才进精选。 */
+export const NEEDS_IMAGE_KINDS: readonly string[] = ["merch"];
 export type MustSeeKind = (typeof MUST_SEE_KINDS)[number];
 
 export const SELECTION = {
