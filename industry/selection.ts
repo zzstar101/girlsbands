@@ -32,6 +32,17 @@
 // 平台的条目天生只有清单式排期，而查询又是我们手工挑过的固定集合，值得比媒体稿低一档，好保证活动本身
 // 不漏。两类混在一档只会互相迁就（实测：T2 降到 54 会让所有日语媒体源跟着一起降）。
 
+// ── 第三版：规则优先（2026-10-07，站主定）───────────────────────────────────────────
+// 精选的定位改成「粉丝不能错过的事」。官方信源（企划官网与官方账号，不含成员个人账号）发的资料，
+// 先过一道「不能错过」判定（prompts/selection-kind.md）：是 mustSee 里的一类、且原文里摘得出证明
+// 日期或条件的那一句，就直接够格，不看分数（之后照样要过归组去重）。其余的资料仍按评分兜底。
+// 官网与官方账号合成一档 OFFICIAL：同一件事不再因为发在官网还是 X 上判得不一样；成员个人账号单独
+// 一档 MEMBER。国内同人 Only 与 livehouse 不在 mustSee 里，仍按 T2_EVENT 的评分门槛走。
+
+/** 官方信源里直接够格的「不能错过的事」（prompts/selection-kind.md 里各类的定义）。 */
+export const MUST_SEE_KINDS = ["live_new", "ticket_window", "release", "member_change", "schedule_change", "live_supplement"] as const;
+export type MustSeeKind = (typeof MUST_SEE_KINDS)[number];
+
 export const SELECTION = {
   /**
    * 信源分级 → 入选门槛（平均分）。分级在后台“信源”里给每个源设置：
@@ -39,7 +50,9 @@ export const SELECTION = {
    *   T2_EVENT 国内活动排期平台（同人 Only 展会、livehouse 演出票务与排期）
    * 分级 EXCLUDE_MP 以及这里没有列出的分级，不参与精选评分（只进“全部动态”）。
    */
-  thresholds: { T1: 54, T1_5: 65, T2: 72, T2_EVENT: 54 } as Record<string, number>,
+  thresholds: { OFFICIAL: 60, MEMBER: 65, T2: 72, T2_EVENT: 54 } as Record<string, number>,
+  /** 第三版上线前（环境变量 SELECTION_RULES 不是 on 时）沿用的旧分级门槛，只用于新旧对比与回退。 */
+  legacyThresholds: { T1: 54, T1_5: 65, T2: 72, T2_EVENT: 54 } as Record<string, number>,
   /**
    * 没入选、但平均分高于这个数的资料，也用精选的写法（内容理解：标题、摘要、推荐理由）来写，
    * 其余用更便宜的“标题摘要翻译”。

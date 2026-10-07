@@ -23,7 +23,7 @@ import {
 } from "@girlsbands/contracts/site";
 import { glossaryHits } from "@girlsbands/industry/glossary";
 import { CATEGORIES, LANE_CATEGORIES, LIVE_CATEGORIES } from "@girlsbands/industry/taxonomy";
-import { SELECTION } from "@girlsbands/industry/selection";
+import { MUST_SEE_KINDS, SELECTION, type MustSeeKind } from "@girlsbands/industry/selection";
 import { sql } from "../db.ts";
 import { readsRelease } from "../releases/derive.ts";
 import { chatJson, MODELS, ModelOutputError, type ContentPart } from "../providers/llm.ts";
@@ -51,6 +51,7 @@ export const PROMPT_VERSIONS = {
   structure: promptVersion("structure"),
   live: promptVersion("live-ticket"),
   release: promptVersion("release"),
+  mustSee: promptVersion("selection-kind"),
 } as const;
 /** Every step's prompt, as stored on each judgement. */
 export const SELECTION_PROMPT_VERSION = [PROMPT_VERSIONS.prefilter, PROMPT_VERSIONS.score].join("+");
@@ -62,11 +63,26 @@ export const ANALYZE_PROMPT_VERSION = Object.values(PROMPT_VERSIONS).join("+");
 export const SCORE_CALLS = 2;
 
 /**
- * The thresholds on the mean score, per source tier (industry/selection.ts): selected when
+ * The thresholds on the mean score, per selection tier (industry/selection.ts): selected when
  * score1 + score2 >= 2 × threshold. Tiers without a threshold are not scored for 精选.
  */
-export function tierThreshold(tier: string): number | null {
-  return SELECTION.thresholds[tier] ?? null;
+export function tierThreshold(tier: string, rules = selectionRulesOn()): number | null {
+  return (rules ? SELECTION.thresholds[tier] : SELECTION.legacyThresholds[tier]) ?? null;
+}
+
+/** The must-see rules and the merged official tier (industry/selection.ts, third version) are switched on. */
+export function selectionRulesOn(): boolean {
+  return process.env.SELECTION_RULES === "on";
+}
+
+/**
+ * The selection tier of a source: an official site and an official account are one tier (OFFICIAL),
+ * a member's own account is its own (MEMBER); the other source tiers keep their names. With the rules
+ * off it is the source tier itself, held against the legacy thresholds.
+ */
+export function selectionTier(source: { tier: string; tags?: readonly string[] | null; ownerEntityId?: string | null }, rules = selectionRulesOn()): string {
+  if (!rules || (source.tier !== "T1" && source.tier !== "T1_5")) return source.tier;
+  return source.ownerEntityId && (source.tags ?? []).includes("成员") ? "MEMBER" : "OFFICIAL";
 }
 
 /** Unselected items above this mean are written like selected ones. */
@@ -530,6 +546,11 @@ export interface AnalysisRun {
   release: (ReleaseRead & { model: string; receiptId: number; reused: boolean }) | null;
   /** A member's daily post (prefilter DAILY): the band its account belongs to, which it is filed under. */
   daily?: { owner: string | null };
+  /**
+   * Official sources only: the must-see kind it is (null: none, or no sentence in the original shows it),
+   * what the model claimed, and the sentence. A kind admits the material to 精选 without the scores.
+   */
+  mustSee?: { kind: MustSeeKind | null; quote: string | null; claimed: string; model: string; receiptId: number; reused: boolean } | null;
 }
 
 const isContentFilter = (error: unknown) => error instanceof ProviderRejectedError && !error.retryable && /contentFilter|"1301"/.test(error.message);
@@ -640,8 +661,41 @@ export async function runSelectionScores(
   opts: StepOpts = {},
   onReceipt?: ReceiptObserver,
 ): Promise<AnalysisRun["scores"]> {
-  const threshold = tierThreshold(a.source.tier);
+  const threshold = tierThreshold(selectionTier(a.source));
   return threshold === null ? null : runScores(a, threshold, opts, onReceipt);
+}
+
+/** The must-see judgement (industry/prompts/selection-kind.md), asked of official sources only. */
+export const MUST_SEE_SYSTEM = promptText("selection-kind");
+const MustSeeSchema = z.object({
+  kind: z.enum([...MUST_SEE_KINDS, "none"]).catch("none"),
+  quote: z.string().max(600).catch(""),
+});
+
+/**
+ * Whether an official source's material is one of the things a fan must not miss: the kind, with the
+ * sentence that shows it, copied from the original. Without that sentence in the original it is `none`.
+ */
+export async function runMustSee(a: AnalyzeInputArticle, opts: StepOpts & { force?: boolean } = {}): Promise<AnalysisRun["mustSee"]> {
+  if (!opts.force && !selectionRulesOn()) return null;
+  if (selectionTier(a.source, true) !== "OFFICIAL") return null;
+  const model = await modelFor("structure");
+  checkAnalysisRunning();
+  const res = await chatJson({
+    model,
+    purpose: "must_see_article",
+    subject: subjectOf(a),
+    promptVersion: PROMPT_VERSIONS.mustSee,
+    system: MUST_SEE_SYSTEM,
+    user: buildMaterial(a),
+    schema: MustSeeSchema,
+    temperature: 0.1,
+    maxTokens: 400,
+    attemptTag: tagged(opts.attemptTag, "must-see"),
+  });
+  const quote = res.data.kind === "none" ? null : groundedFor(a)(res.data.quote);
+  const kind = quote ? (res.data.kind as MustSeeKind) : null;
+  return { kind, quote, claimed: res.data.kind, model: res.model, receiptId: res.receiptId, reused: res.reused };
 }
 
 export async function runStructure(a: AnalyzeInputArticle, opts: StepOpts = {}): Promise<NonNullable<AnalysisRun["structure"]>> {
@@ -838,10 +892,13 @@ export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts = {}): 
   }
   // The structure step needs nothing from the scores: it runs beside them.
   const structure = runStructure(a, opts).then((value) => ({ value }), (error: unknown) => ({ error }));
+  const mustSeeRun = runMustSee(a, opts).then((value) => ({ value }), (error: unknown) => ({ error }));
   try {
     const scores = await runSelectionScores(a, opts);
     const sum = scores && !scores.refused && scores.values.length === SCORE_CALLS ? scores.values.reduce((total, v) => total + v, 0) : null;
-    const near = sum !== null && (sum >= scores!.threshold * SCORE_CALLS || sum > UNDERSTAND_FLOOR * SCORE_CALLS);
+    const m = await mustSeeRun;
+    if ("error" in m) throw m.error;
+    const near = !!m.value?.kind || (sum !== null && (sum >= scores!.threshold * SCORE_CALLS || sum > UNDERSTAND_FLOOR * SCORE_CALLS));
     const s = await structure;
     if ("error" in s) throw s.error;
     const wrote = (near ? await runUnderstand(a, opts) : null) ?? (await runSummarize(a, opts));
@@ -852,11 +909,12 @@ export async function runAnalysis(a: AnalyzeInputArticle, opts: StepOpts = {}): 
     // A release or merch announcement that names a version or a bonus has a page of its own: what the
     // disc is, what comes with it, and which show its serial number buys a ticket for.
     const release = readsRelease(s.value.category, s.value.tags) ? await runRelease(a, s.value, opts) : null;
-    return { prefilter, scores, writing, structure: s.value, live, release };
+    return { prefilter, scores, writing, structure: s.value, live, release, mustSee: m.value };
   } finally {
     // A score/writing error or deploy must not let the job finish while a paid structure request
     // still owns a response. It settles and stores its receipt before shutdown can close the DB.
     await structure;
+    await mustSeeRun;
   }
 }
 
@@ -874,7 +932,9 @@ export function normalizeAnalysis(run: AnalysisRun) {
   const sum = values?.length === SCORE_CALLS ? values.reduce((total, v) => total + v, 0) : null;
   const score = sum === null ? null : Math.floor(sum / SCORE_CALLS);
   const threshold = run.scores?.threshold ?? null;
-  const selected = relevance === "pass" && sum !== null && threshold !== null && sum >= threshold * SCORE_CALLS;
+  // An official source's must-see material is in on its kind alone; everything else on the scores.
+  const mustSee = run.mustSee?.kind ?? null;
+  const selected = relevance === "pass" && (!!mustSee || (sum !== null && threshold !== null && sum >= threshold * SCORE_CALLS));
   // A daily post is filed under the band whose member posted it, in the daily lane.
   const subjects = run.daily ? (run.daily.owner ? [run.daily.owner] : []) : run.structure?.subjects ?? [];
   const tags = [...(run.structure?.tags ?? [])];
@@ -890,6 +950,7 @@ export function normalizeAnalysis(run: AnalysisRun) {
     scoreModel: run.scores?.model ?? null,
     scoreRefused: run.scores?.refused ?? false,
     threshold,
+    mustSee: run.mustSee ? { kind: mustSee, claimed: run.mustSee.claimed, quote: run.mustSee.quote } : null,
     category: run.daily ? "daily" : run.structure?.category ?? null,
     tags,
     subjects,
@@ -927,11 +988,13 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
     run.prefilter.receiptId, ...(run.scores?.receiptIds ?? []), ...(run.writing?.receiptIds ?? []), ...(run.structure ? [run.structure.receiptId] : []),
     ...(run.live ? [run.live.receiptId] : []),
     ...(run.release ? [run.release.receiptId] : []),
+    ...(run.mustSee ? [run.mustSee.receiptId] : []),
   ];
   const w = run.writing;
   const detail = {
     prefilter: { label: run.prefilter.label, reason: run.prefilter.reason },
     scores: out.scores, scoreModel: out.scoreModel, threshold: out.threshold, ...(out.scoreRefused ? { scoreRefused: true } : {}),
+    ...(out.mustSee ? { mustSee: out.mustSee } : {}),
     ...(w ? { writer: w.kind, writerModel: w.model, itemType: w.itemType ?? null, authorRole: w.authorRole ?? null } : {}),
     ...(w?.identityGuard?.outcome === "fallback" ? { identityGuard: w.identityGuard } : {}),
     scope: out.scope, fact: out.fact, organizer: out.organizer,
@@ -976,6 +1039,6 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
     return { analysisId: row!.id, stale };
   });
   const reused = run.prefilter.reused && (run.scores?.reused ?? true) && (w?.reused ?? true) && (run.structure?.reused ?? true)
-    && (run.live?.reused ?? true) && (run.release?.reused ?? true);
+    && (run.live?.reused ?? true) && (run.release?.reused ?? true) && (run.mustSee?.reused ?? true);
   return { analysisId: committed.analysisId, stale: committed.stale, output: out, receiptIds, reused };
 }

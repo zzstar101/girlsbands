@@ -17,6 +17,7 @@ import {
   normalizeAnalysis,
   runSelectionPrefilter,
   runSelectionScores,
+  selectionTier,
   tierThreshold,
   type AnalysisRun,
   type AnalyzeInputArticle,
@@ -133,7 +134,7 @@ for (const model of models) {
         return { r, out: normalizeAnalysis(run), receiptIds, error: null as string | null };
       }
 
-      const threshold = tierThreshold(input.source.tier);
+      const threshold = tierThreshold(selectionTier(input.source));
       if (threshold === null) {
         const run: AnalysisRun = { prefilter, scores: null, writing: null, structure: null };
         return { r, out: normalizeAnalysis(run), receiptIds, error: null as string | null };
