@@ -4,6 +4,13 @@ import type { Subject } from "../../features/feed/bands";
 
 const logoFiles = import.meta.glob('../../../../../assets/band-logos/*.png', { eager: true, import: 'default', query: '?url' }) as Record<string, string>;
 
+/** The logo file of a band or project, with whether it needs a dark backdrop; null when there is none. */
+export function bandLogo(id: string): { src: string; width: number; height: number; onDark: boolean } | null {
+  const logo = manifest.logos[id as keyof typeof manifest.logos];
+  const src = logo && logoFiles[`../../../../../assets/band-logos/${logo.file}`];
+  return logo && src ? { src, width: logo.width, height: logo.height, onDark: !!logo.onDark } : null;
+}
+
 export function BandLogo({ id, className = "" }: { id: string; className?: string }) {
   const logo = manifest.logos[id as keyof typeof manifest.logos];
   if (!logo) return null;

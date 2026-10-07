@@ -308,6 +308,13 @@ a:hover > .tip.l, a:hover > .tip.r, a:focus-visible > .tip.l, a:focus-visible > 
 .equalizer > a:is(:hover, :focus-visible) { flex: 4.5; }
 .equalizer > a:is(:hover, :focus-visible) .eq-name { opacity: 1; }
 .equalizer:hover .eq-column { animation-play-state: paused; }
+/* Logo labels sit across the foot of each bar; the column keeps enough height to hold one even at a count of 0. */
+.equalizer { --plate: 26px; height: 150px; }
+.eq-column { min-height: calc(var(--plate) + 12px); }
+.eq-logo { position: absolute; left: 3px; right: 3px; bottom: 3px; height: var(--plate); padding: 2px 3px; background: var(--paper); box-shadow: 1px 1px 0 rgb(0 0 0 / .25); pointer-events: none; }
+.eq-logo.dark-logo { background: #141216; }
+.eq-logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.eq-name { bottom: calc(var(--plate) + 10px); }
 @keyframes eq-wave { from { transform: scaleY(.72); } to { transform: scaleY(1); } }
 .theme-seg { display: grid; grid-template-columns: 1fr 1fr 1fr; border: 1.5px solid var(--ink); }
 .theme-seg button { height: 28px; font-size: 12px; font-weight: 800; }
@@ -385,7 +392,11 @@ a:hover > .tip.l, a:hover > .tip.r, a:focus-visible > .tip.l, a:focus-visible > 
   .flyer-card header { gap: 5px; }
   .chip-band { font-size: 11px; min-height: 20px; padding-inline: 6px; }
   .stamp { font-size: 11px; height: 20px; padding-inline: 5px; }
-  .equalizer { height: 100px; gap: 3px; }
+  .equalizer { height: 150px; gap: 5px; margin-inline: -16px; padding: 30px 16px 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-snap-type: x proximity; scroll-padding-inline: 16px;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+  .equalizer::-webkit-scrollbar { display: none; }
+  .equalizer > a, .equalizer > a:is(:hover, :focus-visible) { flex: 0 0 60px; scroll-snap-align: start; }
+  .equalizer .eq-name { display: none; }
   .eq-count { font-size: 13px; top: -22px; }
   .equalizer .tip { display: none; }
   .topic-poster { padding: 16px !important; }
