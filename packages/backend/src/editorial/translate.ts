@@ -30,6 +30,8 @@ const BLOCK = new Set(["p", "h2", "h3", "h4", "h5", "li", "blockquote", "figcapt
 const CONTAINER = /^(p|h[2-5]|li|blockquote|figcaption|td|th|dt|dd|caption|ul|ol|table|pre|figure|div)$/;
 
 const Output = z.object({ t: z.array(z.string()) });
+/** A segment the model returned untranslated (see echoed). */
+const ECHO = "\u0000echo";
 
 class TranslationInterruptedError extends Error {}
 
@@ -49,6 +51,18 @@ export interface TranslateResult {
 }
 
 const isChinese = (language: string | null, sample: string) => language === "zh" || (looksChinese(sample.slice(0, 400)) && language !== "en");
+
+/**
+ * The model sometimes hands a Japanese sentence back as it was (the prompt asks it to copy proper nouns,
+ * and a short post full of names reads to it as all names). An answer that is the input again while the
+ * input has sentence text (hiragana) is not a translation: it is asked again, then left untranslated.
+ * A block of names only (katakana, Latin) legitimately comes back unchanged and is not flagged.
+ */
+export function echoed(input: string, output: string): boolean {
+  const norm = (t: string) => t.replace(/<[^>]*>/g, "").replace(/\s+/g, "");
+  if (norm(input) !== norm(output)) return false;
+  return (norm(input).match(/[\u3041-\u309f]/g)?.length ?? 0) >= 6;
+}
 
 /** Leaf text blocks of a sanitised body, in document order, skipping code. */
 function segmentsOf($: cheerio.CheerioAPI): Element[] {
@@ -87,8 +101,16 @@ async function translateBatch(articleId: string, revision: number, index: number
     timeoutMs: 180_000,
     attemptTag,
   });
-  return res.data.t.length === parts.length ? res.data.t : null;
+  if (res.data.t.length !== parts.length) return null;
+  // An echoed segment is dropped to null by the caller's alignment check below: mark the batch so
+  // translateAll keeps the other segments and asks the echoed ones again.
+  return res.data.t.map((t, i) => (echoed(parts[i]!, t) ? ECHO : t));
 }
+
+const ECHO_NOTE = "注意：上次你把原文原样返回了。专名之外的每一句都必须译成简体中文，不能整句照抄原文。";
+/** Segments still missing whose input has sentence text: candidates for the echo retry. */
+const done_echo = (parts: string[], out: Array<string | null>) =>
+  out.flatMap((t, i) => (t === null && echoed(parts[i]!, parts[i]!) ? [i] : []));
 
 /** Translates batches, halving a batch once when the answer does not line up with the input. */
 async function translateAll(articleId: string, revision: number, parts: string[], system: string, attemptTag?: string): Promise<Array<string | null>> {
@@ -107,8 +129,14 @@ async function translateAll(articleId: string, revision: number, parts: string[]
       const right = await translateBatch(articleId, revision, index++, batch.slice(mid), system, attemptTag);
       done = left && right ? [...left, ...right] : null;
     }
-    if (done) done.forEach((t, i) => (out[start + i] = t));
+    if (done) done.forEach((t, i) => (out[start + i] = t === ECHO ? null : t));
     start = end;
+  }
+  // Echoed segments are asked once more on their own receipt, with the instruction spelled out.
+  const echoedAt = done_echo(parts, out);
+  if (echoedAt.length && attemptTag !== "echo") {
+    const again = await translateAll(articleId, revision, echoedAt.map((i) => parts[i]!), `${system}\n\n${ECHO_NOTE}`, "echo");
+    echoedAt.forEach((i, k) => (out[i] = again[k] ?? null));
   }
   return out;
 }
