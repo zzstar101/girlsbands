@@ -115,7 +115,7 @@ docker compose stop api worker web
 docker compose run --rm setup && docker compose up -d
 ```
 
-也可以直接运行 `bash deploy/update.sh`（按上面的顺序执行，默认带 `--profile https`，最后清理三天前的 Docker 构建缓存，免得每次部署都留下几百 M）。
+也可以直接运行 `bash deploy/update.sh`（按上面的顺序执行，默认带 `--profile https`，最后清理 Docker 构建缓存，只留 1.5G 给下次构建复用，免得每次部署都留下几百 M）。
 
 迁移成功后再启动服务；迁移失败时先查看错误，不要继续启动。使用 HTTPS 配置的站点继续保留 `--profile https`。旧的 API 和 worker 要在迁移前停下：迁移可能删表删列，旧代码还在跑会出错；正常关闭 worker 会等进行中的付费调用收尾（最长三分多钟）。非 Docker 部署也按“备份、构建、停止 API/worker/web、迁移（`scripts/migrate.ts`）、种子数据（`scripts/seed.ts`）、启动”的顺序更新。
 
