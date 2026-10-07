@@ -23,6 +23,8 @@ import { roundNote, roundSlotKind, type RoundSlot } from "./tickets.ts";
 const JST_OFFSET_MS = 9 * 3600 * 1000;
 const DAY_MS = 86_400_000;
 const SOON_MS = 2 * DAY_MS;
+/** Still ahead, and within two days. */
+export const isSoon = (msAhead: number) => msAhead > 0 && msAhead <= SOON_MS;
 /** The most rows one window reads; the calendar's year and the radar's month both fit inside it. */
 const MAX_LIMIT = 2_000;
 const KINDS: ReadonlySet<string> = new Set<string>(DEADLINE_KINDS);
@@ -82,6 +84,9 @@ export function addDays(date: string, days: number): string {
 
 interface Row {
   item_id: string;
+  /** 同一件事（故事、其次事实）的几篇报道只列一次：这两列是合并的依据。 */
+  story_id: number | null;
+  fact_id: number | null;
   title: string;
   url: string;
   category: string | null;
@@ -123,7 +128,7 @@ async function deadlineWindow(
   const subjectFilter = opts.subject === undefined ? sql`` : sql`AND p.tags && ${entityTags(opts.subject)}::text[]`;
   const rows = await sql<Row[]>`
     WITH ${changeWindow(now)}, dated AS (
-      SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at,
+      SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at, p.story_id, p.fact_id,
              s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
              d.value->>'kind' AS kind, d.value->>'at' AS at, d.value->>'note' AS note,
              NULL::text AS round_kind, NULL::text AS round_slot, NULL::text AS round_timezone, NULL::text AS platform,
@@ -152,7 +157,7 @@ async function deadlineWindow(
             )
         )
       UNION ALL
-      SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at,
+      SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at, p.story_id, p.fact_id,
              s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
              NULL::text AS kind, e.slot_at AS at, NULL::text AS note,
              tr.kind AS round_kind, e.slot AS round_slot, tr.timezone AS round_timezone, tr.platform AS platform,
@@ -173,10 +178,13 @@ async function deadlineWindow(
         AND e.slot_at IS NOT NULL
         AND e.slot_at >= ${opts.from} AND e.slot_at < ${addDays(opts.to, 1)}
     )
-    SELECT * FROM dated ORDER BY at, selected DESC, item_id LIMIT ${opts.limit}`;
+    SELECT * FROM dated ORDER BY at, selected DESC, published_at NULLS LAST, item_id LIMIT ${opts.limit}`;
 
   const days = new Map<string, DeadlineView[]>();
   let total = 0;
+  // 同一件事、同一种节点、同一天只列一条（站主 2026-10-07）：几家都报了同一场开售，读者只需要看到一次。
+  // 行已按「精选在前、发得早的在前」排好，先到的那条留下。
+  const seen = new Set<string>();
   for (const r of rows) {
     if (!hasItemPage({ visibility: "public", sourceMode: r.source_mode })) continue;
     const at = r.at;
@@ -204,8 +212,13 @@ async function deadlineWindow(
       source: { name: publicSourceName(r.source_name) },
       publishedAt: r.published_at ? r.published_at.toISOString() : null,
       selected: r.selected,
-      soon: deadlineInstant(day, split.localTime, timezone) - now.getTime() <= SOON_MS,
+      // 已经过去的时刻还留在今天的格子里，但不再算「48 小时内」。
+      soon: isSoon(deadlineInstant(day, split.localTime, timezone) - now.getTime()),
     };
+    const event = r.story_id !== null ? `s${r.story_id}` : r.fact_id !== null ? `f${r.fact_id}` : `a${r.item_id}`;
+    const key = `${event}|${view.kind}|${day}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     total += 1;
     const bucket = days.get(day);
     if (bucket) bucket.push(view);

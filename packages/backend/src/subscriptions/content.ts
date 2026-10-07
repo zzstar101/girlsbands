@@ -159,11 +159,19 @@ function weekdayOf(day: string): string {
  * 一个收件人的截止提醒。返回 null 表示这次不发：没有他关心的节点，或者没有 48 小时内到期的。
  * 「没有要紧事就不发信」是有意的——提醒信只有在能救下一场抽选的时候才有价值。
  */
+/**
+ * 提醒信只说票和货（站主 2026-10-07）：抽选、先行、开卖、截止、结果、缴款、发售日、周边开订。
+ * 演出当天、开播、MV 首播、配信期限这类在雷达页照常列出，但不为它们发提醒信。
+ */
+export const REMINDED_KINDS: ReadonlySet<string> = new Set([
+  "lottery_start", "lottery_end", "sale_start", "sale_end", "result", "payment_deadline", "release_start", "merch_start",
+]);
+
 export async function deadlineData(recipient: Recipient, now = new Date()): Promise<DeadlineData | null> {
   const radar = await upcomingDeadlines(now, { horizonDays: DEADLINE_HORIZON_DAYS, limit: 400 });
   const picked: { date: string; views: DeadlineView[] }[] = [];
   for (const day of radar.days) {
-    const views = day.items.filter((i) => matches(recipient.bands, i.subjects));
+    const views = day.items.filter((i) => REMINDED_KINDS.has(i.kind) && matches(recipient.bands, i.subjects));
     if (views.length === 0) continue;
     picked.push({ date: day.date, views });
   }
