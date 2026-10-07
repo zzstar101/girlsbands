@@ -4,7 +4,7 @@
 
 ## 去哪里交流
 
-- [Issues](https://github.com/RinneBeat/girlsbands/issues/new/choose)：可复现的 Bug 和有明确场景的功能建议。
+- [Issues](https://github.com/zzstar101/girlsbands/issues/new/choose)：可复现的 Bug 和有明确场景的功能建议。
 - 安全漏洞请按 [安全报告说明](SECURITY.md) 私密提交。
 
 ## 贡献范围

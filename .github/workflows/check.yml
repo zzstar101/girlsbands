@@ -1,5 +1,6 @@
 # Checks on GitHub-hosted runners: install, typecheck, web build, the web and backend tests on a fresh
 # PostgreSQL, the built site's smoke check on the empty database, and the Docker image brought up with docker compose.
+# On main, once both pass: the production image is pushed to GHCR and the server is told to pull it (deploy).
 # Only GitHub-owned actions, pinned to a full commit SHA.
 name: Check
 
@@ -14,7 +15,8 @@ permissions:
 
 concurrency:
   group: check-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Pull requests drop superseded runs; runs on main queue instead, so a deploy is never cut off midway.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -112,3 +114,63 @@ jobs:
       - name: Stop
         if: always()
         run: docker compose down -v
+
+  # The production image, tagged with the commit and `latest`. ASSET_BASE_URL is baked into the web
+  # build, so it comes from the repository variable of the same name (the CDN host in .env on the server).
+  publish:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [check, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build and push
+        env:
+          ASSET_BASE_URL: ${{ vars.ASSET_BASE_URL }}
+        run: |
+          docker buildx create --use --driver docker-container >/dev/null
+          docker buildx build . --push \
+            --build-arg ASSET_BASE_URL="$ASSET_BASE_URL" \
+            --label org.opencontainers.image.source="https://github.com/${{ github.repository }}" \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            --cache-from type=registry,ref="$IMAGE:buildcache" \
+            --cache-to type=registry,ref="$IMAGE:buildcache",mode=max \
+            -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest"
+
+  # SSHes to the server with a key that can only run deploy/ci-deploy.sh (forced command in authorized_keys),
+  # passing the commit and, on stdin, this job's token so the server can pull the private image.
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Deploy
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          TARGET: ${{ vars.DEPLOY_TARGET }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$TOKEN" | ssh -i ~/.ssh/deploy -o BatchMode=yes -o StrictHostKeyChecking=yes "$TARGET" "$GITHUB_SHA"
+      - name: Check the live site
+        if: vars.SITE_URL != ''
+        run: |
+          for i in $(seq 1 30); do curl -fsS -o /dev/null "${{ vars.SITE_URL }}/api/health" && exit 0; sleep 5; done
+          exit 1

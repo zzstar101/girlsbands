@@ -42,7 +42,7 @@
 ### 1. 起站，先不开开关
 
 ```bash
-git clone https://github.com/RinneBeat/girlsbands.git myband && cd myband
+git clone https://github.com/zzstar101/girlsbands.git myband && cd myband
 node scripts/init-env.ts --llm-key <模型 API Key>     # 机器上没有 Node 时见 deploy.md 第 15 行
 ```
 

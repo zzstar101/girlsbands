@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: 私密报告安全漏洞
-    url: https://github.com/RinneBeat/girlsbands/security/advisories/new
+    url: https://github.com/zzstar101/girlsbands/security/advisories/new
     about: 安全漏洞通过此入口提交，请不要在公开 Issue 中披露利用细节。

@@ -7,7 +7,7 @@
 需要一台装了 Docker（带 Compose）的机器。云服务器建议至少 2 核、4 GB 内存，构建镜像时要用到。
 
 ```bash
-git clone https://github.com/RinneBeat/girlsbands.git myband
+git clone https://github.com/zzstar101/girlsbands.git myband
 cd myband
 node scripts/init-env.ts --llm-key <你的模型 API Key>
 ```
@@ -116,6 +116,25 @@ docker compose run --rm setup && docker compose up -d
 ```
 
 也可以直接运行 `bash deploy/update.sh`（按上面的顺序执行，默认带 `--profile https`，最后清理 Docker 构建缓存，只留 1.5G 给下次构建复用，免得每次部署都留下几百 M）。
+
+#### 由 GitHub Actions 构建镜像并部署（本站的做法）
+
+推送到 `main` 后，`.github/workflows/check.yml` 先跑完 `check` 和 `docker` 两项检查，再由 `publish` 把生产镜像推到 `ghcr.io/zzstar101/girlsbands:<提交 SHA>`（同时打 `latest`），最后由 `deploy` 登录服务器让它拉这个镜像。服务器不再自己构建，2 核 4G 的机器也不用为构建留内存。
+
+服务器上要准备的（只做一次）：
+
+- **部署密钥**：服务器生成 `~/.ssh/github_deploy`，公钥在仓库 Settings → Deploy keys 里添加为**只读**；`~/.ssh/config` 里 `Host github.com` 指向这把钥匙，仓库的 `origin` 用 `git@github.com:zzstar101/girlsbands.git`。服务器只拿它拉代码（compose 文件、Caddyfile 这些跟着提交走），拉不了别的仓库，也推不回去。
+- **CI 登录用的钥匙**：另生成一把 ed25519，公钥写进部署用户的 `~/.ssh/authorized_keys`，前面加强制命令，让它只能跑部署脚本：
+
+  ```text
+  command="/opt/girlsbands/deploy/ci-deploy.sh",restrict ssh-ed25519 AAAA… girlsbands-ci
+  ```
+
+  私钥放进 GitHub 的 `production` 环境密钥 `DEPLOY_SSH_KEY`，`ssh-keyscan <服务器>` 的输出放 `DEPLOY_KNOWN_HOSTS`；环境变量 `DEPLOY_TARGET`（如 `ubuntu@203.0.113.10`）、`SITE_URL`（部署后检查 `/api/health` 用）。仓库变量 `ASSET_BASE_URL` 必须和服务器 `.env` 里的一致：它在 CI 构建时写进镜像。
+
+`deploy/ci-deploy.sh` 做的事：校验传进来的是 `main` 上的提交 → 用部署密钥 fast-forward 到它 → 把 `.env` 的 `APP_IMAGE` 改成这个提交的镜像 → 用任务自带的 `GITHUB_TOKEN` 登录 GHCR（任务结束即失效，用完就登出）→ 运行 `deploy/update.sh`。`.env` 里有 `APP_IMAGE` 时，`update.sh` 拉镜像而不是构建，并删掉三天前没在用的旧镜像。
+
+回滚：在 Actions 里对旧提交重新运行不行（`ci-deploy.sh` 只往前走），在服务器上把 `.env` 的 `APP_IMAGE` 改成旧提交的镜像，再 `git checkout` 到那个提交、`SKIP_GIT_PULL=1 bash deploy/update.sh`；之后下一次推送前先把代码回到 `main`。想改回在服务器上构建，删掉 `.env` 里的 `APP_IMAGE` 即可。
 
 迁移成功后再启动服务；迁移失败时先查看错误，不要继续启动。使用 HTTPS 配置的站点继续保留 `--profile https`。旧的 API 和 worker 要在迁移前停下：迁移可能删表删列，旧代码还在跑会出错；正常关闭 worker 会等进行中的付费调用收尾（最长三分多钟）。非 Docker 部署也按“备份、构建、停止 API/worker/web、迁移（`scripts/migrate.ts`）、种子数据（`scripts/seed.ts`）、启动”的顺序更新。
 

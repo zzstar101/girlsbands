@@ -4,7 +4,9 @@
 name: girlsbands
 
 x-app: &app
-  image: girlsbands-app
+  # Built locally by default. A server that deploys from GitHub Actions has APP_IMAGE in .env set to the
+  # image CI pushed (ghcr.io/…:<commit>); deploy/update.sh then pulls it instead of building.
+  image: ${APP_IMAGE:-girlsbands-app}
   env_file: .env
   restart: unless-stopped
   environment: &app-env

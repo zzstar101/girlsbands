@@ -104,7 +104,7 @@
 需要 [Docker](https://docs.docker.com/get-docker/) 和一个 OpenAI 兼容的模型 API Key（DeepSeek、千问、智谱都可以）。
 
 ```bash
-git clone https://github.com/RinneBeat/girlsbands.git
+git clone https://github.com/zzstar101/girlsbands.git
 cd girlsbands
 node scripts/init-env.ts --llm-key <你的模型 API Key>
 docker compose up -d --build
@@ -160,7 +160,7 @@ npm run build -w @girlsbands/web && node --test apps/web/tests/*.test.ts
 
 ## 反馈与贡献
 
-读者反馈走站内的 [反馈](https://girlsbands.com/feedback)。代码上的 Bug 或明确的功能建议，[提交 Issue](https://github.com/RinneBeat/girlsbands/issues/new/choose)；准备改代码前先看 [贡献说明](CONTRIBUTING.md)；安全漏洞请走 [私密报告入口](SECURITY.md)。
+读者反馈走站内的 [反馈](https://girlsbands.com/feedback)。代码上的 Bug 或明确的功能建议，[提交 Issue](https://github.com/zzstar101/girlsbands/issues/new/choose)；准备改代码前先看 [贡献说明](CONTRIBUTING.md)；安全漏洞请走 [私密报告入口](SECURITY.md)。
 
 ## 许可
 
