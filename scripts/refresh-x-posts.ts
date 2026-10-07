@@ -6,7 +6,7 @@
 //   links    正文里还留着镜像地址（nitter.*）的：只把链接改回 x.com / t.co，内容不变，不出新修订，译文同改。
 //   rescreen 成员个人号的已公开推文，按新的 prefilter 规则重新判一次。必须带新的 attempt tag：
 //            同一修订、同一标签会命中旧回执，等于没判。
-//   node --env-file=.env scripts/refresh-x-posts.ts <bodies|links|rescreen> [--limit N] [--pace MS] [--dry]
+//   node --env-file=.env scripts/refresh-x-posts.ts <bodies|links|rescreen> [--limit N] [--pace MS] [--tag T] [--state analyzed|blocked] [--dry]
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { queueProcessing } from "@girlsbands/backend/jobs/content";
 import { stopBoss } from "@girlsbands/backend/jobs/queue";
@@ -22,6 +22,8 @@ const limit = Number(value("--limit") ?? 1000);
 const pace = Number(value("--pace") ?? 1500);
 const dry = args.includes("--dry");
 const RESCREEN_TAG = value("--tag") ?? "rescreen-20261007";
+// --state blocked：把之前拦下的成员推文按新规则再判一次（2026-10-07 起纯日常改判 DAILY，进单独一栏）。
+const STATE = value("--state") ?? "analyzed";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const X_PUBLIC = sql`
@@ -124,7 +126,7 @@ async function rescreen() {
   const rows = await sql<{ id: string }[]>`
     SELECT a.id ${X_PUBLIC}
       AND s.owner_entity_id IS NOT NULL AND s.tags @> ARRAY['成员']
-      AND a.processing_state = 'analyzed'
+      AND a.processing_state = ${STATE}
       AND NOT EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id = a.id AND r.revision = a.revision AND r.revision > 1)
     ORDER BY a.discovered_at DESC LIMIT ${limit}`;
   console.log(`rescreen: ${rows.length} candidates, tag ${RESCREEN_TAG}`);

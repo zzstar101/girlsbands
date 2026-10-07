@@ -4,14 +4,53 @@
     {
       "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "@girlsbands/web"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "@girlsbands/web"
+      ],
       "port": 3000
     },
     {
       "name": "api",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["--env-file=.env", "apps/api/src/main.ts"],
+      "runtimeArgs": [
+        "--env-file=.env",
+        "apps/api/src/main.ts"
+      ],
       "port": 3001
+    },
+    {
+      "name": "web-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "exec",
+        "-w",
+        "@girlsbands/web",
+        "--",
+        "react-router",
+        "dev",
+        "--port",
+        "3017",
+        "--host",
+        "127.0.0.1"
+      ],
+      "port": 3017
+    },
+    {
+      "name": "design-sample",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "3018",
+        "--bind",
+        "127.0.0.1",
+        "-d",
+        ".data/design-sample"
+      ],
+      "port": 3018
     }
   ]
 }
