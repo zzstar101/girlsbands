@@ -550,7 +550,7 @@ export interface AnalysisRun {
    * Official sources only: the must-see kind it is (null: none, or no sentence in the original shows it),
    * what the model claimed, and the sentence. A kind admits the material to 精选 without the scores.
    */
-  mustSee?: { kind: MustSeeKind | null; quote: string | null; claimed: string; model: string; receiptId: number; reused: boolean } | null;
+  mustSee?: { kind: MustSeeKind | null; quote: string | null; claimed: string; model: string; receiptId: number | null; reused: boolean } | null;
 }
 
 const isContentFilter = (error: unknown) => error instanceof ProviderRejectedError && !error.retryable && /contentFilter|"1301"/.test(error.message);
@@ -685,6 +685,11 @@ function hasImage(a: AnalyzeInputArticle): boolean {
 export async function runMustSee(a: AnalyzeInputArticle, opts: StepOpts & { force?: boolean } = {}): Promise<AnalysisRun["mustSee"]> {
   if (!opts.force && !selectionRulesOn()) return null;
   if (tierThreshold(selectionTier(a.source, true), true) === null) return null;
+  // A domestic event platform lists nothing but Only events and their ticketing: past the prefilter it
+  // is on the list as it stands, with no model call.
+  if (a.source.tier === "T2_EVENT") {
+    return { kind: "doujin_event", quote: a.title, claimed: "doujin_event", model: "rule", receiptId: null, reused: true };
+  }
   const model = await modelFor("structure");
   checkAnalysisRunning();
   const res = await chatJson({
@@ -998,7 +1003,7 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
     run.prefilter.receiptId, ...(run.scores?.receiptIds ?? []), ...(run.writing?.receiptIds ?? []), ...(run.structure ? [run.structure.receiptId] : []),
     ...(run.live ? [run.live.receiptId] : []),
     ...(run.release ? [run.release.receiptId] : []),
-    ...(run.mustSee ? [run.mustSee.receiptId] : []),
+    ...(run.mustSee?.receiptId ? [run.mustSee.receiptId] : []),
   ];
   const w = run.writing;
   const detail = {
