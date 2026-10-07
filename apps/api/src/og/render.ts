@@ -51,6 +51,8 @@ export const DISPLAY_FAMILY = "Dela Gothic One";
 /** 品牌字族：**只画站名一个词**（邮件头图左上角、分享图与海报的角标）。子集只收 `SITE.name`
  *  里的字（见 scripts/og/build-og-jp-font.ts 的 brandCharset()），别的词用它就会画成豆腐块。 */
 export const BRAND_FAMILY = "ZCOOL KuaiLe";
+/** 拉丁显示字族：Anton，和网站 --font-display 同款。子集只有拉丁、数字与标点。 */
+export const LATIN_DISPLAY_FAMILY = "Anton";
 
 let fontsPromise: Promise<Array<{ name: string; data: Buffer; weight: 400 | 700; style: "normal" }>> | null = null;
 
@@ -64,7 +66,8 @@ function fonts() {
     readFile(path.join(REPO_ROOT, "assets/og-fonts/noto-sans-jp-700.ttf")),
     readFile(path.join(REPO_ROOT, "assets/og-fonts/dela-gothic-one.ttf")),
     readFile(path.join(REPO_ROOT, "assets/og-fonts/zcool-kuaile.ttf")),
-  ]).then(([scRegular, scBold, jpRegular, jpBold, display, brand]) => [
+    readFile(path.join(REPO_ROOT, "assets/og-fonts/anton.ttf")),
+  ]).then(([scRegular, scBold, jpRegular, jpBold, display, brand, anton]) => [
     { name: CN_FAMILY, data: scRegular, weight: 400, style: "normal" },
     { name: CN_FAMILY, data: scBold, weight: 700, style: "normal" },
     { name: JP_FAMILY, data: jpRegular, weight: 400, style: "normal" },
@@ -75,6 +78,8 @@ function fonts() {
     // 品牌字体同样只有一个字重，两档都注册。
     { name: BRAND_FAMILY, data: brand, weight: 400, style: "normal" },
     { name: BRAND_FAMILY, data: brand, weight: 700, style: "normal" },
+    { name: LATIN_DISPLAY_FAMILY, data: anton, weight: 400, style: "normal" },
+    { name: LATIN_DISPLAY_FAMILY, data: anton, weight: 700, style: "normal" },
   ]);
   return fontsPromise;
 }

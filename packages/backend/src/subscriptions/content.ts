@@ -17,6 +17,8 @@ import { itemUrl, siteUrl } from "../publication/links.ts";
 import { entityIds, publicSourceName } from "../publication/rules.ts";
 import { selectedCondition } from "../publication/scope.ts";
 import { upcomingDeadlines } from "../publication/deadlines.ts";
+import { pickPicture } from "../lib/image-url.ts";
+import { proxiedImage } from "../media/imgproxy.ts";
 import type { Recipient } from "./store.ts";
 
 /** 提醒信正文覆盖的天数。 */
@@ -167,7 +169,7 @@ export const REMINDED_KINDS: ReadonlySet<string> = new Set([
   "lottery_start", "lottery_end", "sale_start", "sale_end", "result", "payment_deadline", "release_start", "merch_start",
 ]);
 
-export async function deadlineData(recipient: Recipient, now = new Date()): Promise<DeadlineData | null> {
+export async function deadlineData(recipient: Recipient, now = new Date(), opts: { preview?: boolean } = {}): Promise<DeadlineData | null> {
   const radar = await upcomingDeadlines(now, { horizonDays: DEADLINE_HORIZON_DAYS, limit: 400 });
   const picked: { date: string; views: DeadlineView[] }[] = [];
   for (const day of radar.days) {
@@ -178,7 +180,8 @@ export async function deadlineData(recipient: Recipient, now = new Date()): Prom
   if (picked.length === 0) return null;
   const allViews = picked.flatMap((d) => d.views);
   const urgentViews = allViews.filter((v) => v.soon);
-  if (urgentViews.length === 0) return null;
+  // 样稿预览可以没有 48 小时内的事：看的是排版，不是要不要发。
+  if (urgentViews.length === 0 && !opts.preview) return null;
   // 头图说的是「最要紧的那支乐队」：读者在收件箱里一眼先看到的就是它，图也从这条情报自己身上取。
   const starView = urgentViews.find((v) => bandOf(v.subjects)) ?? allViews.find((v) => bandOf(v.subjects)) ?? urgentViews[0]!;
   const star = bandOf(starView.subjects);
@@ -217,6 +220,7 @@ interface DigestRow {
   source_name: string;
   story_id: number | null;
   score: number | null;
+  media: unknown;
 }
 
 /** 同一个故事里哪条更值得占掉那唯一一格：分高的优先，同分取最早那条（先到的那篇通常信息最全）。 */
@@ -230,6 +234,20 @@ function betterRow(a: DigestRow, b: DigestRow): boolean {
   return a.article_id < b.article_id;
 }
 
+/** 邮件里的图要撑到读者翻旧信的时候：签名给一个月（网页上是两天）。 */
+const EMAIL_IMAGE_LIFETIME_SECONDS = 31 * 86400;
+
+/** 一条精选的配图：公告自己的第一张真插画，720 宽那档；尺寸未知时按 16:9 占位。 */
+function digestImage(media: unknown, now: Date): DigestItem["image"] {
+  const picture = pickPicture(media);
+  if (!picture) return null;
+  const src = proxiedImage(picture.url, "image-720", true, now.getTime(), EMAIL_IMAGE_LIFETIME_SECONDS);
+  if (!src || !/^https?:\/\//.test(src)) return null;
+  const w = picture.width && picture.width > 0 ? picture.width : 16;
+  const h = picture.height && picture.height > 0 ? picture.height : 9;
+  return { src, width: w, height: h };
+}
+
 /**
  * 一个收件人的精选摘要。返回 null 表示这个窗口里没有他关心的内容——不发空邮件。
  */
@@ -237,9 +255,10 @@ export async function digestData(recipient: Recipient, now = new Date()): Promis
   const since = new Date(now.getTime() - DIGEST_WINDOW_HOURS * 3600_000);
   const rows = await sql<DigestRow[]>`
     SELECT p.article_id, p.title, p.summary, p.category, p.tags, p.first_party, p.timeline_at, s.name AS source_name,
-           p.story_id, p.score
+           p.story_id, p.score, a.media
     FROM publications p
     JOIN sources s ON s.id = p.source_id
+    JOIN articles a ON a.id = p.article_id
     WHERE ${selectedCondition(now)}
       AND p.timeline_at >= ${since} AND p.timeline_at < ${now}
     ORDER BY p.timeline_at DESC
@@ -283,6 +302,7 @@ export async function digestData(recipient: Recipient, now = new Date()): Promis
       time: `${beijingDate(r.timeline_at).slice(5).replace("-", "/")} ${beijingTime(r.timeline_at)}`,
       official: r.first_party,
       selected: true,
+      image: digestImage(r.media, now),
     });
     if (items.length >= DIGEST_LIMIT) break;
   }

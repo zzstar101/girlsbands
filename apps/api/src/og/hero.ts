@@ -242,6 +242,19 @@ function unreadable(hist: InkHist, bg: number): number {
   return total === 0 ? 0 : bad / total;
 }
 
+/**
+ * 一支乐队的 logo，缩进 maxW×maxH 的框里，作为 data URL（分享海报用）。没有 logo 返回 null。
+ * 渲染时只读磁盘，不出网。
+ */
+export async function bandLogoData(id: string, maxW: number, maxH: number): Promise<{ data: string; width: number; height: number; sha256: string } | null> {
+  const logo = await logoImage(id);
+  if (!logo) return null;
+  const scale = Math.min(maxW / logo.width, maxH / logo.height);
+  const width = Math.max(1, Math.round(logo.width * scale));
+  const height = Math.max(1, Math.round(logo.height * scale));
+  return { data: `data:image/png;base64,${logo.png.toString("base64")}`, width, height, sha256: logo.sha256 };
+}
+
 /** 把一支乐队的 logo 读成字节，并顺手量出它的墨迹亮度分布。 */
 function logoImage(id: string): Promise<LogoImage | null> {
   const cached = images.get(id);

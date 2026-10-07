@@ -15,8 +15,13 @@
 // 所有尺寸只能从 ../layout.ts 的标尺取，tests/email-templates.test.ts 会逐条核对。
 import type { EmailStyle } from "./types.ts";
 import cover from "./styles/cover.ts";
+import flyer from "./styles/flyer.ts";
+import brief from "./styles/brief.ts";
 
-export const EMAIL_STYLES: Record<string, EmailStyle> = { cover };
+// 2026-10-08 起又加了两套正文更长的样稿（站主要「内容更多、手机上更好读」）：
+//   flyer 传单 —— 网站同款黑墙米白纸，每条一张纸卡 + 配图 + 200 字摘要；
+//   brief 简报 —— 白底紧凑，本期速览 + 逐条小方图，一封 12 条。
+export const EMAIL_STYLES: Record<string, EmailStyle> = { cover, flyer, brief };
 
 export const DEFAULT_EMAIL_STYLE = "cover";
 

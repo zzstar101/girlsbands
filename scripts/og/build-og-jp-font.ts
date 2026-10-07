@@ -31,6 +31,9 @@ const DELA = path.join(ROOT, ".data/fonts/DelaGothicOne-Regular.ttf");
 const KC_URL = "https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolkuaile/ZCOOLKuaiLe-Regular.ttf";
 const KC = path.join(ROOT, ".data/fonts/ZCOOLKuaiLe-Regular.ttf");
 const OUT_DIR = path.join(ROOT, "assets/og-fonts");
+/** 拉丁显示字体：Anton（Google Fonts，OFL-1.1），和网站的 --font-display 同一款，画海报上的英文大字与数字。 */
+const ANTON_URL = "https://raw.githubusercontent.com/google/fonts/main/ofl/anton/Anton-Regular.ttf";
+const ANTON = path.join(ROOT, ".data/fonts/Anton-Regular.ttf");
 /** 头图里写死的文案（apps/api/src/og/hero.ts 的 URGENT_LABEL / JST_LABEL，content.ts 的措辞）。 */
 const FIXED_COPY = "● 48 小时内 日本时间 JST 全部乐队与企划 支 个";
 /** 邮件标题图上的日文大字（apps/api/src/og/title.ts 的 MAIL_TITLES）：显示字体必须自己覆盖，
@@ -43,9 +46,32 @@ function range(from: number, to: number) {
   return Array.from({ length: to - from + 1 }, (_, i) => String.fromCodePoint(from + i)).join("");
 }
 
-/** 要收进正文子集的字符：乐队/企划名 + 固定文案 + 假名 + 拉丁 + 标点。 */
+/**
+ * JIS 第一、第二水准的全部汉字（cp932 能编码的那 6000 多个）。分享海报会画任意标题，标题里的日文
+ * 汉字（響、櫻、讃……）不在 GB2312 简体子集里，缺字就是豆腐块；收全常用日文汉字后子集约 2MB。
+ */
+export function jisKanji() {
+  const decoder = new TextDecoder("shift_jis", { fatal: true });
+  const out = new Set<string>();
+  for (let hi = 0x88; hi <= 0xfc; hi++) {
+    if (hi > 0x9f && hi < 0xe0) continue;
+    for (let lo = 0x40; lo <= 0xfc; lo++) {
+      if (lo === 0x7f) continue;
+      try {
+        const ch = decoder.decode(new Uint8Array([hi, lo]));
+        const cp = ch.codePointAt(0)!;
+        if ([...ch].length === 1 && ((cp >= 0x4e00 && cp <= 0x9fff) || (cp >= 0x3400 && cp <= 0x4dbf) || (cp >= 0xf900 && cp <= 0xfaff))) out.add(ch);
+      } catch {
+        /* 空码位 */
+      }
+    }
+  }
+  return out;
+}
+
+/** 要收进正文子集的字符：乐队/企划名 + 固定文案 + JIS 汉字 + 假名 + 拉丁 + 标点。 */
 export function jpCharset() {
-  const chars = new Set<string>();
+  const chars = new Set<string>(jisKanji());
   for (const entity of Object.values(ENTITIES)) for (const ch of entity.name) chars.add(ch);
   for (const ch of FIXED_COPY) chars.add(ch);
   for (const ch of DATE_JP) chars.add(ch);
@@ -148,6 +174,12 @@ async function main() {
   await writeFile(displayFile, displayCharset());
   const dela = await subset(DELA, path.join(OUT_DIR, "dela-gothic-one.ttf"), displayFile, `${displayCharset().length} 个字符（乐队名、邮件标题、数字）`);
   if (dela > 400 * 1024) throw new Error(`显示字体子集 ${Math.round(dela / 1024)}KB 太大了：多半是把整套假名收进来了，收窄 displayCharset()`);
+
+  // Anton：只收拉丁与标点。
+  await ensure(ANTON_URL, ANTON);
+  const antonFile = path.join(ROOT, ".data/fonts/anton-charset.txt");
+  await writeFile(antonFile, range(0x0020, 0x007e) + range(0x00a0, 0x00ff) + range(0x2010, 0x2027));
+  await subset(ANTON, path.join(OUT_DIR, "anton.ttf"), antonFile, "拉丁与数字");
 
   // 品牌字体：静态单一字重，只画站名一个词，直接裁。
   await ensure(KC_URL, KC);

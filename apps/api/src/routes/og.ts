@@ -10,7 +10,8 @@ import { loadReport, type ReportKind } from "@girlsbands/backend/publication/rep
 import { findPageTopic, TOPIC_GROUPS } from "@girlsbands/backend/publication/topics";
 import { loadStoryDetail, resolveStory } from "@girlsbands/backend/publication/stories";
 import { CARD_IMAGE, ogEtag, renderOg, type OgCard } from "../og/render.ts";
-import { POSTER_IMAGE, posterEtag, renderPoster, type Poster } from "../og/poster.ts";
+import { POSTER_IMAGE, POSTER_LOGO, posterEtag, renderPoster, type Poster, type PosterBand } from "../og/poster.ts";
+import { bandLogoData } from "../og/hero.ts";
 import { ogImage } from "../og/cover.ts";
 import { renderHero } from "../og/hero.ts";
 import { parseDateFile, parseTitleFile, renderDate, renderTitle } from "../og/title.ts";
@@ -88,6 +89,21 @@ function notFound(reply: FastifyReply) {
 }
 
 const REPORT_NAMES: Record<ReportKind, string> = { daily: withSubject("日报"), weekly: withSubject("周报"), monthly: withSubject("月报") };
+
+/** Logos with light ink that need a dark label (same set as the home equalizer's DARK_PLATE). */
+const DARK_LOGOS = new Set(["togenashi-togeari"]);
+
+/** The poster's band: the item's only band; with several bands (a joint live) its project instead. */
+async function posterBand(tags: string[]): Promise<PosterBand | null> {
+  const ids = tags.filter((t) => ENTITIES[t]);
+  const bands = ids.filter((t) => ENTITIES[t]!.kind === "band");
+  const project = ids.find((t) => ENTITIES[t]!.kind === "project");
+  const id = bands.length === 1 ? bands[0] : (project ?? bands[0]);
+  if (!id) return null;
+  const e = ENTITIES[id]!;
+  const logo = await bandLogoData(id, POSTER_LOGO.width, POSTER_LOGO.height);
+  return { name: e.name, accent: e.accent ?? "#ff2d78", logo: logo ? { data: logo.data, width: logo.width, height: logo.height } : null, darkPlate: DARK_LOGOS.has(id) };
+}
 
 export function registerOg(app: FastifyInstance) {
   app.get("/og/site.png", (req, reply) => send(req, reply, PAGES.site!, 86400));
@@ -186,7 +202,8 @@ export function registerOg(app: FastifyInstance) {
       summary: d.summary,
       source: d.source.name,
       date: beijingDate(d.timelineAt),
-      score: d.selected ? d.score : null,
+      selected: d.selected,
+      band: await posterBand(d.tags),
       image: await ogImage(d.cover, POSTER_IMAGE),
     };
     const tag = `"poster-${posterEtag(poster)}"`;

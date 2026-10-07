@@ -113,6 +113,11 @@ export interface DigestItem {
   official: boolean;
   /** 进了精选。 */
   selected: boolean;
+  /**
+   * 公告自己的配图，绝对地址（走站内图片代理，签名有效期一个月）。没有就是 null。
+   * 风格可以不用；用了就要写 width/height 与 alt，并且图挂了文字照样成立。
+   */
+  image?: { src: string; width: number; height: number } | null;
 }
 
 /** 精选摘要：新精选合并成一封。 */
