@@ -15,6 +15,8 @@ import { bandLogoData } from "../og/hero.ts";
 import { ogImage } from "../og/cover.ts";
 import { renderHero } from "../og/hero.ts";
 import { parseDateFile, parseTitleFile, renderDate, renderTitle } from "../og/title.ts";
+import { renderPromo } from "../og/promo.ts";
+import { parsePromoFile } from "@girlsbands/industry/email/promo";
 import { decodeHero } from "@girlsbands/industry/email/hero";
 import { memberById } from "@girlsbands/industry/members";
 import { ENTITIES } from "@girlsbands/industry/taxonomy";
@@ -156,6 +158,19 @@ export function registerOg(app: FastifyInstance) {
     if (limited) return limited;
     const { png, etag } = await renderTitle(id);
     const tag = `"title-${etag}"`;
+    reply.header("ETag", tag).header("Cache-Control", EMAIL_IMAGE_CACHE);
+    if (notModified(req, tag)) return reply.code(304).send();
+    return reply.type("image/png").send(png);
+  });
+
+  // 「传单」邮件的宣传头图：网站 logo + ISSUE + 首页口号。地址里只有种类和日期，不查库。
+  app.get("/og/email/promo/:file", async (req, reply) => {
+    const spec = parsePromoFile((req.params as { file: string }).file);
+    if (!spec) return notFound(reply);
+    const limited = overLimit(req, reply, "og:promo");
+    if (limited) return limited;
+    const { png, etag } = await renderPromo(spec.kind, spec.date);
+    const tag = `"promo-${etag}"`;
     reply.header("ETag", tag).header("Cache-Control", EMAIL_IMAGE_CACHE);
     if (notModified(req, tag)) return reply.code(304).send();
     return reply.type("image/png").send(png);

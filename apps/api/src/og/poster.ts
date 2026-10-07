@@ -6,9 +6,11 @@
 import { createHash } from "node:crypto";
 import { renderSVG } from "uqr";
 import { SITE } from "@girlsbands/industry/site";
-import { BRAND_FAMILY, clamp, h, LATIN_DISPLAY_FAMILY, renderPng, SITE_HOST, type Node, type OgImage } from "./render.ts";
+import { siteLockup } from "./promo.ts";
+import { clamp, h, LATIN_DISPLAY_FAMILY, renderPng, SITE_HOST, type Node, type OgImage } from "./render.ts";
 
-export const POSTER_TEMPLATE_VERSION = "poster-2026-10-08.2";
+export const POSTER_TEMPLATE_VERSION = "poster-2026-10-08.3";
+const LOGO_H = 92;
 const WIDTH = 1080;
 const HEIGHT = 1440;
 /** The picture's box inside the paper card: the picture is fitted inside it, never cropped. */
@@ -77,15 +79,10 @@ async function tree(p: Poster): Promise<Node> {
   const summary = p.summary ? clamp(p.summary, image ? (len > 30 ? 72 : 96) : len > 52 ? 150 : 200) : null;
   const qr = `data:image/svg+xml;base64,${Buffer.from(renderSVG(p.url, { border: 0, ecc: "M", blackColor: PAPER_INK, whiteColor: "#ffffff" })).toString("base64")}`;
 
+  const lockup = await siteLockup("dark");
   const header = h("div", { display: "flex", alignItems: "center", justifyContent: "space-between" }, [
-    h("div", { display: "flex", alignItems: "center" }, [
-      h("div", { display: "flex", alignItems: "center", justifyContent: "center", width: 74, height: 74, backgroundColor: PAPER, marginRight: 20 },
-        h("div", { display: "flex", fontFamily: BRAND_FAMILY, fontSize: 26, lineHeight: 1, color: PAPER_INK, width: 56, flexWrap: "wrap", textAlign: "center" }, SITE.name.slice(0, 4))),
-      h("div", { display: "flex", flexDirection: "column" }, [
-        h("div", { display: "flex", fontFamily: BRAND_FAMILY, fontSize: 46, color: PAPER, lineHeight: 1.1 }, SITE.name),
-        h("div", { display: "flex", fontFamily: LATIN_DISPLAY_FAMILY, fontSize: 18, letterSpacing: 6, color: "#8a8490", marginTop: 4 }, "GIRLSBANDS"),
-      ]),
-    ]),
+    // 网站顶栏同一张 logo（黑场版：米白方块 + 粉弦 + 浅色字）。
+    h("img", { width: Math.round(LOGO_H * lockup.ratio), height: LOGO_H }, undefined, { src: lockup.data, width: Math.round(LOGO_H * lockup.ratio), height: LOGO_H }),
     h("div", { display: "flex", flexDirection: "column", alignItems: "flex-end" }, [
       h("div", { display: "flex", alignItems: "center", padding: "6px 20px 4px", border: `4px solid ${PAPER}`, fontFamily: LATIN_DISPLAY_FAMILY, fontSize: 40, color: PAPER, letterSpacing: 1 }, `ISSUE ${issue(p.date)}`),
       h("div", { display: "flex", marginTop: 10, fontFamily: LATIN_DISPLAY_FAMILY, fontSize: 24, color: PINK, letterSpacing: 2 }, SITE_HOST.toUpperCase()),

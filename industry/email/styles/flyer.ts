@@ -1,7 +1,7 @@
-// 传单（flyer）——跟网站同一套「黑墙 + 米白纸 + 黄胶带 + 应援色」，每条情报一张纸卡，带公告自己的配图。
+// 传单（flyer）——跟网站白纸主题同一套「淡粉墙 + 白卡 + 黄胶带 + 应援色」，每条情报一张卡，带公告自己的配图。
 //
 // 和「封面」的分工不同：封面把炸裂全交给三张图，正文只留一句摘要；这一版让正文自己也够读——
-//   1. 报头：黑底一条，站名 + ISSUE 日期，下面通栏头图（API 现画，图被屏蔽时铺应援色）。
+//   1. 通栏宣传头图（API 现画：网站 logo + ISSUE + 首页口号，见 ../promo.ts），图被屏蔽时铺淡粉。
 //   2. 大标题牌 + 一句说明（「过去 24 小时 N 条」）。
 //   3. 每条情报一张纸卡：左边一道应援色粗边；黄胶带色的分类签 + 乐队名；22px 标题；
 //      公告自己的配图（有才放，整宽）；摘要放到 200 字；时刻 · 来源；一个黑底「读全文」按钮。
@@ -15,13 +15,17 @@ import { escapeHtml, type ConfirmData, type DeadlineData, type DeadlineEntry, ty
 
 const SANS = "-apple-system,'Hiragino Kaku Gothic ProN','Yu Gothic','Noto Sans JP','Noto Sans SC','Segoe UI',sans-serif";
 
-/** 网站的传单色：黑墙、米白纸、纸上墨色、胶带黄、荧光粉。只在这一套里用。 */
-const WALL = "#0b0a0d";
-const PAPER = "#f3efe6";
+/**
+ * 网站白纸主题的配色：淡粉墙、更淡的粉纸、白卡、墨色、胶带黄、品牌粉。只在这一套里用。
+ * 站主 2026-10-08：不要米色，用淡粉。
+ */
+const WALL = "#ffe4ee";
+const PAPER = "#fff6f9";
 const CARD = "#ffffff";
 const PAPER_INK = "#141216";
-const TAPE = "#f2ec1c";
-const PINK = "#ff2d78";
+const NIGHT = "#141216";
+const TAPE = "#ffe600";
+const PINK = "#e6005f";
 const MUTED = "#6b6570";
 
 /** 摘要放到 200 个字：这一版要「邮件里就能读完」。 */
@@ -74,23 +78,6 @@ function page(site: EmailSite, path: string): string {
   return `${clean(site.url).replace(/\/+$/, "")}${path}`;
 }
 
-/** 「10/07」：报头 ISSUE 用。 */
-function issueOf(date: string): string {
-  const m = /^\d{4}-(\d{2})-(\d{2})/.exec(date);
-  return m ? `${m[1]}.${m[2]}` : "";
-}
-
-/** 报头：黑底一条，站名 + ISSUE。 */
-function masthead(site: EmailSite, issue: string): string {
-  return `
-  <tr><td bgcolor="${WALL}" style="background:${WALL};padding:${PAD_Y.block}px ${PAD_X}px">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-      <td width="320" style="width:320px;font-size:${TYPE.heading}px;line-height:${LEADING.tight};font-weight:${WEIGHT.bold};color:${PAPER}">${text(site.name)}</td>
-      <td align="right" style="font-size:${TYPE.body}px;line-height:${LEADING.tight};font-weight:${WEIGHT.bold};letter-spacing:2px;color:${TAPE}">${issue ? `ISSUE ${text(issue)}` : ""}</td>
-    </tr></table>
-  </td></tr>`;
-}
-
 function heroRow(site: EmailSite, hero: HeroHandle | null | undefined, accent: string): string {
   const bg = color(hero?.bg, accent);
   const src = clean(hero?.src);
@@ -109,7 +96,7 @@ function heroRow(site: EmailSite, hero: HeroHandle | null | undefined, accent: s
 function titleBlock(kind: TitleKind, site: EmailSite, note: string): string {
   const t = titleHandle(kind, site.url);
   return `
-  <tr><td bgcolor="${PAPER}" style="background:${PAPER};padding:${GAP.major}px ${PAD_X}px ${PAD_Y.card}px">
+  <tr><td bgcolor="${CARD}" style="background:${CARD};border-bottom:4px solid ${PINK};padding:${GAP.major}px ${PAD_X}px ${PAD_Y.card}px">
     <img src="${href(t.src, site.url)}" alt="${text(t.alt)}" width="${t.width}" height="${t.height}" style="display:block;width:100%;max-width:${t.width}px;height:auto;border:0">
     <p style="margin:${PAD_Y.block}px 0 0;font-size:${TYPE.body}px;line-height:${LEADING.loose};color:${PAPER_INK}">${note}</p>
   </td></tr>`;
@@ -200,11 +187,11 @@ function dayBar(date: string, label: string, weekday: string, today: string, sit
   const plate = d ? `<img src="${href(d.src, site.url)}" alt="${text(d.alt)}" width="${d.width}" height="${d.height}" style="display:block;width:${d.width}px;height:${d.height}px">` : "";
   return `
   <tr><td bgcolor="${PAPER}" style="background:${PAPER};padding:${PAD_Y.block}px ${PAD_X}px ${GAP.group}px">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:${WALL}">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:${NIGHT}">
       <tr>
         <td width="80" valign="middle" style="width:80px;padding:${GAP.block}px 0 ${GAP.block}px ${GAP.block}px">${plate}</td>
         <td valign="middle" style="padding:0 16px">
-          <div style="font-size:${TYPE.heading}px;line-height:${LEADING.tight};font-weight:${WEIGHT.bold};color:${PAPER}">${text(label)} ${text(weekday)}</div>
+          <div style="font-size:${TYPE.heading}px;line-height:${LEADING.tight};font-weight:${WEIGHT.bold};color:${CARD}">${text(label)} ${text(weekday)}</div>
           <div style="margin-top:${GAP.tight}px;font-size:${TYPE.body}px;line-height:${LEADING.normal};font-weight:${WEIGHT.bold};color:${TAPE}">${text(countdown(date, today))}</div>
         </td>
       </tr>
@@ -217,12 +204,12 @@ function footer(data: EmailData, site: EmailSite): string {
   const manage =
     data.kind === "confirm"
       ? "仅确认后开始发送"
-      : `${link(data.preferencesUrl, "订阅设置", "#c9c3cc", site.url, TYPE.small)} &nbsp; / &nbsp; ${link(data.unsubscribeUrl, "退订", "#c9c3cc", site.url, TYPE.small)}`;
+      : `${link(data.preferencesUrl, "订阅设置", MUTED, site.url, TYPE.small)} &nbsp; / &nbsp; ${link(data.unsubscribeUrl, "退订", MUTED, site.url, TYPE.small)}`;
   return `
   <tr><td bgcolor="${WALL}" style="background:${WALL};padding:${PAD_Y.section}px">
-    <div style="font-size:${TYPE.body}px;line-height:${LEADING.loose};font-weight:${WEIGHT.bold};color:${PAPER}">${text(site.name)}</div>
-    <p style="margin:${GAP.block}px 0 ${PAD_Y.block}px;font-size:${TYPE.small}px;line-height:${LEADING.loose};color:#a49ea8">${note}</p>
-    <div style="font-size:${TYPE.small}px;line-height:${LEADING.loose};color:#a49ea8">${manage}</div>
+    <div style="font-size:${TYPE.body}px;line-height:${LEADING.loose};font-weight:${WEIGHT.bold};color:${PAPER_INK}">${text(site.name)}</div>
+    <p style="margin:${GAP.block}px 0 ${PAD_Y.block}px;font-size:${TYPE.small}px;line-height:${LEADING.loose};color:${MUTED}">${note}</p>
+    <div style="font-size:${TYPE.small}px;line-height:${LEADING.loose};color:${MUTED}">${manage}</div>
   </td></tr>`;
 }
 
@@ -259,8 +246,7 @@ function confirm(data: ConfirmData): RenderedEmail {
   const wants = [data.wantsDeadlines ? "截止提醒" : "", data.wantsDigest ? "每日精选" : ""].filter(Boolean);
   const subject = `【${clean(site.name)}】还差一步，订阅就完成了`;
   const preheader = "点一下「确认订阅」，我们才开始发；不点，一条都不会发。";
-  const inner = `${masthead(site, "")}
-${heroRow(site, data.hero, bodyAccent(data, site))}
+  const inner = `${heroRow(site, data.hero, bodyAccent(data, site))}
 ${titleBlock("confirm", site, "点一下，订阅就完成了。确认后，我们会把你关注的事件节点和精选动态送到邮箱。")}
 ${card(
   PINK,
@@ -310,8 +296,7 @@ function deadline(data: DeadlineData): RenderedEmail {
     : `
   <tr><td bgcolor="${PAPER}" style="background:${PAPER};padding:${PAD_Y.section}px ${PAD_X}px ${GAP.major}px;font-size:${TYPE.body}px;line-height:${LEADING.loose};color:${PAPER_INK}">接下来没有要过期的日子。有新的，我们再提醒你。</td></tr>`;
   const schedule = page(site, "/deadlines");
-  const inner = `${masthead(site, issueOf(today))}
-${heroRow(site, data.hero, bodyAccent(data, site))}
+  const inner = `${heroRow(site, data.hero, bodyAccent(data, site))}
 ${titleBlock("deadline", site, note)}
 ${blocks}
   <tr><td bgcolor="${PAPER}" style="background:${PAPER};padding:0 ${PAD_X}px ${GAP.major}px">${button(schedule, "查看完整截止雷达 ↗", site)}</td></tr>
@@ -349,8 +334,7 @@ function digest(data: DigestData): RenderedEmail {
     ? list.map((item, i) => digestCard(item, site, i === list.length - 1)).join("")
     : `
   <tr><td bgcolor="${PAPER}" style="background:${PAPER};padding:${PAD_Y.section}px ${PAD_X}px ${GAP.major}px;font-size:${TYPE.body}px;line-height:${LEADING.loose};color:${PAPER_INK}">这一期还没有新的精选。有值得看的，我们再发给你。</td></tr>`;
-  const inner = `${masthead(site, issueOf(todayBeijing()))}
-${heroRow(site, data.hero, bodyAccent(data, site))}
+  const inner = `${heroRow(site, data.hero, bodyAccent(data, site))}
 ${titleBlock("digest", site, note)}
 ${cards}
   <tr><td bgcolor="${PAPER}" style="background:${PAPER};padding:0 ${PAD_X}px ${GAP.major}px">${button(site.url, "去网站看全部精选 ↗", site)}</td></tr>

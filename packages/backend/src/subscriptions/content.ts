@@ -9,6 +9,8 @@ import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
 import { ENTITIES, isBand, seriesOf } from "@girlsbands/industry/taxonomy";
 import { heroHandle, normalizeHero, type HeroHandle, type HeroSpec } from "@girlsbands/industry/email/hero";
 import { EMAIL_THEME } from "@girlsbands/industry/email/theme";
+import { promoHandle } from "@girlsbands/industry/email/promo";
+import type { TitleKind } from "@girlsbands/industry/email/title";
 import type { ConfirmData, DeadlineData, DeadlineDay, DeadlineEntry, DigestData, DigestItem, EmailSite } from "@girlsbands/industry/email/types";
 import { SITE, withSubject } from "@girlsbands/industry/site";
 import { config } from "../config.ts";
@@ -56,7 +58,9 @@ const manageUrl = (token: string, action?: string) =>
  * `date` 是 YYYY-MM-DD：它同时喂给右上角的鬼影日号和右下角的 `MM / DD · JST`。
  * 没有日期的信（确认信）传空串，那两处就不画——空着比编一个日期强。
  */
-function heroOf(input: { accent?: string | null; star: string; date: string; logo?: string | null }): HeroHandle {
+function heroOf(input: { kind: TitleKind; accent?: string | null; star: string; date: string; logo?: string | null }): HeroHandle {
+  // 「传单」那套不用乐队头图，用网站自己的宣传图（站主 2026-10-08：头图要跟网站关联，类似宣传图）。
+  if (config.emailStyle === "flyer") return promoHandle(input.kind, input.date, config.siteUrl, SITE.name);
   const spec: HeroSpec = normalizeHero({
     accent: input.accent ?? EMAIL_THEME.accentBright,
     ink: EMAIL_THEME.ink,
@@ -86,6 +90,7 @@ export async function confirmData(
     wantsDeadlines: input.wantsDeadlines,
     wantsDigest: input.wantsDigest,
     hero: heroOf({
+      kind: "confirm",
       accent: first?.accent ?? null,
       star: first?.name ?? SITE.name,
       // 确认信还没有「哪一天」这件事：不编日期，头图只画 logo 与乐队名。
@@ -200,6 +205,7 @@ export async function deadlineData(recipient: Recipient, now = new Date(), opts:
     unsubscribeUrl: manageUrl(recipient.token, "unsubscribe"),
     preferencesUrl: manageUrl(recipient.token),
     hero: heroOf({
+      kind: "deadline",
       accent: star?.accent ?? null,
       star: star?.name ?? SITE.name,
       // 日子取最近的那一天：头图右上的鬼影日号与右下的日期行都是它。
@@ -321,6 +327,7 @@ export async function digestData(recipient: Recipient, now = new Date()): Promis
     unsubscribeUrl: manageUrl(recipient.token, "unsubscribe"),
     preferencesUrl: manageUrl(recipient.token),
     hero: heroOf({
+      kind: "digest",
       accent: top?.accent ?? null,
       star: top?.name ?? SITE.name,
       date: day,
