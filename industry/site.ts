@@ -31,6 +31,8 @@ export const SITE = {
   footerNote: "本站聚合各来源原文并译成中文，信息以官方发布为准",
   /** 中国大陆网站的 ICP 备案号（选填），填了就显示在页脚并链接到工信部备案系统。 */
   icp: null as string | null,
+  /** 萌国 ICP 备案（选填）：跟工信部备案不是一回事，链到萌备自己的查询页，显示在页脚 icp 的位置旁边。 */
+  moeIcp: { label: "萌ICP备20262427号", url: "https://icp.gov.moe/?keyword=20262427" } as null | { label: string; url: string },
   /** 结构化数据里的网站运营者（搜索引擎用）。 */
   organization: {
     name: "少女乐队's",

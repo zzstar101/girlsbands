@@ -35,7 +35,7 @@ export function Sidebar({ changelogVersion, home }: { changelogVersion: string |
       <div className="nav-title">分类<i /></div><div className="cats">{CATEGORIES.map((c) => <Link key={c.key} to={`/all?category=${c.key}`}>{c.label}</Link>)}</div>
       <div className="side-links px-2"><Link to="/starred">收藏</Link><Link to="/changelog">更新日志{dot ? ' ·' : ''}</Link><Link to="/feedback">反馈</Link></div>
     </nav>
-    <div className="side-foot"><ThemeSwitch /><div className="side-links"><Link to="/subscribe">邮件订阅</Link><a href="/feed.xml">RSS</a><Link to="/agent?tab=api">API</Link><Link to="/about">关于</Link></div><div className="side-links side-friends"><span>友链</span><Link to="/guide">远征攻略</Link>{FRIENDS.map((f) => <a key={f.url} href={f.url} target="_blank" rel="noopener" title={f.note}>{f.name}</a>)}</div>{SITE.icp && <a href="https://beian.miit.gov.cn/" className="text-[10px] text-ink-4">{SITE.icp}</a>}</div>
+    <div className="side-foot"><ThemeSwitch /><div className="side-links"><Link to="/subscribe">邮件订阅</Link><a href="/feed.xml">RSS</a><Link to="/agent?tab=api">API</Link><Link to="/about">关于</Link></div><div className="side-links side-friends"><span>友链</span><Link to="/guide">远征攻略</Link>{FRIENDS.map((f) => <a key={f.url} href={f.url} target="_blank" rel="noopener" title={f.note}>{f.name}</a>)}</div>{SITE.icp && <a href="https://beian.miit.gov.cn/" className="text-[10px] text-ink-4">{SITE.icp}</a>}{SITE.moeIcp && <a href={SITE.moeIcp.url} target="_blank" rel="noopener" className="text-[10px] text-ink-4 hover:text-ink-2">{SITE.moeIcp.label}</a>}</div>
     <div className="side-rail" aria-hidden="true"><span>GIRLSBANDS · LIVE · TICKET · RELEASE · GIRLSBANDS · LIVE · TICKET · RELEASE ·</span></div>
   </aside>;
 }

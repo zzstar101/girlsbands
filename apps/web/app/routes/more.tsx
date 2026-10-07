@@ -113,6 +113,7 @@ export default function MorePage() {
         <Link viewTransition to="/rights" className="hover:text-ink-2">权利与删除</Link>
         <a href="/feed.xml" className="hover:text-ink-2">RSS</a>
         {SITE.icp && <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-ink-2">{SITE.icp}</a>}
+        {SITE.moeIcp && <a href={SITE.moeIcp.url} target="_blank" rel="noopener" className="hover:text-ink-2">{SITE.moeIcp.label}</a>}
       </div>
       <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
     </div>
