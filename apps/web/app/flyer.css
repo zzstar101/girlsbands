@@ -760,5 +760,5 @@ body:not(:has([data-admin])) [data-pill-track] [aria-current="page"] { color: va
 /* 主屏幕 App：顶部栏贴着状态栏太挤，整体往下挪一点；吸顶的条目跟着让出同样的距离。 */
 :root { --pwa-top: 0px; }
 @media (display-mode: standalone) and (max-width: 1023.98px) {
-  :root { --pwa-top: 10px; }
+  :root { --pwa-top: 18px; }
 }
