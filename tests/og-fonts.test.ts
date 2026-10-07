@@ -47,7 +47,7 @@ test("头图字库：日文汉字只有日文字集有，所以两个子集都�
   }
 });
 
-test("头图字库：日文字集覆盖全部假名与乐队名，且只有几十 KB", async () => {
+test("头图字库：日文字集覆盖全部假名与乐队名，体积受控", async () => {
   const { font, bytes } = await load("noto-sans-jp-700.ttf");
   const charset = jpCharset();
   // 字集是「想要」的清单（含 Latin-1、各种空格），源字体本身没有的字 pyftsubset 会跳过；
@@ -61,8 +61,9 @@ test("头图字库：日文字集覆盖全部假名与乐队名，且只有几�
   const missing = [...required].filter((ch) => !has(font, ch));
   assert.deepEqual(missing, [], `日文字集缺字（重跑 scripts/og/build-og-jp-font.ts）：${missing.join("")}`);
   assert.ok(charset.length > 300, `字集太小了：${charset.length}`);
-  // 刻意不做全量日文字库（4.3MB）：头图只写乐队名与固定文案
-  assert.ok(bytes <= 200 * 1024, `日文字集不该超过 200KB，现在是 ${Math.round(bytes / 1024)}KB`);
+  // 分享海报会画任意标题，所以收了 JIS 第一、第二水准汉字（jisKanji，约 2.2MB）；
+  // 仍刻意不做全量日文字库（4.3MB）。超过 3MB 多半是把别的字集也收进来了。
+  assert.ok(bytes <= 3 * 1024 * 1024, `日文字集不该超过 3MB，现在是 ${Math.round(bytes / 1024)}KB`);
 });
 
 test("头图字库：400 与 700 两个字重收同一套字", async () => {

@@ -58,10 +58,10 @@ async function framed(width: number, height: number, frame: number): Promise<str
 }
 
 /** 四边中点（判断一张带边的图有没有被切掉一条边）。 */
-async function edges(png: Buffer, at: { minX: number; maxX: number; minY: number; maxY: number }) {
+async function edges(png: Buffer, at: { minX: number; maxX: number; minY: number; maxY: number }, inset = 1) {
   const midX = Math.round((at.minX + at.maxX) / 2);
   const midY = Math.round((at.minY + at.maxY) / 2);
-  return [await pixel(png, midX, at.minY + 1), await pixel(png, midX, at.maxY - 1), await pixel(png, at.minX + 1, midY), await pixel(png, at.maxX - 1, midY)];
+  return [await pixel(png, midX, at.minY + inset), await pixel(png, midX, at.maxY - inset), await pixel(png, at.minX + inset, midY), await pixel(png, at.maxX - inset, midY)];
 }
 
 test("proxySource 把签名地址里的 u 还原成上游地址", () => {
@@ -80,7 +80,7 @@ test("卡片与海报的 ETag 跟着图走：同样字节同样指纹，换了�
   assert.notEqual(ogEtag(withRed), ogEtag({ ...CARD, image: { data: blue, ...CARD_IMAGE } }), "换了图就该出新的图");
   assert.notEqual(ogEtag(withRed), ogEtag({ ...CARD, image: null }), "有没有图是两张卡");
   assert.equal(ogEtag(withRed).length, 24);
-  assert.equal(posterEtag({ url: "https://girlsbands.com/items/x", kicker: "抽选", title: "T", summary: null, source: "S", date: "2026-10-05", score: null, image: { data: red, ...POSTER_IMAGE } }).length, 24);
+  assert.equal(posterEtag({ url: "https://girlsbands.com/items/x", kicker: "抽选", title: "T", summary: null, source: "S", date: "2026-10-05", selected: false, image: { data: red, ...POSTER_IMAGE } }).length, 24);
 });
 
 test("卡片有图时图落在右栏、不越出内边距，没图时那一栏是空的", async () => {
@@ -132,41 +132,45 @@ test("海报有图时头图占满内容宽度，且正文没有被挤出内边�
   const blue = await solid(0, 0, 255, 1808, 640);
   const png = (await renderPoster({
     url: "https://girlsbands.com/items/x", kicker: "抽选", title: "MyGO!!!!! 追加公演", summary: "公告写明受理窗口与缴款期限。",
-    source: "BanG Dream! 官方", date: "2026-10-05", score: 87, image: { data: blue, ...POSTER_IMAGE },
+    source: "BanG Dream! 官方", date: "2026-10-05", selected: true, image: { data: blue, ...POSTER_IMAGE },
   })).png;
   const meta = await sharp(png).metadata();
   assert.deepEqual([meta.width, meta.height], [1080, 1440]);
 
   const picture = await box(png, isBlue);
-  assert.equal(picture.minX, 88, "头图左边对齐内容左边距");
-  assert.ok(Math.abs(picture.width - 904) <= 2, `头图该是内容宽：${picture.width}`);
-  assert.ok(Math.abs(picture.height - 320) <= 2, `头图该是 320 高：${picture.height}`);
-  assert.equal(picture.maxX, 1080 - 89, "头图右边对齐内容右边距");
+  // 头图框 856×400（POSTER_IMAGE）；纸片带一点倾斜，所以量出来的边会差几个像素。
+  assert.ok(Math.abs(picture.width - 856) <= 4, `头图该铺满框的宽：${picture.width}`);
+  assert.ok(Math.abs(picture.height - 303) <= 10, `1808×640 的图在 856 宽里该是 303 高：${picture.height}`);
+  assert.ok(Math.abs((picture.minX + picture.maxX) / 2 - 1080 / 2) <= 4, "头图在海报里水平居中");
 
-  // 正文与二维码都在头图下面：最靠下的深色像素（标题、摘要、来源、二维码、页脚）不能越过底部内边距。
+  // 纸片（米色卡）整张在海报里，头图在纸片上半部；头图下面、纸片里面有正文（深色字）。
+  const paper = await box(png, (r, g, b) => r === 0xf3 && g === 0xef && b === 0xe6);
+  assert.ok(paper.minX >= 40 && paper.maxX <= 1080 - 40 && paper.minY >= 24 && paper.maxY <= 1440 - 40, `纸片不能出画：${JSON.stringify(paper)}`);
+  assert.ok(picture.minX > paper.minX && picture.maxX < paper.maxX && picture.minY > paper.minY, "头图在纸片里");
+  assert.ok(picture.maxY < paper.maxY - 300, `头图下面要给正文和票根留地方：${picture.maxY} vs ${paper.maxY}`);
   const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
-  let lowest = -1;
-  for (let y = info.height - 1; y >= 0 && lowest < 0; y--) {
-    for (let x = 0; x < info.width; x++) {
+  let text = 0;
+  for (let y = picture.maxY + 20; y < paper.maxY - 40; y++) {
+    for (let x = picture.minX + 20; x < picture.maxX - 20; x++) {
       const i = (y * info.width + x) * info.channels;
-      if (data[i]! < 120 && data[i + 1]! < 120 && data[i + 2]! < 120) { lowest = y; break; }
+      if (data[i]! < 120 && data[i + 1]! < 120 && data[i + 2]! < 120) text++;
     }
   }
-  assert.ok(lowest <= 1440 - 72, `正文不能越过底部内边距：${lowest}`);
-  assert.ok(lowest > picture.maxY + 100, `正文确实在头图下面：${lowest} vs ${picture.maxY}`);
+  assert.ok(text > 2000, `头图下面该有正文：${text} 个深色像素`);
 });
 
 test("海报遇到竖图：整张显示，并在内容宽里居中", async () => {
   const png = (await renderPoster({
     url: "https://girlsbands.com/items/x", kicker: "抽选", title: "MyGO!!!!! 追加公演", summary: "公告写明受理窗口与缴款期限。",
-    source: "BanG Dream! 官方", date: "2026-10-05", score: 87, image: { data: await framed(640, 1808, 16), ...POSTER_IMAGE },
+    source: "BanG Dream! 官方", date: "2026-10-05", selected: true, image: { data: await framed(640, 1808, 48), ...POSTER_IMAGE },
   })).png;
   const green = await box(png, isGreen);
-  assert.ok(Math.abs(green.height - 320) <= 2, `竖图该占满头图框的高：${green.height}`);
-  assert.ok(green.width >= 100 && green.width <= 128, `640×1808 的图该窄于内容宽：${green.width}`);
+  assert.ok(Math.abs(green.height - 400) <= 4, `竖图该占满头图框的高：${green.height}`);
+  assert.ok(green.width >= 136 && green.width <= 150, `640×1808 的图该窄于框宽：${green.width}`);
   assert.ok(Math.abs(green.width / green.height - 640 / 1808) < 0.02, `比例该保持 640:1808：${green.width}×${green.height}`);
-  assert.ok(Math.abs((green.minX + green.maxX) / 2 - (88 + 904 / 2)) <= 4, "竖图该在内容宽里居中");
-  for (const edge of await edges(png, green)) assert.ok(isGreen(edge[0]!, edge[1]!, edge[2]!), `图的一条边被切掉了：${edge}`);
+  assert.ok(Math.abs((green.minX + green.maxX) / 2 - 1080 / 2) <= 4, "竖图该在框里居中");
+  // 纸片微微倾斜，包围盒的边离图边差一两个像素，所以边框画厚一点、往里取 5 个像素。
+  for (const edge of await edges(png, green, 5)) assert.ok(isGreen(edge[0]!, edge[1]!, edge[2]!), `图的一条边被切掉了：${edge}`);
 });
 
 test("图按自己的比例缩进框里：不裁切、不拉伸、也不把小图放大", () => {
@@ -175,7 +179,7 @@ test("图按自己的比例缩进框里：不裁切、不拉伸、也不把小�
   assert.deepEqual(fitInside({ width: 400, height: 400 }, box), { width: 260, height: 260 }, "方图受高度限制");
   assert.deepEqual(fitInside({ width: 1600, height: 400 }, box), { width: 390, height: 98 }, "宽图受宽度限制");
   assert.deepEqual(fitInside({ width: 336, height: 189 }, box), { width: 336, height: 189 }, "小图不放大（336 档就是原样）");
-  assert.deepEqual(fitInside({ width: 640, height: 1808 }, POSTER_IMAGE), { width: 113, height: 320 }, "海报的竖图受高度限制");
+  assert.deepEqual(fitInside({ width: 640, height: 1808 }, POSTER_IMAGE), { width: 142, height: 400 }, "海报的竖图受高度限制");
 });
 
 test("取不到图时 ogImage 回 null（分享图退回纯文字卡）", async () => {

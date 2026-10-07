@@ -90,7 +90,7 @@ test("concurrent cold OG and poster requests all succeed with identical cached b
   const cards = await Promise.all(Array.from({ length: 6 }, () => renderOg(card)));
   for (const result of cards) assert.deepEqual(result, cards[0]);
   assert.equal((await sharp(cards[0]!.png).metadata()).width, 1200);
-  const poster = { url: "https://example.com/items/test", kicker: SITE.name, title: "海报并发验证", summary: null, source: SITE.name, date: "2026-09-28", score: null };
+  const poster = { url: "https://example.com/items/test", kicker: SITE.name, title: "海报并发验证", summary: null, source: SITE.name, date: "2026-09-28", selected: false };
   const posters = await Promise.all(Array.from({ length: 4 }, () => renderPoster(poster)));
   for (const result of posters) assert.deepEqual(result, posters[0]);
   assert.equal((await sharp(posters[0]!.png).metadata()).width, 1080);
