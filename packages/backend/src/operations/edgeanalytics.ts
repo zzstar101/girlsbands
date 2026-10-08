@@ -6,7 +6,9 @@ import { sql } from "../db.ts";
 import { credential } from "../config.ts";
 import { callTencent } from "../lib/tencentcloud.ts";
 
-const ZONE = "zone-3vvkl9bcteik";
+// The girlsbands.com site's EdgeOne zone ID. It is assigned by EdgeOne at site creation, so deleting and
+// recreating the site (e.g. switching plans) issues a new one and this constant has to be updated with it.
+const ZONE = "zone-3vxg94djkv9u";
 const TOPS = { urls: "l7Flow_request_url", countries: "l7Flow_request_country", devices: "l7Flow_request_ua_device" } as const;
 
 type Timing = { Data?: Array<{ TypeValue?: Array<{ MetricName: string; Detail?: Array<{ Timestamp: number; Value: number }> }> }> };
