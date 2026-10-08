@@ -232,6 +232,8 @@ export interface SeiyuuPost {
   url: string;
   timelineAt: string;
   publishedAt: string | null;
+  /** 时间线排序和卡片上显示的时间：在 X 上发出的时间（转推是转推的时刻，取入库时间）。 */
+  postedAt: string;
   category: CategoryKey | null;
   /** 账号所属的乐队（industry/taxonomy.ts 的 entity id）。 */
   band: string;

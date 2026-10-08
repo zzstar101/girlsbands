@@ -17,6 +17,8 @@ interface Seed {
   mode?: string;
   tags?: string[];
   at?: Date;
+  /** 在 X 上发出的时间（publications.published_at）；不给就是 null，排序退回 at。 */
+  published?: Date;
   channel?: string;
   x_post?: Record<string, unknown> | null;
   /** 日常 lane：不进池子（eligible=false），靠 category='daily' 进来。 */
@@ -49,9 +51,9 @@ async function post(seed: Seed = {}): Promise<Row> {
   await sql`INSERT INTO articles (id, source_id, identity_key, url, title, discovered_at, timeline_at, x_post)
     VALUES (${id}, ${id}, ${id}, ${url}, '今天练了贝斯', ${at}, ${at}, ${seed.x_post ? sql.json(seed.x_post as never) : null})`;
   const [analysis] = await sql`INSERT INTO analyses (article_id, input_revision, origin, output) VALUES (${id}, 1, 'model', ${sql.json({ fact: {} })}) RETURNING id`;
-  await sql`INSERT INTO publications (article_id, analysis_id, revision, visibility, eligible, title, summary, source_id, channel, url, visible_after, discovered_at, timeline_at, body_mode, sort_at, tags, category)
+  await sql`INSERT INTO publications (article_id, analysis_id, revision, visibility, eligible, title, summary, source_id, channel, url, visible_after, discovered_at, timeline_at, published_at, body_mode, sort_at, tags, category)
     VALUES (${id}, ${analysis!.id}, 1, ${seed.visibility ?? 'public'}, ${!seed.daily}, '今天练了贝斯', ${seed.daily ? '今天练了贝斯' : null}, ${id}, ${seed.channel ?? 'x'},
-      ${url}, ${at}, ${at}, ${at}, 'full', ${at}, ${[`entity:${band}`]}, ${seed.daily ? 'daily' : 'live'})`;
+      ${url}, ${at}, ${at}, ${at}, ${seed.published ?? null}, 'full', ${at}, ${[`entity:${band}`]}, ${seed.daily ? 'daily' : 'live'})`;
   return { id, handle };
 }
 
@@ -153,4 +155,25 @@ test('游标翻页：多带一条给出下一页，换了筛选条件就作废',
   await assert.rejects(() => loadSeiyuu({ band: 'mygo', now: NOW, limit: 1, cursor: page.nextCursor }), InvalidCursorError);
   const filtered = await loadSeiyuu({ band: 'mygo', now: NOW, limit: 1 });
   await assert.rejects(() => loadSeiyuu({ band: 'bocchi-the-rock', now: NOW, limit: 1, cursor: filtered.nextCursor }), InvalidCursorError);
+});
+
+test('按在 X 上发出的时间排：同一批入库的帖子按发帖先后，转推按转推（入库）时刻', async () => {
+  const batch = new Date('2026-09-20T13:00:00Z');   // 镜像同一小时抓进来的一批
+  const band = 'roselia';
+  const late = await post({ band, at: batch, published: new Date('2026-09-20T12:50:00Z') });
+  const early = await post({ band, at: batch, published: new Date('2026-09-20T12:10:00Z') });
+  // 转推的原帖是早上发的，转推本身在这一批里：按入库时间算，排在最前
+  const rt = await post({ band, at: batch, published: new Date('2026-09-20T03:00:00Z'),
+    x_post: { handle: 'someone', authorName: '某人', text: '转推', media: [], retweetedBy: { handle: 'x', authorName: null } } });
+  // 上一批入库、但发帖比 early 还晚？不可能晚于入库时间——发帖时间晚于入库时取入库时间
+  const prev = await post({ band, at: new Date('2026-09-20T12:00:00Z'), published: new Date('2026-09-20T12:30:00Z') });
+  const feed = await loadSeiyuu({ band, now: NOW, limit: 40 });
+  assert.deepEqual(feed.posts.map((p) => p.id), [rt.id, late.id, early.id, prev.id]);
+  assert.equal(feed.posts[1]!.postedAt, '2026-09-20T12:50:00.000Z');
+  assert.equal(feed.posts[0]!.postedAt, batch.toISOString());
+  assert.equal(feed.posts[3]!.postedAt, '2026-09-20T12:00:00.000Z');
+  // 游标按同一把尺子翻页
+  const page1 = await loadSeiyuu({ band, now: NOW, limit: 2 });
+  const page2 = await loadSeiyuu({ band, now: NOW, limit: 2, cursor: page1.nextCursor! });
+  assert.deepEqual([...page1.posts, ...page2.posts].map((p) => p.id), [rt.id, late.id, early.id, prev.id]);
 });

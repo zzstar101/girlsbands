@@ -211,7 +211,9 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
     if (row.member) {
       // Members write Japanese; a post of kanji alone (「帰国〜⭐️」) looks Chinese to looksChinese, so
       // only a post tagged Chinese is taken as Chinese here, and length is no reason to skip.
-      if (row.language === "zh") return result({ status: "skipped", reason: "already Chinese" });
+      // Own reasons, not the general ones: translatePending retries a member post skipped as "short post" or
+      // "already Chinese" (the rules before 2026-10-08), and these must not be retried again and again.
+      if (row.language === "zh") return result({ status: "skipped", reason: "tagged Chinese" });
       if (!hasWords(meaningful)) return result({ status: "skipped", reason: "no words" });
     } else {
       if (isChinese(row.language, text)) return result({ status: "skipped", reason: "already Chinese" });
@@ -346,7 +348,10 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
                       AND r.created_at > now() - interval '3 days'))
       AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND tr.revision < a.revision))
       AND NOT EXISTS (SELECT 1 FROM translation_attempts t WHERE t.article_id = p.article_id AND t.revision = a.revision
-                      AND (t.outcome IN ('skipped', 'translated', 'partial') OR t.attempts >= 3))
+                      AND (t.outcome IN ('translated', 'partial') OR t.attempts >= 3
+                           -- A member's post skipped under the old length / kanji rules is translated now (X_MIN_CHARS).
+                           OR (t.outcome = 'skipped' AND NOT (coalesce(t.reason, '') IN ('short post', 'already Chinese')
+                               AND EXISTS (SELECT 1 FROM sources s WHERE s.id = a.source_id AND ${MEMBER_SOURCE})))))
     ORDER BY p.discovered_at DESC LIMIT ${opts.limit ?? 30}`;
   const done: TranslateResult[] = [];
   for (const r of rows) {

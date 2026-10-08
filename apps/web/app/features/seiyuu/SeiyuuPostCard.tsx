@@ -56,7 +56,8 @@ export function SeiyuuPostCard({ post }: { post: SeiyuuPost }) {
   const name = x?.authorName || personName(post.account.name);
   const handle = x?.handle || post.account.handle;
   const avatar = x?.avatarUrl ?? post.account.avatarUrl;
-  const at = post.publishedAt ?? post.timelineAt;
+  // 发版那一分钟里，缓存着的旧接口响应还没有 postedAt：退回旧的取法，别让整页 500。
+  const at = (post.postedAt as string | undefined) ?? post.publishedAt ?? post.timelineAt;
   const band = ENTITIES[post.band];
   const style = { "--x-accent": band?.accent ?? "var(--accent)" } as CSSProperties;
   const detail = `/items/${post.id}`;
@@ -71,11 +72,11 @@ export function SeiyuuPostCard({ post }: { post: SeiyuuPost }) {
   };
 
   return (
-    <article style={style} onClick={open} className="sy-post group/post relative flex cursor-pointer gap-3 border-b border-line-soft px-4 py-3.5 transition-colors last:border-b-0 hover:bg-bg-sunk/60 sm:px-5">
+    <article style={style} onClick={open} className="sy-post group/post relative flex cursor-pointer gap-2.5 border-b border-line-soft px-3 py-3 transition-colors last:border-b-0 hover:bg-bg-sunk/60 sm:px-4">
       <Link to={accountHref(post.account.id)} viewTransition className="x-avatar mt-0.5 h-fit shrink-0" aria-label={`只看 ${name}`}>
         {/* .x-avatar 把直接子元素设成 block，首字母占位要再包一层才能居中 */}
         <span className="flex rounded-full">
-          <SourceAvatar name={name} avatarUrl={avatar} avatarSrcSet={x?.avatarSrcSet} size={44} />
+          <SourceAvatar name={name} avatarUrl={avatar} avatarSrcSet={x?.avatarSrcSet} size={40} />
         </span>
       </Link>
 
@@ -112,13 +113,13 @@ export function SeiyuuPostCard({ post }: { post: SeiyuuPost }) {
         )}
 
         {x && x.media.length > 0 && (
-          <div className="-mt-2 max-w-[520px]">
+          <div className="-mt-2">
             <MediaGallery media={x.media.slice(0, 4)} postUrl={post.url} />
           </div>
         )}
 
         {quoted && (
-          <a href={quoted.url || post.url} target="_blank" rel="noopener noreferrer" className="x-quote mt-3 block max-w-[520px] rounded-tile">
+          <a href={quoted.url || post.url} target="_blank" rel="noopener noreferrer" className="x-quote mt-3 block rounded-tile">
             <div className="flex items-center gap-2 text-[13.5px]">
               <SourceAvatar name={quoted.authorName || quoted.handle} avatarUrl={quoted.avatarUrl} avatarSrcSet={quoted.avatarSrcSet} size={20} />
               <span className="truncate font-bold text-ink">{quoted.authorName || `@${quoted.handle}`}</span>

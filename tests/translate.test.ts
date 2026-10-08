@@ -185,3 +185,22 @@ test("声优日常: a member's own post is translated however short, and kanji a
   const official = await short(SOURCE, `ただいま ${T}`, 3);
   assert.deepEqual([(await translateArticle(official)).reason], ["short post"]);
 });
+
+test("a member's post skipped under the old short-post rule is picked up again by the regular run", async () => {
+  const MEMBER = `${SOURCE}-member-retry`;
+  await sql`INSERT INTO sources (id, name, kind, tier, tags, owner_entity_id, participation_mode, site_fulltext, syndicate_fulltext, rights_tier, next_fetch_at)
+            VALUES (${MEMBER}, 'X: 夕莉 (@yuri)', 'rss', 'T1_5', ${['官方', '成员']}, 'togenashi-togeari', 'editorial', true, false, 'official', '2100-01-01')`;
+  const text = `ギター練習したら寝るよ〜 ${T}`;
+  const { articleId } = await upsertMaterial({
+    sourceId: MEMBER, url: `https://x.com/yuri/status/95${Date.now()}`, title: text, language: "ja", bodyText: text, bodyStatus: "ok",
+    via: "fetch", publishedAt: new Date(), discoveredAt: new Date(Date.now() + 3_600_000),
+    xPost: { tweetId: `95${Date.now()}`, authorName: "夕莉", handle: "yuri", text },
+  });
+  await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, reason_zh, score, selected)
+            VALUES (${articleId}, 1, 'rule', 'pass', 'member', ${`练琴-${T}`}, '摘要', '理由', 50, false)`;
+  await publishArticle(articleId, { releasedAt: new Date(Date.now() - 60_000) });
+  await sql`INSERT INTO translation_attempts (article_id, revision, attempts, outcome, reason) VALUES (${articleId}, 1, 1, 'skipped', 'short post')`;
+  await translatePending({ limit: 1 });
+  const [tr] = await sql<{ body_text: string }[]>`SELECT body_text FROM translations WHERE article_id = ${articleId} AND lang = 'zh'`;
+  assert.equal(tr?.body_text, "译文");
+});

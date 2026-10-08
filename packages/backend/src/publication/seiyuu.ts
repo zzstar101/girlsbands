@@ -28,7 +28,7 @@ export interface SeiyuuQuery {
 }
 
 /** 帖子行 = 列表列 + 账号所属乐队、来源 id、来源配置（handle 需要读它）。 */
-type SeiyuuRow = ItemRow & { source_id: string; band: string; source_config: unknown };
+type SeiyuuRow = ItemRow & { source_id: string; band: string; source_config: unknown; posted_at: Date };
 
 type AccountSource = { id: string; name: string; band: string };
 
@@ -67,6 +67,14 @@ async function cachedAvatars(handles: readonly string[]): Promise<Map<string, st
   return new Map(rows.flatMap((r) => (r.avatar_url ? [[r.handle, r.avatar_url] as const] : [])));
 }
 
+/**
+ * 时间线的时间：帖子在 X 上发出的时间，像 X 一样按它从近到远排（站主 2026-10-08：按入库时间排时，镜像每小时
+ * 一批进来，同一批里新旧帖子会错开）。转推按转推的时刻算——镜像不给转推时间，用入库时间代替（最多晚一个
+ * 抓取周期）；原帖时间早于它的转推不能沉到底下去。发帖时间晚于入库时间（时钟不准）时取入库时间。
+ */
+const POSTED_AT = sql`(CASE WHEN jsonb_typeof(a.x_post->'retweetedBy') = 'object' THEN p.timeline_at
+  ELSE least(coalesce(p.published_at, p.timeline_at), p.timeline_at) END)`;
+
 export async function loadSeiyuu(query: SeiyuuQuery): Promise<SeiyuuResponse> {
   const now = query.now ?? new Date();
   const limit = Math.min(Math.max(query.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
@@ -85,9 +93,9 @@ export async function loadSeiyuu(query: SeiyuuQuery): Promise<SeiyuuResponse> {
   const filters = sql`${band ? sql`AND s.owner_entity_id = ${band}` : sql``} ${account ? sql`AND s.id = ${account}` : sql``}`;
   const [rows, bandIds, sources] = await Promise.all([
     sql<SeiyuuRow[]>`
-      SELECT ${ITEM_COLUMNS}, s.id AS source_id, s.owner_entity_id AS band, s.config AS source_config ${ITEM_FROM}
-      WHERE ${scope} ${filters} ${after ? sql`AND (p.timeline_at, p.article_id) < (${after.t}, ${after.id})` : sql``}
-      ORDER BY p.timeline_at DESC, p.article_id DESC LIMIT ${limit + 1}`,
+      SELECT ${ITEM_COLUMNS}, s.id AS source_id, s.owner_entity_id AS band, s.config AS source_config, ${POSTED_AT} AS posted_at ${ITEM_FROM}
+      WHERE ${scope} ${filters} ${after ? sql`AND (${POSTED_AT}, p.article_id) < (${after.t}, ${after.id})` : sql``}
+      ORDER BY ${POSTED_AT} DESC, p.article_id DESC LIMIT ${limit + 1}`,
     // 顶部的乐队筛选框：有帖子的乐队，按 taxonomy 的顺序。（各筛选下都一样，换乐队时别让它跳。）
     sql<{ id: string }[]>`SELECT s.owner_entity_id AS id FROM publications p JOIN sources s ON s.id = p.source_id
       WHERE ${scope} GROUP BY s.owner_entity_id`,
@@ -129,6 +137,7 @@ export async function loadSeiyuu(query: SeiyuuQuery): Promise<SeiyuuResponse> {
       url: item.links.original,
       timelineAt: item.timelineAt,
       publishedAt: item.publishedAt,
+      postedAt: p.row.posted_at.toISOString(),
       category: item.category,
       band: p.row.band,
       account,
@@ -136,7 +145,7 @@ export async function loadSeiyuu(query: SeiyuuQuery): Promise<SeiyuuResponse> {
     };
   });
   const last = page[page.length - 1];
-  const nextCursor = rows.length > limit && last ? encodeCursor("sy", { t: last.timeline_at.toISOString(), id: last.id, b: bind }) : null;
+  const nextCursor = rows.length > limit && last ? encodeCursor("sy", { t: last.posted_at.toISOString(), id: last.id, b: bind }) : null;
   const order = new Map(Object.keys(ENTITIES).map((id, i) => [id, i] as const));
   const bands = [...new Set(bandIds.map((r) => r.id))]
     .filter((id) => order.has(id))
