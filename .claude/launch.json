@@ -3,32 +3,30 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "bun",
       "runtimeArgs": [
         "run",
-        "dev",
-        "-w",
-        "@girlsbands/web"
+        "--filter",
+        "@girlsbands/web",
+        "dev"
       ],
       "port": 3000
     },
     {
       "name": "api",
-      "runtimeExecutable": "node",
+      "runtimeExecutable": "bun",
       "runtimeArgs": [
-        "--env-file=.env",
         "apps/api/src/main.ts"
       ],
       "port": 3001
     },
     {
       "name": "web-preview",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "bun",
       "runtimeArgs": [
-        "exec",
-        "-w",
-        "@girlsbands/web",
-        "--",
+        "--cwd",
+        "apps/web",
+        "x",
         "react-router",
         "dev",
         "--port",

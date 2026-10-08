@@ -1,5 +1,5 @@
 // 补抓会员购与 allcpp 详情；正文经 upsertMaterial 形成修订并重新分析。
-// node --env-file=.env scripts/backfill-ticket-details.ts [--limit N] [--dry]
+// bun scripts/backfill-ticket-details.ts [--limit N] [--dry]
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { upsertMaterial } from "@girlsbands/backend/content/materials";
 import { fetchTicketDetail, type DetailAdapter } from "@girlsbands/backend/sources/detail-adapters";

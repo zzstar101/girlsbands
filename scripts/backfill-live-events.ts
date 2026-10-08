@@ -2,7 +2,7 @@
 // 不必等下一篇报告才认出来。可重复跑，已挂上的只补空字段（lives/link.ts 的 patchLiveEvent）。
 // 重跑过「演出信息抽取」之后也用它：已经有演出的事实不会重新归组（group.ts 认历史与既有归属就走人），
 // 新抽到的受理日期要靠这里补进 ticket_rounds。
-//   node --env-file=.env scripts/backfill-live-events.ts [--limit N] [--dry]
+//   bun scripts/backfill-live-events.ts [--limit N] [--dry]
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { linkLiveEvent } from "@girlsbands/backend/events/live";
 

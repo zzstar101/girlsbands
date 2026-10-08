@@ -1,4 +1,4 @@
-// Run after `npm run build -w @girlsbands/web`. Real production server/router, synthetic HTTP API only.
+// Run after `bun run --filter @girlsbands/web build`. Real production server/router, synthetic HTTP API only.
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
@@ -7,6 +7,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 import { CATEGORY_KEYS } from "@girlsbands/contracts/taxonomy";
 
 let web: ChildProcess;
@@ -35,6 +36,28 @@ const api = createServer((req, res) => {
     return res.end(JSON.stringify({ computedAt: "2026-10-01T03:00:00.000Z", from: "2026-10-01", to: "2026-10-15", dueToday: [], onSale: [], liveToday: [], upcoming: [], total: 0 }));
   }
   if (url.pathname === "/api/site/hot") return res.end(JSON.stringify({ entries: [] }));
+  if (url.pathname === "/api/site/compressed") {
+    const body = gzipSync("compressed upstream bytes");
+    res.setHeader("Content-Encoding", "gzip");
+    res.setHeader("Content-Length", body.length);
+    res.setHeader("Vary", "Accept-Encoding");
+    res.setHeader("Set-Cookie", ["first=1; Path=/", "second=2; Path=/"]);
+    return res.end(body);
+  }
+  if (url.pathname === "/api/site/echo-body") {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    return req.on("end", () => res.end(JSON.stringify({ method: req.method, body: Buffer.concat(chunks).toString(), type: req.headers["content-type"] })));
+  }
+  if (url.pathname === "/api/site/redirect") {
+    res.writeHead(307, { Location: "/api/site/compressed" });
+    return res.end();
+  }
+  if (url.pathname === "/api/site/hop-headers") {
+    res.setHeader("Connection", "x-upstream-only");
+    res.setHeader("X-Upstream-Only", "secret");
+    return res.end(JSON.stringify({ hop: req.headers["x-client-only"] ?? null }));
+  }
   if (url.pathname === "/api/site/echo-client") return res.end(JSON.stringify({ forwarded: req.headers["x-forwarded-for"], real: req.headers["x-real-ip"] }));
   if (url.pathname === "/api/site/items/long-lived") return res.end(JSON.stringify({ id: "long-lived", title: "t" }));
   if (url.pathname === "/api/site/contact") return res.end(JSON.stringify({ wechatQr: "/qr.png", feishuQr: "/qr.png" }));
@@ -197,6 +220,48 @@ test("browser caching preserves noindex and private sign-in responses", async ()
 test("a visitor cannot name its own address to the api without a trusted proxy in front", async () => {
   const res = await fetch(`${origin}/api/site/echo-client`, { headers: { "X-Forwarded-For": "6.6.6.6", "X-Real-IP": "6.6.6.6" } });
   assert.deepEqual(await res.json(), { forwarded: "127.0.0.1", real: "127.0.0.1" });
+});
+
+test("the proxy strips connection-specific headers in both directions", async () => {
+  const res = await fetch(`${origin}/api/site/hop-headers`, { headers: { Connection: "x-client-only", "X-Client-Only": "secret" } });
+  assert.equal(res.headers.get("X-Upstream-Only"), null);
+  assert.deepEqual(await res.json(), { hop: null });
+});
+
+test("the proxy preserves compressed bytes, representation headers and separate cookies", async () => {
+  const res = await fetch(`${origin}/api/site/compressed`, { decompress: false });
+  assert.equal(res.headers.get("Content-Encoding"), "gzip");
+  assert.equal(res.headers.get("Vary"), "Accept-Encoding");
+  assert.deepEqual(res.headers.getSetCookie(), ["first=1; Path=/", "second=2; Path=/"]);
+  const body = Buffer.from(await res.arrayBuffer());
+  assert.deepEqual(body, gzipSync("compressed upstream bytes"));
+  assert.equal(Number(res.headers.get("Content-Length")), body.length);
+});
+
+test("the proxy streams request bodies and does not follow upstream redirects", async () => {
+  const res = await fetch(`${origin}/api/site/echo-body`, {
+    method: "POST", headers: { "Content-Type": "text/plain" },
+    body: new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode("streamed body")); controller.close(); } }),
+  });
+  assert.deepEqual(await res.json(), { method: "POST", body: "streamed body", type: "text/plain" });
+  const redirect = await fetch(`${origin}/api/site/redirect`, { redirect: "manual" });
+  assert.equal(redirect.status, 307);
+  assert.equal(redirect.headers.get("Location"), "/api/site/compressed");
+});
+
+test("static HEAD matches GET and range or encoding negotiation does not change the representation", async () => {
+  const url = `${origin}/fonts/OFL-Anton.txt`;
+  const get = await fetch(url);
+  const bytes = await get.arrayBuffer();
+  const head = await fetch(url, { method: "HEAD" });
+  assert.equal(head.status, 200);
+  assert.equal((await head.arrayBuffer()).byteLength, 0);
+  for (const name of ["Content-Type", "Content-Length", "Cache-Control", "ETag", "Content-Encoding"]) assert.equal(head.headers.get(name), get.headers.get(name), name);
+  const range = await fetch(url, { headers: { Range: "bytes=0-9", "Accept-Encoding": "gzip" } });
+  assert.equal(range.status, 200);
+  assert.equal(range.headers.get("ETag"), null);
+  assert.equal(range.headers.get("Content-Encoding"), null);
+  assert.deepEqual(await range.arrayBuffer(), bytes);
 });
 
 test("the asset host may be another origin, so hashed assets answer CORS", async () => {

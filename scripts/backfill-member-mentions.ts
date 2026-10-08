@@ -2,7 +2,7 @@
 // 一遍就能补上。取的是 publications 里已经定稿的那几列（title / original_title / summary / body_mode），
 // 所以算出来的结果与 publish.ts 当时写下的完全一致（正文只在 body_mode='full' 时参与匹配）。
 // 可重复跑：每篇整篇重写，已经不在公开池里的报道（不 eligible）旧行会被删掉。
-//   node --env-file=.env scripts/backfill-member-mentions.ts [--limit N] [--dry]
+//   bun scripts/backfill-member-mentions.ts [--limit N] [--dry]
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { deriveMemberMentions } from "@girlsbands/backend/publication/member-mentions";
 

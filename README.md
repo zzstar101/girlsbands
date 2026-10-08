@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-e6005f?style=flat-square" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/Node.js-24-e6005f?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js 24">
+  <img src="https://img.shields.io/badge/Bun-1.4-e6005f?style=flat-square&logo=bun&logoColor=white" alt="Bun 1.4">
   <img src="https://img.shields.io/badge/PostgreSQL-17-e6005f?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL 17">
   <img src="https://img.shields.io/badge/Docker-Compose-e6005f?style=flat-square&logo=docker&logoColor=white" alt="Docker Compose">
 </p>
@@ -106,13 +106,13 @@
 ```bash
 git clone https://github.com/zzstar101/girlsbands.git
 cd girlsbands
-node scripts/init-env.ts --llm-key <你的模型 API Key>
+bun scripts/init-env.ts --llm-key <你的模型 API Key>
 docker compose up -d --build
 ```
 
 打开 <http://localhost:3000>。后台在 `/admin`，管理员密码在 `.env` 的 `ADMIN_PASSWORD` 里。新生成的 `.env` 里所有对外的开关都是关的：站点能打开、后台能登录，但不抓信源、不调模型、不发邮件。看过一遍后把 `COLLECT_ENABLED`、`MODEL_CALLS_ENABLED` 改成 `true`，再 `docker compose up -d api worker`，一两分钟后开始有内容。
 
-机器上没有 Node、服务器在中国大陆、要配域名和 HTTPS，见 [部署](docs/deploy.md)。
+机器上没有 Bun、服务器在中国大陆、要配域名和 HTTPS，见 [部署](docs/deploy.md)。
 
 ### 改成别的企划或别的行业
 
@@ -136,12 +136,12 @@ docker compose up -d --build
 先读 [架构](docs/architecture.md)，界面上的一切按 [设计规范](docs/design.md) 来。改完至少跑：
 
 ```bash
-npm run typecheck
-DATABASE_URL=postgres://127.0.0.1:5432/girlsbands_test npm test   # 库名必须以 _test 或 _ci 结尾
-npm run build -w @girlsbands/web && node --test apps/web/tests/*.test.ts
+bun run typecheck
+DATABASE_URL=postgres://127.0.0.1:5432/girlsbands_test bun run test   # 库名必须以 _test 或 _ci 结尾
+bun run --filter @girlsbands/web build && bun test apps/web/tests
 ```
 
-技术栈：Node.js 24（直接跑 TypeScript）· React Router（服务端渲染）· Fastify · PostgreSQL · pg-boss · Tailwind CSS · Docker Compose。
+技术栈：Bun 1.4（直接跑 TypeScript）· React Router（服务端渲染）· Fastify · PostgreSQL · pg-boss · Tailwind CSS · Docker Compose。
 
 ## 文档
 

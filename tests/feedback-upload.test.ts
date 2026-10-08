@@ -32,8 +32,10 @@ async function upload(file: Buffer, ip: string, type = "image/png") {
   form.set("pageUrl", "/daily");
   form.set("screenshot", new File([new Uint8Array(file)], "screenshot.png", { type }));
   const request = new Request("http://local/api/site/feedback", { method: "POST", body: form });
+  // Bun forgets the content-type it generated for a form body once that body has been read, so read it first.
+  const contentType = request.headers.get("content-type")!;
   const payload = Buffer.from(await request.arrayBuffer());
-  return app.inject({ method: "POST", url: "/api/site/feedback", headers: { "content-type": request.headers.get("content-type")!, "x-real-ip": ip }, payload });
+  return app.inject({ method: "POST", url: "/api/site/feedback", headers: { "content-type": contentType, "x-real-ip": ip }, payload });
 }
 
 test("a 5 MiB multipart screenshot waits intact for forwarding", async () => {

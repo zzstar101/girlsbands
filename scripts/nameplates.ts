@@ -3,7 +3,7 @@
 // (SIL OFL 1.1) as SVG paths, so the nameplate is one static logotype on every system. The Latin capitals are scaled to stand as tall as the Chinese
 // glyphs, both centred on one line, and the spacing is set by ink, pair by pair.
 //
-// Usage: node scripts/nameplates.ts <@fontsource/noto-sans-sc package directory>
+// Usage: bun scripts/nameplates.ts <@fontsource/noto-sans-sc package directory>
 //   (fetch it with `npm pack @fontsource/noto-sans-sc@5.3.0` and untar; it is not a dependency)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -11,7 +11,7 @@ import opentype from "opentype.js";
 import { SITE } from "@girlsbands/industry/site";
 
 const pkg = process.argv[2];
-if (!pkg) throw new Error("usage: node scripts/nameplates.ts <noto-sans-sc package dir>");
+if (!pkg) throw new Error("usage: bun scripts/nameplates.ts <noto-sans-sc package dir>");
 
 /** Ink height of the Chinese glyphs, in the nameplate's units. */
 const H = 220;

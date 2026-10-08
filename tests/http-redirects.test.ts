@@ -3,7 +3,7 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { after, test } from "node:test";
-import { MockAgent, getGlobalDispatcher, setGlobalDispatcher } from "undici";
+import { MockAgent, getGlobalDispatcher, setGlobalDispatcher } from "undici/index.js";
 import { config } from "@girlsbands/backend/config";
 import { guardedFetch } from "@girlsbands/backend/lib/http-fetch";
 import { fetchJsonList } from "@girlsbands/backend/sources/json-list";

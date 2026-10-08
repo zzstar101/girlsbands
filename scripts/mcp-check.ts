@@ -1,6 +1,6 @@
 // Verifies the public MCP contract with the official SDK client: server identity, the exact tool set,
 // representative read calls, domain errors and schema validation. It is safe against an empty database.
-// node scripts/mcp-check.ts [url]
+// bun scripts/mcp-check.ts [url]
 import { Client } from "@modelcontextprotocol/client";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { PUBLIC_INTERFACE_VERSION } from "@girlsbands/contracts/http-policy";

@@ -152,7 +152,7 @@ test("logo 入库：22 个主体一个不缺，manifest 与磁盘上的 PNG 逐�
   assert.deepEqual(
     Object.keys(manifest.logos).sort(),
     [...ids].sort(),
-    "manifest 的 key 必须与 ENTITIES 一一对应（加了乐队就要跑 node scripts/fetch-band-logos.ts）",
+    "manifest 的 key 必须与 ENTITIES 一一对应（加了乐队就要跑 bun scripts/fetch-band-logos.ts）",
   );
   const onDisk = (await readdir(dir)).filter((f) => f.endsWith(".png")).sort();
   assert.deepEqual(onDisk, ids.map((id) => `${id}.png`).sort(), "目录里的 PNG 必须与 manifest 一一对应，不留孤儿文件");

@@ -1,5 +1,5 @@
 // Evaluates the production pairwise event-relation judge on a user-supplied gold set.
-// Usage: node --env-file=.env scripts/eval-relations.ts --gold .data/relation-gold.jsonl
+// Usage: bun scripts/eval-relations.ts --gold .data/relation-gold.jsonl
 //        [--models default,deepseek-flash] [--split development] [--n 200] [--thresholds 0.75,0.8]
 // The same pair prompt/schema as production is used; receipts make identical re-runs reusable.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";

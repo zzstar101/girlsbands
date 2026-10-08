@@ -1,6 +1,6 @@
 // Opens the site's main pages and machine exits and checks each answers: the whole-site check after a
 // deploy, and CI's check of the built site on an empty database.
-//   node scripts/smoke.ts [--base http://localhost:3000]
+//   bun scripts/smoke.ts [--base http://localhost:3000]
 import { SITE } from "@girlsbands/industry/site";
 
 const at = process.argv.indexOf("--base");

@@ -138,7 +138,7 @@
 在仓库根目录、Node.js 24.11 以上运行以下命令。服务只监听本机，只提供这两份文件；用 `Ctrl+C` 停止。
 
 ```bash
-node --input-type=module -e '
+bun -e '
 import http from "node:http";
 import { readFileSync } from "node:fs";
 const files = {

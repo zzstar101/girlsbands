@@ -2,8 +2,9 @@
 // to one is refused at connect time too (DNS rebinding after the URL check).
 import assert from "node:assert/strict";
 import http from "node:http";
+import { glob, readFile } from "node:fs/promises";
 import { after, test } from "node:test";
-import { Agent, fetch as undiciFetch } from "undici";
+import { Agent, fetch as undiciFetch } from "undici/index.js";
 import { guardedFetch } from "@girlsbands/backend/lib/http-fetch";
 import { assertPublicUrl, guardedLookup, isBlockedAddress } from "@girlsbands/backend/lib/url";
 
@@ -38,4 +39,18 @@ test("URL literals that embed a loopback address are refused before any request"
 
 test("a name resolving to an internal address is refused at connect time", async () => {
   await assert.rejects(undiciFetch(`http://localhost:${port}/`, { dispatcher: agent }));
+});
+
+// Under Bun the bare "undici" is Bun's stand-in, whose Agent never calls connect.lookup: the test above
+// would pass with no check at all in production. The file path loads the real package.
+test("outbound code loads the real undici, whose Agent honours the guarded lookup", async () => {
+  const root = new URL("../", import.meta.url);
+  const bare: string[] = [];
+  for (const dir of ["apps/api/src", "apps/worker/src", "packages/backend/src", "scripts"]) {
+    for await (const file of glob("**/*.ts", { cwd: new URL(dir, root) })) {
+      const text = await readFile(new URL(`${dir}/${file}`, root), "utf8");
+      if (/from "undici"|import\("undici"\)/.test(text)) bare.push(`${dir}/${file}`);
+    }
+  }
+  assert.deepEqual(bare, []);
 });

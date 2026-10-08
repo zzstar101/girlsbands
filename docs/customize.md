@@ -7,7 +7,7 @@
 ```text
 请读 AGENTS.md 和 docs/customize.md，把这个站改成「XX 行业」的热点站。
 我关心的是：……（写你想盯的信源、你觉得什么消息重要、什么不重要，越具体越好）。
-改完帮我跑 npm run typecheck、npm test 和 node scripts/smoke.ts，并告诉我还需要我自己决定哪些事。
+改完帮我跑 bun run typecheck、bun run test 和 bun scripts/smoke.ts，并告诉我还需要我自己决定哪些事。
 ```
 
 下面是它（或者你）要做的事，按顺序。
@@ -112,7 +112,7 @@
 两次评分之和 ≥ 2 × 门槛才够分（够分的还要过归组时的去重，见 [精选与校准](selection.md)）。本仓库的门槛（T1 54、T1_5 65、T2 72）已按少女乐队语料校准过一次：上游框架沿用下来的 T1 60 / T2 76 在同一批 42 条标注样本上漏掉了 8 条该选的、误选 0 条，收紧方向明确；`T1_5` 因为一条样本都没有而保持原值。换行业和提示词，需要重新校准：
 
 1. 从你的信源里挑 100–200 条资料，自己标“该选 / 不该选”，存成 `.data/gold.jsonl`（格式见 [精选与校准](selection.md)，`industry/gold.example.jsonl` 有两条示例）。
-2. 运行 `node --env-file=.env scripts/eval-selection.ts --gold .data/gold.jsonl`，看准确率、查准率、查全率，和不同门槛下的结果。
+2. 运行 `bun scripts/eval-selection.ts --gold .data/gold.jsonl`，看准确率、查准率、查全率，和不同门槛下的结果。
 3. 在后台 SelectBench 里逐条看判错的资料，回去改评分提示词或门槛，再跑一遍。
 
 这一步决定了你的站“选得准不准”。
@@ -134,7 +134,7 @@
 - `nameplates/`：日报、周报、月报页顶部的报头字（比如“AI日报”）。换了行业词以后重新生成：
   ```bash
   npm pack @fontsource/noto-sans-sc@5.3.0 && tar xzf fontsource-noto-sans-sc-5.3.0.tgz
-  node scripts/nameplates.ts package
+  bun scripts/nameplates.ts package
   ```
 - 关于页的二维码：在后台“设置”里上传，或者把图片放进 `industry/brand/contact/`。
 - 网页左上角的站名标志在 `apps/web/app/components/Logo.tsx`，默认用站名文字；有自己的 Logo 可以换成图片。
@@ -149,8 +149,8 @@
 - `types.ts`：三封信的数据契约（确认信、截止提醒、精选摘要）。**模板只消费这里的数据，不查库、不拼 URL。**
 - `layout.ts`：**排版标尺**（间距 / 字号 / 行高 / 圆角 / 宽度）与两个颜色助手（`soften` / `inkOn`），所有外观都只能从这里取数字，写死的 px 会被 `tests/email-templates.test.ts` 拦下。
 - `hero.ts`：头图的**规格**（画布 1200×450、颜色校验、token 编解码）与**官方 logo 的入库契约**（`HeroSpec.logo` 是乐队 id，不是 URL）。画面本身在 `apps/api/src/og/hero.ts`（版式、装饰、挑底），标题牌与日期牌在 `apps/api/src/og/title.ts`，正文用的句柄在 `industry/email/title.ts`；判据与实测见 [邮件订阅](subscribe.md#头图是这一版的核心装置)。
-- `assets/band-logos/`：各乐队官方字标的**入库副本**（`<乐队 id>.png` + `manifest.json`），由 `node scripts/fetch-band-logos.ts` 抓一次生成；加了新乐队就补一条直链再跑一次，**平时渲染不出网**。它是顶层 `assets/`，不在行业包里——logo 是艺术资源，不是配置。
-- `assets/og-fonts/`：OG 图与头图用的 5 个子集字体（Noto Sans SC 两档、Noto Sans JP 两档、显示字体 Dela Gothic One），由 `node scripts/og/build-og-jp-font.ts` 生成，版权与许可见该目录的 `LICENSE`。**改文案用字（新乐队名、新标签）后要重跑这个脚本**，否则 satori 只会画出豆腐块。
+- `assets/band-logos/`：各乐队官方字标的**入库副本**（`<乐队 id>.png` + `manifest.json`），由 `bun scripts/fetch-band-logos.ts` 抓一次生成；加了新乐队就补一条直链再跑一次，**平时渲染不出网**。它是顶层 `assets/`，不在行业包里——logo 是艺术资源，不是配置。
+- `assets/og-fonts/`：OG 图与头图用的 5 个子集字体（Noto Sans SC 两档、Noto Sans JP 两档、显示字体 Dela Gothic One），由 `bun scripts/og/build-og-jp-font.ts` 生成，版权与许可见该目录的 `LICENSE`。**改文案用字（新乐队名、新标签）后要重跑这个脚本**，否则 satori 只会画出豆腐块。
 - `styles/*.ts`：外观。现在只有 `cover`（封面：通栏头图 + 最短正文），用 `.env` 的 `EMAIL_STYLE` 选，默认 `cover`。加一套新外观见 [邮件订阅](subscribe.md#加一套新外观)。
 - 信件正文里的措辞（“抽选什么时候截止”“今天有哪些值得看的”）在 `packages/backend/src/subscriptions/content.ts`，因为那里才知道数据长什么样。
 
@@ -169,9 +169,9 @@
 ## 改完以后检查
 
 ```bash
-npm run typecheck
-DATABASE_URL=postgres://…/girlsbands_test npm test     # 库名必须以 _test 或 _ci 结尾，数据库账号要能建库
-node scripts/smoke.ts --base http://localhost:3000   # 站点跑起来以后
+bun run typecheck
+DATABASE_URL=postgres://…/girlsbands_test bun run test     # 库名必须以 _test 或 _ci 结尾，数据库账号要能建库
+bun scripts/smoke.ts --base http://localhost:3000   # 站点跑起来以后
 ```
 
 `tests/` 里有些测试用的是示例行业的分类、标签和公司（比如 `ai-models`、“模型发布”、Anthropic）。改了 `industry/taxonomy.ts` 以后这些测试会失败，把例子换成你行业里的对应项即可，测的规则本身不用改。

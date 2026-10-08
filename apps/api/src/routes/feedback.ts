@@ -6,12 +6,9 @@ type FeedbackBody = Pick<FeedbackInput, "content" | "email" | "pageUrl" | "scree
 
 /** The feedback form as the site posts it: multipart, with at most one screenshot file. */
 async function readForm(raw: unknown, contentType: string): Promise<FeedbackBody> {
-  let form: FormData;
-  try {
-    form = await new Response(raw as Buffer<ArrayBuffer>, { headers: { "content-type": contentType } }).formData();
-  } catch {
+  const form = await new Response(raw as Buffer<ArrayBuffer>, { headers: { "content-type": contentType } }).formData().catch(() => {
     throw new FeedbackRejected(400, "invalid_request", "截图上传格式不正确，请重新提交。");
-  }
+  });
   const text = (key: string) => {
     const value = form.get(key);
     if (value !== null && typeof value !== "string") throw new FeedbackRejected(400, "invalid_request", "反馈文字格式不正确。");

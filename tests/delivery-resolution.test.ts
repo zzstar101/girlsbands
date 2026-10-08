@@ -16,7 +16,7 @@ before(async () => {
   config.devAdmin = { displayName: T };
   process.env.TEST_DELIVERY_WEBHOOK = "https://delivery.invalid/test";
   // Any send would land here instead of the network.
-  globalThis.fetch = (async () => { sent += 1; return Response.json({ code: 0 }); }) as typeof fetch;
+  globalThis.fetch = Object.assign(async () => { sent += 1; return Response.json({ code: 0 }); }, { preconnect: globalThis.fetch.preconnect });
   config.feishuContentPushEnabled = true;
   await sql`INSERT INTO notify_targets (key, purpose, kind, config_ref, enabled)
     VALUES (${TARGET}, 'content', 'feishu_webhook', 'TEST_DELIVERY_WEBHOOK', true)`;

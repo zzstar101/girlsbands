@@ -9,10 +9,10 @@
 ```bash
 git clone https://github.com/zzstar101/girlsbands.git myband
 cd myband
-node scripts/init-env.ts --llm-key <你的模型 API Key>
+bun scripts/init-env.ts --llm-key <你的模型 API Key>
 ```
 
-`init-env.ts` 会生成 `.env`，填好随机密钥和管理员密码，并把密码打印一次；它还会把所有对外开关（抓取、模型调用、飞书推送、IndexNow、邮件）写成 `false`，所以第一次启动的站是安静的。机器上没有 Node 的话，把 `.env.example` 复制成 `.env`，自己填 `ADMIN_PASSWORD`（至少 12 位）、`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`POSTGRES_PASSWORD`（各用 `openssl rand -hex 32` 生成）和 `LLM_API_KEY`。自己填的值别写成 `dev-` 开头或 `test`、`changeme` 这类占位词：生产环境会拒绝启动（见 `packages/backend/src/config.ts` 的 `assertProductionSecrets`）。
+`init-env.ts` 会生成 `.env`，填好随机密钥和管理员密码，并把密码打印一次；它还会把所有对外开关（抓取、模型调用、飞书推送、IndexNow、邮件）写成 `false`，所以第一次启动的站是安静的。机器上没有 Bun 的话，把 `.env.example` 复制成 `.env`，自己填 `ADMIN_PASSWORD`（至少 12 位）、`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`POSTGRES_PASSWORD`（各用 `openssl rand -hex 32` 生成）和 `LLM_API_KEY`。自己填的值别写成 `dev-` 开头或 `test`、`changeme` 这类占位词：生产环境会拒绝启动（见 `packages/backend/src/config.ts` 的 `assertProductionSecrets`）。
 
 启动前检查 `.env` 的 `SITE_URL`：本机试用保留 `http://localhost:3000`；部署到服务器时改成读者实际访问的地址。例如通过服务器 IP 访问时（把示例 IP 换成自己的）：
 
@@ -34,7 +34,7 @@ docker compose up -d --build
 
 ### 在中国大陆的服务器上
 
-- 构建时 npm 走国内镜像：`docker compose build --build-arg NPM_REGISTRY=https://registry.npmmirror.com`，然后 `docker compose up -d`。
+- 构建时依赖走国内 npm 镜像：`docker compose build --build-arg NPM_REGISTRY=https://registry.npmmirror.com`，然后 `docker compose up -d`。
 - 拉取 Docker 镜像慢，先给 Docker 配置镜像加速。
 - 海外信源抓不到时，在 `.env` 里设置 `EGRESS_PROXY_URL`：抓信源和图片时走这个代理，调用模型接口不走。
 - 对外提供网站服务需要先完成 ICP 备案，备案号填在 `industry/site.ts` 的 `icp`。
@@ -255,11 +255,11 @@ EMAIL_STYLE=cover        # 目前只有 cover，见 docs/subscribe.md
 
 ## 不用 Docker
 
-需要 Node.js 24.11 以上和 PostgreSQL 16 或 17。
+需要 Bun 1.4.2 以上（`package.json` 的 `packageManager`）和 PostgreSQL 16 或 17。
 
 ```bash
-npm ci
-node scripts/init-env.ts --llm-key <你的模型 API Key>
+bun install --frozen-lockfile
+bun scripts/init-env.ts --llm-key <你的模型 API Key>
 createdb girlsbands
 ```
 
@@ -273,15 +273,15 @@ API_BASE_URL=http://127.0.0.1:3001
 然后：
 
 ```bash
-node --env-file=.env scripts/migrate.ts
-node --env-file=.env scripts/seed.ts
-npm run build -w @girlsbands/web
+bun scripts/migrate.ts
+bun scripts/seed.ts
+bun run --filter @girlsbands/web build
 
-node --env-file=.env apps/api/src/main.ts          # 接口，3001 端口
-node --env-file=.env apps/worker/src/main.ts       # 后台任务
-cd apps/web && NODE_ENV=production node --env-file=../../.env server.ts   # 网页，3000 端口
+bun apps/api/src/main.ts          # 接口，3001 端口
+bun apps/worker/src/main.ts       # 后台任务
+cd apps/web && NODE_ENV=production bun --env-file=../../.env server.ts   # 网页，3000 端口
 ```
 
 三个进程要一直运行，生产环境用 systemd 或 pm2 守护。停止 worker 时至少给它 210 秒（systemd 的 `TimeoutStopSec`、pm2 的 `kill_timeout`），让进行中的付费调用收尾；被提前杀掉的调用结果不明，要等至少半小时自动放行后才会重试。
 
-开发时用带热更新的方式：`npm run dev:api`、`npm run dev:worker`、`npm run dev:web`。开发时想免登录进后台，在 `.env` 里设 `DEV_AUTH_ROLE=admin`（生产环境会拒绝启动）。
+开发时用带热更新的方式：`bun run dev:api`、`bun run dev:worker`、`bun run dev:web`。开发时想免登录进后台，在 `.env` 里设 `DEV_AUTH_ROLE=admin`（生产环境会拒绝启动）。

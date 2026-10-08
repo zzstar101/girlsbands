@@ -6,7 +6,7 @@
 //   links    正文里还留着镜像地址（nitter.*）的：只把链接改回 x.com / t.co，内容不变，不出新修订，译文同改。
 //   rescreen 成员个人号的已公开推文，按新的 prefilter 规则重新判一次。必须带新的 attempt tag：
 //            同一修订、同一标签会命中旧回执，等于没判。
-//   node --env-file=.env scripts/refresh-x-posts.ts <bodies|links|rescreen> [--limit N] [--pace MS] [--tag T] [--state analyzed|blocked] [--dry]
+//   bun scripts/refresh-x-posts.ts <bodies|links|rescreen> [--limit N] [--pace MS] [--tag T] [--state analyzed|blocked] [--dry]
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { queueProcessing } from "@girlsbands/backend/jobs/content";
 import { stopBoss } from "@girlsbands/backend/jobs/queue";

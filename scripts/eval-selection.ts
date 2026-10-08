@@ -3,7 +3,7 @@
 // --models, the two scores deciding against the source tier's threshold — and is compared with your
 // decision. A threshold sweep shows what another threshold would have done. The format of the gold file
 // is in docs/selection.md (industry/gold.example.jsonl has two made-up cases).
-// Usage: node --env-file=.env scripts/eval-selection.ts --gold .data/gold.jsonl [--models default,deepseek-flash] [--n 200] [--label "..."]
+// Usage: bun scripts/eval-selection.ts --gold .data/gold.jsonl [--models default,deepseek-flash] [--n 200] [--label "..."]
 // Receipts make re-runs free; "either" cases are excluded from decisive metrics. Each run is also
 // imported into SelectBench (admin → SelectBench) with every case, unless --no-import is given.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";

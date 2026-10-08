@@ -3,15 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "react-router dev --port 3000 --host 127.0.0.1",
-    "build": "react-router build",
-    "start": "node server.ts",
-    "typecheck": "react-router typegen && tsc -p ."
+    "dev": "bunx --bun react-router dev --port 3000 --host 127.0.0.1",
+    "build": "bunx --bun react-router build",
+    "start": "bun server.ts",
+    "typecheck": "bunx --bun react-router typegen && tsc -p ."
   },
   "dependencies": {
     "@girlsbands/contracts": "*",
     "@girlsbands/industry": "*",
-    "@react-router/node": "8.4.0",
     "highlight.js": "11.12.0",
     "isbot": "5.2.2",
     "motion": "13.4.4",

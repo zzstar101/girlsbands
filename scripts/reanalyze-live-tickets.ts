@@ -2,7 +2,7 @@
 // 交给 worker 重新分析一次。**必须换一个新的 attemptTag**：同一份输入重跑只会命中回执，不花钱也不问模型
 // （providers/receipts.ts 的 identity 只看 system/user/model/promptVersion/temperature + attemptTag）。
 // 重跑期间这些条目的 grouping_status 会短暂回到 pending（events/group.ts），所以挑没人看的时段跑。
-//   node --env-file=.env scripts/reanalyze-live-tickets.ts [--limit N] [--tag X] [--dry]
+//   bun scripts/reanalyze-live-tickets.ts [--limit N] [--tag X] [--dry]
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { queueProcessing } from "@girlsbands/backend/jobs/content";
 import { stopBoss } from "@girlsbands/backend/jobs/queue";

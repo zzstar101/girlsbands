@@ -1,7 +1,7 @@
 // 一次性：把已经发布的标题和摘要里「今晚 26:05」这种日本深夜档写法换成次日凌晨（contracts/time.ts
 // lateNightClock）。只改模型写的中文标题和摘要，原文标题（X 帖子直接拿正文当标题的那种）不动。
-//   node scripts/fix-late-night.ts            # 先看会改哪些
-//   node scripts/fix-late-night.ts --apply    # 真的写进去
+//   bun scripts/fix-late-night.ts            # 先看会改哪些
+//   bun scripts/fix-late-night.ts --apply    # 真的写进去
 import { lateNightClock } from "@girlsbands/contracts/time";
 import { closeDb, sql } from "@girlsbands/backend/db";
 

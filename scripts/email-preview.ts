@@ -1,5 +1,5 @@
 // 邮件样稿：用线上真实数据把几套风格各渲染一遍，发到指定邮箱，并把 HTML 存一份。
-//   node scripts/email-preview.ts --to you@example.com [--styles flyer,brief,cover] [--out /tmp/email-preview]
+//   bun scripts/email-preview.ts --to you@example.com [--styles flyer,brief,cover] [--out /tmp/email-preview]
 // 收件人按「全部乐队」算；截止提醒用预览模式（没有 48 小时内的事也出一封）。不写 email_sends，不影响正式发送。
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";

@@ -1,6 +1,6 @@
 // 邮件底部的管理入口是短链 /subscriptions/<token>，它只做一件事：把读者送到订阅管理页
 // （早先发出去的长链接 /subscribe/manage?token=… 仍然可用）。转发规则单独放在这里，
-// 好让 node --test 能直接跑（路由文件是 .tsx，测试进程不认识）。
+// 好让 bun test 能直接跑（路由文件是 .tsx，测试进程不认识）。
 /** store.ts 里 token() 是 32 个 base64url 字符；这里放宽一点，只拦明显不是 token 的路径。 */
 const TOKEN = /^[A-Za-z0-9_-]{16,64}$/;
 

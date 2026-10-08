@@ -85,10 +85,10 @@ for (const composite of [false, true]) test(`a ${composite ? "roundup" : "single
 test("a native timeout fails its job with the receipt id, and the release wakes that same job", async () => {
   const id = await report("timeout");
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (input, init) => {
+  globalThis.fetch = Object.assign(async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
     if (String(input).startsWith(provider.url)) throw new DOMException("request timed out", "TimeoutError");
     return originalFetch(input, init);
-  };
+  }, { preconnect: originalFetch.preconnect });
   let error: unknown;
   try { await groupArticle(id); } catch (thrown) { error = thrown; } finally { globalThis.fetch = originalFetch; }
   assert.match(String(error), /timed out/);
@@ -138,14 +138,14 @@ for (const lateFailure of [false, true]) test(`an old grouping ${lateFailure ? "
   const asked = gate();
   const release = gate();
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (input, init) => {
+  globalThis.fetch = Object.assign(async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
     if (String(input).startsWith(provider.url)) {
       asked.open();
       await release.promise;
       if (lateFailure) throw new DOMException("old request timed out", "TimeoutError");
     }
     return originalFetch(input, init);
-  };
+  }, { preconnect: originalFetch.preconnect });
   const grouping = groupArticle(id);
   const rejected = assert.rejects(grouping);
   try {

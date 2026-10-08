@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch --env-file-if-exists=../../.env src/main.ts",
-    "start": "node src/main.ts"
+    "dev": "bun --watch --env-file=../../.env src/main.ts",
+    "start": "bun src/main.ts"
   },
   "dependencies": {
     "@girlsbands/backend": "*",

@@ -1,8 +1,8 @@
-// Shared setup for the invariant tests (node --test tests/). They write rows, so they refuse to run
+// Shared setup for the invariant tests (bun run test). They write rows, so they refuse to run
 // unless DATABASE_URL names a throwaway database ending in _test or _ci.
 // Secrets are test values set here, never real credentials; paid providers are pointed at
-// local stubs by the tests that need them, and the push valves stay off. npm test gives each
-// file its own copy of the database (databases.ts).
+// local stubs by the tests that need them, and the push valves stay off. The runner gives each
+// file its own copy of the database (tests/run.ts, tests/preload.ts).
 import { createHash } from "node:crypto";
 import http from "node:http";
 

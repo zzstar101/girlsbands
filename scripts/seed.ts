@@ -1,6 +1,6 @@
 // Seeds a fresh site from the industry pack: the demo sources (industry/sources.json, only the ones not
 // there yet, so admin edits are never undone). Topics need no seeding: they are read from industry/topics.json.
-// Re-runnable:  node --env-file=.env scripts/seed.ts
+// Re-runnable:  bun scripts/seed.ts
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { REPO_ROOT } from "@girlsbands/backend/config";

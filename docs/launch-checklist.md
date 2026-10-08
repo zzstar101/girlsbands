@@ -43,7 +43,7 @@
 
 ```bash
 git clone https://github.com/zzstar101/girlsbands.git myband && cd myband
-node scripts/init-env.ts --llm-key <模型 API Key>     # 机器上没有 Node 时见 deploy.md 第 15 行
+bun scripts/init-env.ts --llm-key <模型 API Key>     # 机器上没有 Bun 时见 deploy.md 第 15 行
 ```
 
 `init-env.ts` 会把管理员密码、会话密钥、图片代理密钥、数据库密码都随机生成好（打印一次，自己存起来），并且把**所有对外开关写成 `false`**——包括抓取、模型调用、飞书推送、IndexNow、邮件。这一步之后站点是安静的，不会自己去抓信源，也不会花钱。
@@ -59,7 +59,7 @@ docker compose up -d --build
 ```bash
 docker compose ps -a                                  # db/api 都应是 healthy，setup 应是 Exited (0)
 curl -sS http://127.0.0.1:3000/api/health             # {"ok":true,"db":"ok",...}
-node scripts/smoke.ts --base http://127.0.0.1:3000    # 应打印 all checks passed
+bun scripts/smoke.ts --base http://127.0.0.1:3000    # 应打印 all checks passed
 ```
 
 打开首页和 `/admin`，用 `init-env.ts` 打印的密码登录。这时首页是空的，**这是对的**——开关还没开。

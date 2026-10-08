@@ -74,7 +74,7 @@
   - 「读不清」= 加载 logo 时读一次像素、按 `alpha > 200` 的墨迹做 **64 桶**亮度直方图（用户原稿用的是 `alpha >= 180`；Our Notes 那张图有一大圈 alpha 180–200 的半透明光晕，算成墨迹会让近白 logo 反而选中白板，所以生产用 `> 200`），桶均值与底的对比度 < 3:1 的像素占比（大块图形按 WCAG 的 3:1 而不是正文的 4.5:1）；
   - **桶数不能太粗**：直方图按桶内均值判对比度，16 桶时一个横跨阈值的桶会把桶里其实看得清的高光墨迹也算成看不清——实测 Pastel\*Palettes 因此被多推暗两档；改成 64 桶后与逐像素精确值基本一致；
   - 加载不到 logo（没有直方图）就用应援色本身；`mix(accent, 白 / 黑)` 兑出来的底**色相与饱和度都留着**，所以板子上还看得出是哪支队的色；
-  - 实测（`node .data/hero-plates.ts`，**19/19、EXIT=0**）：4 支走硬覆盖，其余 15 支落在「同色淡底 5 + 纯白 3 + 同色深底 4 + 近黑 3」；每一支的实际选择都落在逐像素精确最优的 2 个百分点以内（唯一例外是硬覆盖里的 Pastel\*Palettes 浅粉白板——用户自己定的，按 3:1 算它压不住那枚中间调 logo，但那是他明确写下的选择）。最差的两支（一家Dumb Rock! 41.4%、クズミミズク 31.9%）本来就是深浅两色的 logo（描边 + 填充），任何单色底都只保得住多数那一半；
+  - 实测（`bun .data/hero-plates.ts`，**19/19、EXIT=0**）：4 支走硬覆盖，其余 15 支落在「同色淡底 5 + 纯白 3 + 同色深底 4 + 近黑 3」；每一支的实际选择都落在逐像素精确最优的 2 个百分点以内（唯一例外是硬覆盖里的 Pastel\*Palettes 浅粉白板——用户自己定的，按 3:1 算它压不住那枚中间调 logo，但那是他明确写下的选择）。最差的两支（一家Dumb Rock! 41.4%、クズミミズク 31.9%）本来就是深浅两色的 logo（描边 + 填充），任何单色底都只保得住多数那一半；
   - 应援色本身在 `industry/taxonomy.ts` 的 `ENTITIES` 里，**15 条已换成官方样式表里的队色**（MyGO `#3388bb`、Ave Mujica `#881144`、Roselia `#7082cc`、Pastel\*Palettes `#0ad99b`、GIRLS BAND CRY `#f40000`…）；**改色前先核官方 CSS**，别凭感觉调。
 - **每封的主角是「这一封的乐队」**：`heroOf()` 定这件事——确认信取订阅名单里**第一支乐队**（名单里只有企划就取企划），截止提醒取 48 小时内最要紧那支，精选摘要取本期出现最多的那支（并列取名字靠前的，保证同一批内容永远同一张图）；一支主体都没有就退品牌金 + 站名。**主角没有 logo 就用纯色海报，绝不拿别家乐队的 logo 充数。**
 - **它仍然按来源限速**：`/og/email/:file` 60 次/分钟（`packages/backend/src/operations/abuse.ts` 的 `rateLimit`，超了 429 + `Retry-After`）。抓图改成查表之后这条路由不再出网、SSRF 面整个消失，但 satori 渲染是这台机器最贵的公开动作，所以限速留着。
@@ -117,9 +117,9 @@
 2. 在 `industry/email/registry.ts` 的 `EMAIL_STYLES` 里加一行；
 3. 单独量它，改到 0 处问题：
    ```bash
-   node --input-type=module -e 'import { checkStyle } from "/绝对路径/tests/email-rules.ts"; const m = await import("/绝对路径/industry/email/styles/xxx.ts"); const p = checkStyle(m.default); console.log(p.length ? p.slice(0,30).join("\n") : "OK", "\n共", p.length);'
+   bun -e 'import { checkStyle } from "/绝对路径/tests/email-rules.ts"; const m = await import("/绝对路径/industry/email/styles/xxx.ts"); const p = checkStyle(m.default); console.log(p.length ? p.slice(0,30).join("\n") : "OK", "\n共", p.length);'
    ```
-4. 看真实数据的效果：`node --env-file=.env .data/email-preview.ts xxx` 会写 `.data/email-preview/xxx--{confirm,deadline,digest}.html`（并把头图用真渲染器画成本地 `hero-{confirm,deadline,digest}.png`，所以预览页不需要 API 在线），再 `node .data/email-gallery.ts` 生成对照页。
+4. 看真实数据的效果：`bun .data/email-preview.ts xxx` 会写 `.data/email-preview/xxx--{confirm,deadline,digest}.html`（并把头图用真渲染器画成本地 `hero-{confirm,deadline,digest}.png`，所以预览页不需要 API 在线），再 `bun .data/email-gallery.ts` 生成对照页。
 
 模板的硬约束（邮件客户端比浏览器难伺候得多）：只用行内样式、`<table role="presentation">` 布局、正文宽度 600px 封顶、不引用外部字体、不出现 `<style>` / `<link>` / `<script>` / flex / grid；所有读者可见的文字都要过 `escapeHtml`；链接只放行 `http` / `https` / `mailto`。模板都自带纯文本版本——只去标签不算纯文本，要重新排版才能读。
 

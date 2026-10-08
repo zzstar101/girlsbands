@@ -22,11 +22,11 @@ test("an unreadable upload directory cannot become a successful empty backup", a
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   // The upload transport is stubbed; pg_dump and pg_restore run against this file's isolated DB.
   const realFetch = globalThis.fetch;
-  globalThis.fetch = (input, init) => {
+  globalThis.fetch = Object.assign((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
     const url = new URL(String(input));
     url.protocol = "http:";
     return realFetch(url, init);
-  };
+  }, { preconnect: realFetch.preconnect });
   const port = (server.address() as { port: number }).port;
   Object.assign(process.env, {
     DB_BACKUP_STORE_SECRET_ID: "test-backup-key", DB_BACKUP_STORE_SECRET_KEY: "test-backup-secret",

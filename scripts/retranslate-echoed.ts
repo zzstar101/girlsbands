@@ -1,6 +1,6 @@
 // 重新翻译「译文就是原文」的条目：模型把日文原样返回、被当作译文存下的（2026-10-07 查出 62 条）。
 // 删掉这些译文和翻译尝试记录，再逐条翻一次（新的提示词和原样回传检测）。
-//   node --env-file=.env scripts/retranslate-echoed.ts [--dry]
+//   bun scripts/retranslate-echoed.ts [--dry]
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { translateArticle } from "@girlsbands/backend/editorial/translate";
 import { stopBoss } from "@girlsbands/backend/jobs/queue";

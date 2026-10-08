@@ -32,7 +32,7 @@
 先按正常部署方式配置数据库和模型，再运行：
 
 ```bash
-node --env-file=.env scripts/eval-relations.ts \
+bun scripts/eval-relations.ts \
   --gold .data/relation-gold.jsonl \
   --split development
 ```
@@ -40,7 +40,7 @@ node --env-file=.env scripts/eval-relations.ts \
 默认使用当前 `groupReview` capability 选择的模型。也可以显式比较多个已配置模型：
 
 ```bash
-node --env-file=.env scripts/eval-relations.ts \
+bun scripts/eval-relations.ts \
   --gold .data/relation-gold.jsonl \
   --models default,deepseek-flash \
   --split development \

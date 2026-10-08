@@ -5,14 +5,14 @@ import { adminGet } from "../app/lib/admin.server.ts";
 
 test("public and admin loaders forward cancellation without turning it into a 503", async () => {
   const original = globalThis.fetch;
-  globalThis.fetch = async (_input, init) => {
+  globalThis.fetch = Object.assign(async (_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
     const signal = init?.signal;
     assert(signal);
     return new Promise<Response>((_resolve, reject) => {
       if (signal.aborted) reject(signal.reason);
       else signal.addEventListener("abort", () => reject(signal.reason), { once: true });
     });
-  };
+  }, { preconnect: original.preconnect });
   try {
     for (const load of [
       (signal: AbortSignal) => loadOr404("/api/site/items/example", { signal }),

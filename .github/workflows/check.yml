@@ -44,13 +44,14 @@ jobs:
       IMG_PROXY_SIGN_SECRET: ci-img-secret-0123456789abcdef
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          package-manager-cache: false
+      - name: Bun
+        # The official installer, pinned to the version in package.json's packageManager (no third-party action).
+        run: |
+          curl -fsSL https://bun.sh/install | bash -s "bun-v$(sed -n 's/.*"packageManager": "bun@\([^"]*\)".*/\1/p' package.json)"
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
 
       - name: Install
-        run: npm ci --no-audit --no-fund
+        run: bun install --frozen-lockfile
       - name: PostgreSQL backup tools
         # 恢复测试需要与 PostgreSQL 17 服务匹配的客户端，不能依赖 runner 的默认版本。
         run: |
@@ -64,27 +65,27 @@ jobs:
           /usr/lib/postgresql/17/bin/pg_dump --version
           /usr/lib/postgresql/17/bin/pg_restore --version
       - name: Typecheck
-        run: npm run typecheck
+        run: bun run typecheck
       - name: Build web
-        run: npm run build -w @girlsbands/web
+        run: bun run --filter @girlsbands/web build
       - name: Web tests
-        run: node --test apps/web/tests/*.test.ts
+        run: bun test apps/web/tests
 
       # Each test file runs on its own copy of girlsbands_ci (tests/databases.ts), which the run migrates and
       # leaves empty; the smoke check then reads that empty database.
       - name: Backend tests
-        run: npm test
+        run: bun run test
       - name: Smoke check of the built site
         # The site itself runs with collection and model calls off (the tests above use local stubs).
         env:
           COLLECT_ENABLED: "false"
           MODEL_CALLS_ENABLED: "false"
         run: |
-          node apps/api/src/main.ts > "$RUNNER_TEMP/api.log" 2>&1 &
-          (cd apps/web && NODE_ENV=production exec node server.ts) > "$RUNNER_TEMP/web.log" 2>&1 &
+          bun apps/api/src/main.ts > "$RUNNER_TEMP/api.log" 2>&1 &
+          (cd apps/web && NODE_ENV=production exec bun server.ts) > "$RUNNER_TEMP/web.log" 2>&1 &
           for i in $(seq 1 60); do curl -fsS -o /dev/null http://127.0.0.1:3000/api/health 2>/dev/null && break; sleep 1; done
-          node scripts/smoke.ts --base http://127.0.0.1:3000
-          node scripts/mcp-check.ts http://127.0.0.1:3000/api/mcp
+          bun scripts/smoke.ts --base http://127.0.0.1:3000
+          bun scripts/mcp-check.ts http://127.0.0.1:3000/api/mcp
       - name: Server logs
         if: failure()
         run: tail -n 60 "$RUNNER_TEMP/api.log" "$RUNNER_TEMP/web.log" 2>/dev/null || true
@@ -94,13 +95,14 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          package-manager-cache: false
+      - name: Bun
+        # The official installer, pinned to the version in package.json's packageManager (no third-party action).
+        run: |
+          curl -fsSL https://bun.sh/install | bash -s "bun-v$(sed -n 's/.*"packageManager": "bun@\([^"]*\)".*/\1/p' package.json)"
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - name: Configure a throwaway site
         run: |
-          node scripts/init-env.ts --llm-key ci-not-a-real-key
+          bun scripts/init-env.ts --llm-key ci-not-a-real-key
           # No outside calls in CI: nothing is collected and no model is asked.
           sed -i 's/^COLLECT_ENABLED=.*/COLLECT_ENABLED=false/; s/^MODEL_CALLS_ENABLED=.*/MODEL_CALLS_ENABLED=false/' .env
           # The smoke check reaches the site by its compose service name.
@@ -111,8 +113,8 @@ jobs:
         run: |
           for i in $(seq 1 90); do curl -fsS -o /dev/null http://127.0.0.1:3000/api/health 2>/dev/null && break; sleep 2; done
           docker compose ps
-          docker compose run --rm --no-deps --entrypoint node setup scripts/smoke.ts --base http://web:3000
-          docker compose exec -T db psql -U girlsbands -d girlsbands -Atc "select count(*) from sources" | grep -qx "$(node -p "require('./industry/sources.json').sources.length")"
+          docker compose run --rm --no-deps --entrypoint bun setup scripts/smoke.ts --base http://web:3000
+          docker compose exec -T db psql -U girlsbands -d girlsbands -Atc "select count(*) from sources" | grep -qx "$(bun -p "require('./industry/sources.json').sources.length")"
       - name: Logs
         if: failure()
         run: docker compose logs --tail 80

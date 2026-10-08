@@ -556,7 +556,7 @@ export function checkStyle(style: EmailStyle): string[] {
 
 // 单独量一套风格（写新模板时用）：
 //
-//   node --input-type=module -e 'import { checkStyle } from "<repo>/tests/email-rules.ts";
+//   bun -e 'import { checkStyle } from "<repo>/tests/email-rules.ts";
 //     const m = await import("<repo>/industry/email/styles/新风格.ts");
 //     const p = checkStyle(m.default); console.log(p.length ? p.slice(0,30).join("\n") : "OK");'
 //

@@ -1,7 +1,7 @@
 // 导读改写（2026-10-07）：rules-domain 加了「普通日语词一律译成中文」之后，把最近 N 天的精选条目重跑一次分析。
 // 不带 --tag：prefilter / score / structure 等提示词没变，命中回执不花钱；只有引用 rules-domain 的
 // understand / summarize 是新身份，真正调用模型。限流在 providers/receipts.ts 里，排队多少都不会冲过每分钟预算。
-//   node --env-file=.env scripts/resummarize-recent.ts [--days 7] [--limit N] [--all] [--dry]
+//   bun scripts/resummarize-recent.ts [--days 7] [--limit N] [--all] [--dry]
 // 默认只挑精选（selected）；--all 连同所有公开可见条目。
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { queueProcessing } from "@girlsbands/backend/jobs/content";

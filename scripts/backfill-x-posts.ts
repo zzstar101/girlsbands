@@ -2,7 +2,7 @@
 // 按 fxTweetToXPost 写成和采集路径同一种形状，再重新发布一次让 publications.channel 翻成 'x'。
 // 只补「还没解析出 x_post」的：已经在窗口里的推文采集器自己会写，两边写法一致。
 // x_post 只是展示数据，所以不动 body_hash、不出新修订、不重新分析。
-//   node --env-file=.env scripts/backfill-x-posts.ts [--limit N] [--pace MS] [--dry]
+//   bun scripts/backfill-x-posts.ts [--limit N] [--pace MS] [--dry]
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { stopBoss } from "@girlsbands/backend/jobs/queue";
 import { publishArticle } from "@girlsbands/backend/publication/publish";

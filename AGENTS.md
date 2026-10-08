@@ -12,14 +12,14 @@
 
 ## 运行与检查
 
-- Node.js 24 直接运行 TypeScript，后端没有构建步骤。npm workspaces：`apps/*`、`packages/*`、`industry`。
+- Bun 直接运行 TypeScript，后端没有构建步骤；装依赖用 `bun install`（锁文件 `bun.lock`）。workspaces：`apps/*`、`packages/*`、`industry`。
 - 本机运行和 Docker 见 `docs/deploy.md`。
 - 改完至少跑：
   ```bash
-  npm run typecheck
-  DATABASE_URL=postgres://127.0.0.1:5432/<名字>_test npm test   # 名字必须以 _test 或 _ci 结尾；没有会自动建好并迁移，账号要能建库
-  npm run build -w @girlsbands/web && node --test apps/web/tests/*.test.ts
-  node scripts/smoke.ts --base http://localhost:3000             # 站点跑起来以后
+  bun run typecheck
+  DATABASE_URL=postgres://127.0.0.1:5432/<名字>_test bun run test   # 名字必须以 _test 或 _ci 结尾；没有会自动建好并迁移，账号要能建库
+  bun run --filter @girlsbands/web build && bun test apps/web/tests
+  bun scripts/smoke.ts --base http://localhost:3000             # 站点跑起来以后
   ```
 - `tests/` 里部分测试用的是示例行业的分类、标签和公司，改了 `industry/taxonomy.ts` 后把这些例子换成新行业的对应项。
 
@@ -30,7 +30,7 @@
 - 主题页只给「主体」和「方向」：`packages/backend/src/publication/topics.ts` 的 `hasPage(t) = t.group !== "genre"`、`findPageTopic(slug)` —— 22 个主体（4 个企划 + 18 支乐队，来自 `ENTITIES`）和 9 个情报方向各一页；19 个内容形态只是标签，没有 URL、不进 sitemap。**企划页收整个系列**：`industry/taxonomy.ts` 的 `SERIES` 决定谁跟着谁；`seriesOf(id)` 是页面语义（只有系列 id 自己展开，乐队页不能被同系列其它乐队串进来），`seriesKeyOf(id)` 是成员反查（`parentOf` 用它）。`publication/rules.ts` 的 `entityTags` 把主题的归类标签展开成「自己 + 同系列其它主体」，标题匹配（`titlePattern`）与日历的 `subject` 都跟着走。页面有两种视图：默认精选是编辑挑的座位，`?scope=all` 是这个主题收录的全部（就是 `poolTotal` 数的那批），别把两者混起来。
 - 日历与 `.ics` 和截止雷达读同一份日期：`publication/deadlines.ts` 的 `deadlineRange`/`deadlineMonths` 都吃 `subject` 与 `from`/`to`，别在别处另算一遍日期。`publication/calendar.ts` 造月历与 iCalendar（RFC 5545：转义、75 octets 折行、整天事件给次日 `DTEND`、有时刻的事件写 `DTSTART;TZID=<来源时区>` 并把用到的 `VTIMEZONE` 定义一并写进文件）；出口是 `/calendar.ics` 与 `/calendar/<slug>.ics`（`apps/api/src/routes/calendar.ts`），**路由不能写 `/calendar/:subject.ics`**（find-my-way 不支持带后缀的参数段），并且必须在 `packages/contracts/src/http-policy.ts` 的 `API_OWNED_PATTERNS` 里登记，否则 web 会把它当静态文件。**日期种类只有一个真源**：`packages/contracts/src/site.ts` 的 `DEADLINE_KINDS` —— `DeadlineKind` 类型、抽取用的 zod enum（`editorial/analyze.ts`）、雷达的过滤集合、`DEADLINE_LABELS` 都由它派生，别再在别处抄一份数组。
 - 日期时刻属于公告那一地的钟：`config.timezone`（`Asia/Tokyo` 默认、`Asia/Shanghai`，值域是 `packages/contracts/src/site.ts` 的 `TIMEZONES`，读取在 `packages/backend/src/sources/timezone.ts`）。**不换算、不推算**：网页写「15:30 北京时间」、`.ics` 用 `TZID`、一天一桶也按公告自己的日历（北京时间 23:30 的场次落在当天，不挪到前一天）。时区写在信源配置里而不是从正文猜——猜错会把一个截止日悄悄挪走一小时或一天。新增国内信源必须写 `"timezone": "Asia/Shanghai"`（`scripts/seed.ts` 只插不更新，已有实例靠迁移 `0059_source_timezone.sql`）。
-- 加一支乐队或一个企划要一起改四处：`industry/taxonomy.ts` 的 `ENTITIES`（`kind` 必填）与 `SERIES`（属于哪个系列才写）、`industry/topics.json` 的主题条目、`assets/band-logos/` 的字标（跑 `node scripts/fetch-band-logos.ts` 抓官方 logo；manifest 必须与 `ENTITIES` 一一对应，`tests/email-hero.test.ts` 会红）、以及需要时词表里的写法。首页与导航只列 `FRANCHISES`（一级企划）——`our-notes` 那种游戏不算，粉丝不靠它认路。
+- 加一支乐队或一个企划要一起改四处：`industry/taxonomy.ts` 的 `ENTITIES`（`kind` 必填）与 `SERIES`（属于哪个系列才写）、`industry/topics.json` 的主题条目、`assets/band-logos/` 的字标（跑 `bun scripts/fetch-band-logos.ts` 抓官方 logo；manifest 必须与 `ENTITIES` 一一对应，`tests/email-hero.test.ts` 会红）、以及需要时词表里的写法。首页与导航只列 `FRANCHISES`（一级企划）——`our-notes` 那种游戏不算，粉丝不靠它认路。
 - 读者打开页面不触发模型调用；模型只在 worker 的任务里调用。
 - 付费请求都经过回执（`providers/receipts.ts`）和预算熔断，不要绕开。
 - 安全阀只有设成 `true` 才打开。开发时保持关闭：`COLLECT_ENABLED`、`MODEL_CALLS_ENABLED`、`FEISHU_*_ENABLED`、`INDEXNOW_SUBMIT_ENABLED`。测试里推送一直关着，采集和模型调用只连本地假服务，不访问任何外部服务。

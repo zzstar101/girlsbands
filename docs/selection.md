@@ -66,7 +66,7 @@ export const SELECTION = {
 ### 2. 跑评测
 
 ```bash
-node --env-file=.env scripts/eval-selection.ts --gold .data/gold.jsonl --split development --label "第一版评分标准"
+bun scripts/eval-selection.ts --gold .data/gold.jsonl --split development --label "第一版评分标准"
 ```
 
 对每条样本跑一遍预筛和两次评分，输出：

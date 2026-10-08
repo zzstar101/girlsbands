@@ -6,7 +6,7 @@
 // These images are the rights holders' own trademarks; we keep them only to show a band's mark in
 // our mail header and on-site, not as our own artwork. See assets/band-logos/README.md.
 //
-// Usage: node scripts/fetch-band-logos.ts
+// Usage: bun scripts/fetch-band-logos.ts
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";

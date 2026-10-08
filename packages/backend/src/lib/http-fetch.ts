@@ -1,7 +1,10 @@
 // Outbound HTTP for collectors, the image proxy and the paid APIs: SSRF guard, routing, limits.
 import net from "node:net";
 import { addAbortListener } from "node:events";
-import { Agent, ProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
+// The file path, not the bare "undici": under Bun the bare name resolves to Bun's built-in stand-in,
+// whose Agent ignores connect.lookup, so the guarded lookup below would never run and private
+// addresses behind public names would be dialled.
+import { Agent, ProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici/index.js";
 import { config } from "../config.ts";
 import { assertPublicUrl, guardedLookup } from "./url.ts";
 import { SITE } from "@girlsbands/industry/site";
@@ -145,7 +148,9 @@ function decodeBody(body: Buffer, contentType: string | null): string {
   }
   let text: string;
   try {
-    text = new TextDecoder(charset === "gb2312" ? "gbk" : charset).decode(body);
+    // Bun's types list only a few labels, but its TextDecoder decodes the WHATWG legacy encodings
+    // (gbk, shift_jis, euc-jp, big5…) like Node's; an unknown label still throws into the fallback.
+    text = new TextDecoder((charset === "gb2312" ? "gbk" : charset) as Bun.Encoding).decode(body);
   } catch {
     text = body.toString("utf8");
   }

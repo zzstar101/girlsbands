@@ -46,7 +46,7 @@
 ## 重新生成
 
 ```bash
-node scripts/fetch-band-logos.ts
+bun scripts/fetch-band-logos.ts
 ```
 
 脚本在 stdout 打一张逐行表（id、状态、尺寸、字节、inkLum、onDark、来源），最后一行是 `抓取 N/22，失败 M`。

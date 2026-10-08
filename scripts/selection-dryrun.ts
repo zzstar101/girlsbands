@@ -1,7 +1,7 @@
 // 精选第三版（规则优先）上线前的新旧对比（2026-10-07）。不改任何判定、不动公开页面：
 // 只对最近 N 天官方信源的资料跑一遍「不能错过」判定（回执会留下，正式上线重判时直接复用、不再花钱），
 // 分数沿用已有的两次评分，按新门槛重新比一遍，列出「新增入选 / 新增落选」。
-//   node --env-file=.env scripts/selection-dryrun.ts [--days 7] [--out /tmp/selection-diff.md] [--concurrency 6]
+//   bun scripts/selection-dryrun.ts [--days 7] [--out /tmp/selection-diff.md] [--concurrency 6]
 import { writeFileSync } from "node:fs";
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { loadAnalyzeInput, runMustSee, selectionTier, SCORE_CALLS, tierThreshold } from "@girlsbands/backend/editorial/analyze";

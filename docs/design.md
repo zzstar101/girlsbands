@@ -290,7 +290,7 @@
 6. **其他页面**：按 §10。
 7. **邮件**：`flyer` 风格 + 头图新画法。
 
-每一步改完按 AGENTS.md 跑 `npm run typecheck`、web 构建与 `apps/web/tests`、`scripts/smoke.ts`。新增的公开出口（若有）同样要经过 `hasItemPage`。读者打开页面不触发任何模型调用；动效全部是 CSS / 客户端，不加新依赖（`motion` 已在依赖里，能用 CSS 做的不用它）。
+每一步改完按 AGENTS.md 跑 `bun run typecheck`、web 构建与 `apps/web/tests`、`scripts/smoke.ts`。新增的公开出口（若有）同样要经过 `hasItemPage`。读者打开页面不触发任何模型调用；动效全部是 CSS / 客户端，不加新依赖（`motion` 已在依赖里，能用 CSS 做的不用它）。
 
 ---
 

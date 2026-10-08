@@ -1,5 +1,5 @@
 // 本地预览分享海报：从线上取条目数据和封面，画到 /tmp/poster/<id>.png。
-//   node scripts/og/preview-poster.ts <itemId> [...]
+//   bun scripts/og/preview-poster.ts <itemId> [...]
 import { writeFile } from "node:fs/promises";
 import sharp from "sharp";
 import { CATEGORY_LABELS } from "@girlsbands/contracts/taxonomy";

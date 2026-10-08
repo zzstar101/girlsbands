@@ -49,11 +49,11 @@ services:
         # takes effect on `docker compose build`, not on restart.
         ASSET_BASE_URL: ${ASSET_BASE_URL:-}
     restart: "no"
-    command: ["sh", "-c", "node scripts/migrate.ts && node scripts/seed.ts"]
+    command: ["sh", "-c", "bun scripts/migrate.ts && bun scripts/seed.ts"]
 
   api:
     <<: *app
-    command: ["node", "apps/api/src/main.ts"]
+    command: ["bun", "apps/api/src/main.ts"]
     environment:
       <<: *app-env
       API_HOST: 0.0.0.0
@@ -61,7 +61,7 @@ services:
     # /api/health reads the database, so this is a readiness probe, not just a liveness one: `web` waits
     # on it below, which is what keeps the first page load from reaching Fastify before it is listening.
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3001/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -72,7 +72,7 @@ services:
 
   worker:
     <<: *app
-    command: ["node", "apps/worker/src/main.ts"]
+    command: ["bun", "apps/worker/src/main.ts"]
     # On stop the worker lets a paid call in flight finish (STOP_TIMEOUT_MS, 195 s); Docker's default
     # 10 s would kill it mid-call and leave "outcome unknown" receipts that are paid for again.
     stop_grace_period: 210s
@@ -82,7 +82,7 @@ services:
 
   web:
     <<: *app
-    command: ["node", "apps/web/server.ts"]
+    command: ["bun", "apps/web/server.ts"]
     environment:
       <<: *app-env
       WEB_HOST: 0.0.0.0

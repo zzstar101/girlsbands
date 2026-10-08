@@ -1,5 +1,5 @@
 // Creates .env from .env.example with fresh random secrets and an admin password, and prints the password
-// once. Refuses to overwrite an existing .env.   node scripts/init-env.ts [--llm-key <key>]
+// once. Refuses to overwrite an existing .env.   bun scripts/init-env.ts [--llm-key <key>]
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 

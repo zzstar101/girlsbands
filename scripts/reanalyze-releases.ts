@@ -3,7 +3,7 @@
 // 用的标签（coalesce），所以只有新加的 release 这一步是没见过的身份、要真花钱，前面的 prefilter / score /
 // structure / live / understand / summarize 全部命中回执（providers/receipts.ts）。要强制整条链重来才传 --tag。
 // 重跑期间这些条目的 grouping_status 会短暂回到 pending（events/group.ts），所以挑没人看的时段跑。
-//   node --env-file=.env scripts/reanalyze-releases.ts [--limit N] [--tag X] [--pace MS] [--dry]
+//   bun scripts/reanalyze-releases.ts [--limit N] [--tag X] [--pace MS] [--dry]
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { queueProcessing } from "@girlsbands/backend/jobs/content";
 import { stopBoss } from "@girlsbands/backend/jobs/queue";
