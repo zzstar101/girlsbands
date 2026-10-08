@@ -3,7 +3,6 @@
 // (see media/images.ts), never straight off the wire. A picture that cannot be had is not an error:
 // the card falls back to the text-only layout it had before.
 import type { CoverView } from "@girlsbands/contracts/site";
-import sharp from "sharp";
 import { produceImage } from "@girlsbands/backend/media/images";
 import { proxySource } from "@girlsbands/backend/media/imgproxy";
 import type { OgImage } from "./render.ts";
@@ -33,7 +32,7 @@ export async function ogImage(cover: CoverView | null | undefined, box: { width:
     if (!image || image.body.length === 0 || image.body.length > MAX_BYTES) return null;
     // Drawn size comes from the picture's own pixels, not from what the announcement claims: a wrong
     // `width` in the page's metadata would otherwise stretch it.
-    const meta = await sharp(image.body).metadata();
+    const meta = await new Bun.Image(image.body).metadata();
     const size = meta.width && meta.height ? fitInside({ width: meta.width, height: meta.height }, box) : box;
     return { data: `data:${image.type};base64,${image.body.toString("base64")}`, ...size };
   } catch {

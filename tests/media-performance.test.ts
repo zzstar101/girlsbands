@@ -21,6 +21,11 @@ let imageHits = 0;
 let failureHits = 0;
 let animationHits = 0;
 const png = await sharp({ create: { width: 800, height: 400, channels: 3, background: "#176b75" } }).png().toBuffer();
+const webp = await sharp({ create: { width: 800, height: 400, channels: 3, background: "#176b75" } }).webp().toBuffer();
+// A tiny PNG whose IHDR claims a 20000x20000 canvas: the pixel limit must outlive the engine.
+const oversizedPng = Buffer.from(png);
+oversizedPng.writeUInt32BE(20000, 16);
+oversizedPng.writeUInt32BE(20000, 20);
 // Ten noisy 160×120 frames: a GIF that animated WebP clearly beats.
 const frames = await sharp({ create: { width: 160, height: 1200, channels: 3, background: "#808080", noise: { type: "gaussian", mean: 128, sigma: 40 } } }).raw().toBuffer();
 const animatedGif = await sharp(frames, { raw: { width: 160, height: 1200, channels: 3, pageHeight: 120 } }).gif({ loop: 0, delay: Array(10).fill(90) }).toBuffer();
@@ -41,6 +46,8 @@ const server = createServer(async (req, res) => {
   if (req.url === "/binary-alias") { res.writeHead(200, { "content-type": "binary/octet-stream" }); return res.end(png); }
   if (req.url === "/binary-alias-error") { res.writeHead(200, { "content-type": "binary/octet-stream" }); return res.end("<html>Not an image</html>"); }
   if (req.url === "/binary-error") { res.writeHead(200, { "content-type": "application/octet-stream" }); return res.end("<html>Image not found</html>"); }
+  if (req.url === "/still.webp") { res.writeHead(200, { "content-type": "image/webp" }); return res.end(webp); }
+  if (req.url === "/oversized.png") { res.writeHead(200, { "content-type": "image/png" }); return res.end(oversizedPng); }
   if (req.url === "/fail") { failureHits++; res.writeHead(502); return res.end(); }
   imageHits++;
   await new Promise((resolve) => setTimeout(resolve, 60));
@@ -313,5 +320,25 @@ test("tracking pixels are omitted from old and new bodies without removing artic
     assert.doesNotMatch(body, /ids4|adnxs|example.org\/pixel/);
     assert.equal((body.match(/<img\b/g) ?? []).length, 1);
     assert.match(decodeURIComponent(body), /example.org\/chart.png/);
+  }
+});
+
+test("a still WebP source is re-encoded like a PNG source, and a huge canvas is still refused", async () => {
+  const { default: Fastify } = await import("fastify");
+  const { registerMedia } = await import("../apps/api/src/routes/media.ts");
+  const { proxiedImage } = await import("@girlsbands/backend/media/imgproxy");
+  const app = Fastify();
+  registerMedia(app);
+  try {
+    const still = await app.inject({ url: proxiedImage(`${base}/still.webp`, "image-336")! });
+    assert.equal(still.statusCode, 200);
+    assert.equal(still.headers["content-type"], "image/webp");
+    assert.equal((await sharp(still.rawPayload).metadata()).width, 336);
+    // Whichever engine decodes it, a header claiming 20000×20000 pixels is refused: the route
+    // answers 502, and the oversized original is cached as a failure like any other.
+    const oversized = await app.inject({ url: proxiedImage(`${base}/oversized.png`, "image-336")! });
+    assert.equal(oversized.statusCode, 502);
+  } finally {
+    await app.close();
   }
 });

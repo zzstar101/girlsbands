@@ -304,6 +304,14 @@ export async function resizeImage(body: Buffer, upstreamType: string, mode: stri
   // SVGs (often screenshots embedded as base64) and avatars at their actual display rendition.
   if (type === "image/svg+xml" && !avatar && body.length <= 128 * 1024) return { body, type };
   const density = type === "image/svg+xml" && meta.width ? Math.max(72, Math.min(300, Math.ceil(width / meta.width * 72))) : 72;
+  // Still PNG and WebP are the everyday path (screenshots, band photos, announcement art): Bun.Image
+  // decodes them, applies EXIF orientation first and fits inside the width with the same lanczos3
+  // kernel sharp uses, and its WebP output is the closest of the two (bytes and pixels compared in
+  // bench/image-bench.ts). Everything else stays on sharp because Bun cannot do it: rasterise SVG,
+  // crop an avatar's square, decode raw icon entries, or keep a JPEG's mozjpeg size.
+  if (!ico && !avatar && (type === "image/png" || type === "image/webp")) {
+    return { body: await bunWebp(input, width, type === "image/webp" ? 82 : 88), type: "image/webp" };
+  }
   let image = sharp(input, { ...raw, failOn: "none", density }).rotate();
   image = avatar ? image.resize(width, width, { fit: "cover" }) : image.resize({ width, withoutEnlargement: true });
   // Screenshots and transparent PNGs benefit most from modern encoding. Already lossy JPEGs
@@ -313,4 +321,9 @@ export async function resizeImage(body: Buffer, upstreamType: string, mode: stri
   }
   if (type === "image/webp") return { body: await image.webp({ quality: 82 }).toBuffer(), type };
   return { body: await image.jpeg({ quality: 82, mozjpeg: true }).toBuffer(), type: "image/jpeg" };
+}
+
+/** One still PNG or WebP rendition through Bun.Image: orientation, inside fit, then WebP. */
+async function bunWebp(input: Buffer, width: number, quality: number): Promise<Buffer> {
+  return new Bun.Image(input).resize(width, undefined, { fit: "inside", withoutEnlargement: true }).webp({ quality }).buffer();
 }
