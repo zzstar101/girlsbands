@@ -4,9 +4,11 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { isCategoryKey, isChannelKey, parseSubjectIds, type CategoryKey, type ChannelKey } from "@girlsbands/contracts/taxonomy";
 import { DEADLINE_KINDS, type DeadlineKind } from "@girlsbands/contracts/site";
 import type { ReportIndexResponse, ReportLatestPage, ReportNavigationResponse, SiteContact, TopicScope } from "@girlsbands/contracts/site";
+import { ENTITIES } from "@girlsbands/industry/taxonomy";
 import { InvalidCursorError } from "@girlsbands/backend/lib/cursor";
 import { exportMarkdown, loadItemDetail } from "@girlsbands/backend/publication/detail";
 import { loadPool, SearchBusyError } from "@girlsbands/backend/publication/pool";
+import { loadSeiyuu } from "@girlsbands/backend/publication/seiyuu";
 import { loadHome } from "@girlsbands/backend/publication/home";
 import { loadTimeline } from "@girlsbands/backend/publication/timeline";
 import { loadStoryFollowups } from "@girlsbands/backend/publication/followups";
@@ -116,6 +118,15 @@ export function registerSite(app: FastifyInstance) {
     const search = q.q?.trim() ? q.q.trim().slice(0, 200) : null;
     const tab = q.tab === "relevance" ? "relevance" : "time";
     return sendJsonWithEtag(req, reply, await loadPool({ ...filters, q: search, tab, page }), { etagPrefix: "pool", cacheControl: "public, max-age=60, s-maxage=60" });
+  }));
+
+  // 声优日常：成员个人账号的帖子时间线。乐队筛选只认 taxonomy 里的主体，账号筛选是来源 id。
+  app.get("/api/site/seiyuu", siteHandler(async (req, reply) => {
+    const q = looseQuery(req);
+    const band = q.band?.trim() || null;
+    if (band && !Object.hasOwn(ENTITIES, band)) throw new BadRequest("unknown band");
+    const limit = Math.min(Math.max(Number(q.limit) || 20, 1), 40);
+    return sendJsonWithEtag(req, reply, await loadSeiyuu({ band, account: q.account?.trim() || null, cursor: q.cursor || null, limit }), { etagPrefix: "seiyuu", cacheControl: "public, max-age=60, s-maxage=60" });
   }));
 
   app.get("/api/site/items/:id", siteHandler(async (req, reply) => {

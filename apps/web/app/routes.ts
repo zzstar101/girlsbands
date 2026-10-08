@@ -7,6 +7,7 @@ export default [
   route("search-busy", "routes/search-busy.tsx", { id: "search-busy" }),
   route("items/:id", "routes/item.tsx"),
   route("items/:id/original", "routes/item-original.tsx", { id: "item-original" }),
+  route("seiyuu", "routes/seiyuu.tsx"),
   route("hot", "routes/hot.tsx"),
   route("deadlines", "routes/deadlines.tsx"),
   route("calendar", "routes/calendar.tsx"),

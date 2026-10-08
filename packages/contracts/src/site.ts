@@ -219,6 +219,48 @@ export interface PoolResponse {
   freshness: string;
 }
 
+/**
+ * 声优日常（/seiyuu）：成员个人账号（来源带 `成员` 标签、有 owner entity）发的、站里已经收下的帖子，
+ * 日常和工作告知都在内，像在 X 上关注了她们。BLOCK 掉的不在这里；日常照旧不进首页、日报和推送。
+ */
+export interface SeiyuuPost {
+  /** 站内详情页 /items/:id。 */
+  id: string;
+  title: string;
+  summary: string | null;
+  /** 原帖地址（x.com）。 */
+  url: string;
+  timelineAt: string;
+  publishedAt: string | null;
+  category: CategoryKey | null;
+  /** 账号所属的乐队（industry/taxonomy.ts 的 entity id）。 */
+  band: string;
+  /** 发帖账号，`account` 筛选用它的 id。 */
+  account: SeiyuuAccount;
+  /** 帖子本身（来源允许全文时）；没有时卡片用中文标题和摘要代替正文。 */
+  x: XPostView | null;
+}
+
+export interface SeiyuuAccount {
+  /** 来源 id，`?account=` 的值。 */
+  id: string;
+  /** 读者看到的名字（publicSourceName）。 */
+  name: string;
+  band: string;
+  handle: string | null;
+  avatarUrl: string | null;
+}
+
+export interface SeiyuuResponse {
+  filters: { band: string | null; account: string | null };
+  posts: SeiyuuPost[];
+  nextCursor: string | null;
+  /** 有成员账号的乐队，按 taxonomy 的顺序；顶部的乐队筛选读它。 */
+  bands: Array<{ id: string; name: string }>;
+  /** 筛了某一个账号时，那个账号（页头显示）；否则 null。 */
+  accountInfo: SeiyuuAccount | null;
+}
+
 export interface OutlineEntry {
   id: string;
   text: string;

@@ -29,6 +29,7 @@ export function meta() {
 type Row = { to: string; label: string; icon: ReactNode; detail?: ReactNode };
 
 const TOOLS: Row[] = [
+  { to: "/seiyuu", label: "声优日常", icon: <IconSparkles size={20} />, detail: "成员个人 X 时间线" },
   { to: "/calendar", label: "日历", icon: <IconCalendar size={20} />, detail: "按月看演出与发售" },
   { to: "/members", label: "角色", icon: <IconUsers size={20} />, detail: "担当 · 声优 · 报道" },
   { to: "/guide", label: "远征攻略", icon: <IconPin size={20} />, detail: "外部攻略 · 座位视角" },

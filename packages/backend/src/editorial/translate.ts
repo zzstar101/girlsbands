@@ -23,8 +23,17 @@ export const TRANSLATE_PROMPT_VERSION = `${promptVersion("translate-body", "tran
 const BATCH_CHARS = 3500;
 /** Longer bodies get their first part translated and are marked incomplete. */
 export const MAX_CHARS = 60_000;
-/** X posts shorter than this carry their meaning in the Chinese title and summary. */
+/**
+ * X posts shorter than this carry their meaning in the Chinese title and summary. Not for members' own
+ * accounts: 声优日常 (/seiyuu) shows their posts as X does, translation first and no AI summary, so the
+ * site owner wants every one of them translated however short (2026-10-08). See memberPost below.
+ */
 const X_MIN_CHARS = 60;
+
+/** A member's own account (the 声优日常 timeline): the same gate as publication/scope.ts memberSourceCondition. */
+const MEMBER_SOURCE = sql`'成员' = ANY(s.tags) AND s.owner_entity_id IS NOT NULL`;
+/** Anything to translate at all: a letter outside links (an emoji or a bare link is not). */
+const hasWords = (text: string) => /\p{L}/u.test(text.replace(/https?:\/\/\S+/g, ""));
 
 const BLOCK = new Set(["p", "h2", "h3", "h4", "h5", "li", "blockquote", "figcaption", "td", "th", "dt", "dd", "caption"]);
 const CONTAINER = /^(p|h[2-5]|li|blockquote|figcaption|td|th|dt|dd|caption|ul|ol|table|pre|figure|div)$/;
@@ -186,9 +195,9 @@ export function unshield(translated: string, s: Shielded): string | null {
 }
 
 export async function translateArticle(articleId: string): Promise<TranslateResult> {
-  const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; body_mode: string; visibility: string }[]>`
-    SELECT a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.body_mode, p.visibility
-    FROM publications p JOIN articles a ON a.id = p.article_id WHERE p.article_id = ${articleId}`;
+  const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; title: string; body_mode: string; visibility: string; member: boolean }[]>`
+    SELECT a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, p.title, p.body_mode, p.visibility, ${MEMBER_SOURCE} AS member
+    FROM publications p JOIN articles a ON a.id = p.article_id JOIN sources s ON s.id = a.source_id WHERE p.article_id = ${articleId}`;
   if (!row) return { articleId, status: "skipped", reason: "not published" };
   const result = (r: Omit<TranslateResult, "articleId" | "revision">): TranslateResult => ({ articleId, revision: row.revision, ...r });
   // Every public item that shows a full text is translated, whether or not it was picked: reading the
@@ -199,8 +208,15 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
   if (row.channel === "x") {
     const text = String(row.x_post?.text ?? row.body_text ?? "").trim();
     const meaningful = collapseWhitespace(text.replace(/https?:\/\/\S+/g, ""));
-    if (isChinese(row.language, text)) return result({ status: "skipped", reason: "already Chinese" });
-    if (meaningful.length < X_MIN_CHARS) return result({ status: "skipped", reason: "short post" });
+    if (row.member) {
+      // Members write Japanese; a post of kanji alone (「帰国〜⭐️」) looks Chinese to looksChinese, so
+      // only a post tagged Chinese is taken as Chinese here, and length is no reason to skip.
+      if (row.language === "zh") return result({ status: "skipped", reason: "already Chinese" });
+      if (!hasWords(meaningful)) return result({ status: "skipped", reason: "no words" });
+    } else {
+      if (isChinese(row.language, text)) return result({ status: "skipped", reason: "already Chinese" });
+      if (meaningful.length < X_MIN_CHARS) return result({ status: "skipped", reason: "short post" });
+    }
     const [t] = await translateAll(articleId, row.revision, [text], SYSTEM_POST(text));
     if (!t) return result({ status: "skipped", reason: "translation did not line up" });
     await store(articleId, row.revision, row.title, textToHtml(t), t, true);
@@ -269,22 +285,23 @@ function quoteTranslatable(text: string): boolean {
  */
 export async function translateQuotes(opts: { days?: number; limit?: number; budgetMs?: number } = {}): Promise<number> {
   const started = Date.now();
-  const rows = await sql<{ tweet_id: string; text: string; text_hash: string | null; own_zh: string | null }[]>`
-    SELECT DISTINCT ON (q.tweet_id) q.tweet_id, a.x_post->'quoted'->>'text' AS text, qt.text_hash,
+  const rows = await sql<{ tweet_id: string; text: string; text_hash: string | null; own_zh: string | null; member: boolean }[]>`
+    SELECT DISTINCT ON (q.tweet_id) q.tweet_id, a.x_post->'quoted'->>'text' AS text, qt.text_hash, ${MEMBER_SOURCE} AS member,
       (SELECT tr.body_text FROM articles o JOIN translations tr ON tr.article_id = o.id AND tr.lang = 'zh' AND tr.revision >= o.revision
        WHERE o.identity_key = 'x:' || q.tweet_id AND tr.complete AND coalesce(tr.body_text, '') <> '') AS own_zh
-    FROM publications p JOIN articles a ON a.id = p.article_id
+    FROM publications p JOIN articles a ON a.id = p.article_id JOIN sources s ON s.id = a.source_id
     CROSS JOIN LATERAL (SELECT substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)') AS tweet_id) q
     LEFT JOIN quote_translations qt ON qt.tweet_id = q.tweet_id
     WHERE p.channel = 'x' AND p.visibility = 'public' AND p.body_mode = 'full'
       AND p.discovered_at > now() - make_interval(days => ${opts.days ?? 3})
       AND q.tweet_id IS NOT NULL AND coalesce(a.x_post->'quoted'->>'text', '') <> ''
-    ORDER BY q.tweet_id, p.discovered_at DESC`;
+    ORDER BY q.tweet_id, ${MEMBER_SOURCE} DESC, p.discovered_at DESC`;
   let stored = 0;
   for (const r of rows) {
     if (stored >= (opts.limit ?? 30) || Date.now() - started > (opts.budgetMs ?? 2 * 60_000) || shutdownSignal.signal.aborted) break;
     const hash = sha256(r.text);
-    if (r.text_hash === hash || !quoteTranslatable(r.text)) continue;
+    // A post a member quotes is on 声优日常 too, and translated however short (see X_MIN_CHARS).
+    if (r.text_hash === hash || !(r.member ? hasWords(r.text) && !looksChinese(r.text) : quoteTranslatable(r.text))) continue;
     let zh = r.own_zh;
     let origin: "reused" | "model" = "reused";
     if (!zh) {

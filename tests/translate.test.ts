@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { upsertMaterial } from "@girlsbands/backend/content/materials";
-import { translatePending } from "@girlsbands/backend/editorial/translate";
+import { translateArticle, translatePending } from "@girlsbands/backend/editorial/translate";
 import { stopBoss } from "@girlsbands/backend/jobs/queue";
 import { publishArticle } from "@girlsbands/backend/publication/publish";
 import { buildApp } from "../apps/api/src/app.ts";
@@ -160,4 +160,28 @@ test("the post a public X item quotes is translated once and shown with the item
   await translatePending({ limit: 1 });
   const receipts = await sql`SELECT 1 FROM receipts WHERE purpose = 'translate_quoted' AND subject = ${`quote:${tweetId}`}`;
   assert.equal(receipts.length, 1, "translated once");
+});
+
+test("声优日常: a member's own post is translated however short, and kanji alone is not taken for Chinese", async () => {
+  const MEMBER = `${SOURCE}-member`;
+  await sql`INSERT INTO sources (id, name, kind, tier, tags, owner_entity_id, participation_mode, site_fulltext, syndicate_fulltext, rights_tier, next_fetch_at)
+            VALUES (${MEMBER}, 'X: 朱李 (@shuri)', 'rss', 'T1_5', ${['官方', '成员']}, 'togenashi-togeari', 'editorial', true, false, 'official', '2100-01-01')`;
+  const short = async (sourceId: string, text: string, n: number) => {
+    const { articleId } = await upsertMaterial({
+      sourceId, url: `https://x.com/shuri/status/9${n}${Date.now()}`, title: text, language: "ja", bodyText: text, bodyStatus: "ok",
+      via: "fetch", publishedAt: new Date(), discoveredAt: new Date(),
+      xPost: { tweetId: `9${n}${Date.now()}`, authorName: "朱李", handle: "shuri", text },
+    });
+    await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, reason_zh, score, selected)
+              VALUES (${articleId}, 1, 'rule', 'pass', 'member', ${`短帖-${T}-${n}`}, '摘要', '理由', 50, false)`;
+    await publishArticle(articleId, { releasedAt: new Date(Date.now() - 60_000) });
+    return articleId;
+  };
+  const kanji = await short(MEMBER, `帰国〜⭐️ ${T}`, 1);
+  assert.equal((await translateArticle(kanji)).status, "translated");
+  const emoji = await short(MEMBER, "🙂✨", 2);
+  assert.deepEqual([(await translateArticle(emoji)).reason], ["no words"], "nothing to translate in an emoji");
+  // An official account's short post still carries its meaning in the Chinese title and summary.
+  const official = await short(SOURCE, `ただいま ${T}`, 3);
+  assert.deepEqual([(await translateArticle(official)).reason], ["short post"]);
 });

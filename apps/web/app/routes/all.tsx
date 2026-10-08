@@ -24,6 +24,11 @@ const ALL_TITLE = subjectAfter("全部", "动态");
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim().slice(0, 200) || null;
+  // 成员日常已经搬到 /seiyuu（声优日常），旧链接带着乐队一起过去。
+  if (url.searchParams.get("category") === "daily") {
+    const band = url.searchParams.get("subjects")?.split(",")[0] || null;
+    throw redirect(listPath("/seiyuu", { band }), 301);
+  }
   const tab = url.searchParams.get("tab") === "relevance" ? "relevance" : null;
   // Older deep-paging parameters (deep, anchorAt) still open a normal page.
   const page = Math.min(Math.max(Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1, 1), 50);

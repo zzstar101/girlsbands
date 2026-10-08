@@ -20,10 +20,35 @@ export function listedCondition(now: Date) {
 
 /**
  * The members' daily lane (category `daily`, industry/taxonomy.ts): public posts with Chinese copy,
- * never pool eligible, so no other list, report or push meets them. Only /all?category=daily reads it.
+ * never pool eligible, so no list, report or push meets them except /all?category=daily (which now
+ * redirects to /seiyuu) and the seiyuu timeline (seiyuuCondition below).
  */
 export function dailyCondition() {
   return sql`p.visibility = 'public' AND p.category = 'daily' AND p.title IS NOT NULL AND p.summary IS NOT NULL`;
+}
+
+/**
+ * 成员个人账号：`s` = sources，带 `成员` 标签、挂了主体（owner_entity_id）、editorial 参与。和
+ * editorial/analyze.ts 的 isMemberAccount、rules.ts 的 hasItemPage 判同一件事。
+ */
+export function memberSourceCondition() {
+  return sql`'成员' = ANY(s.tags) AND s.owner_entity_id IS NOT NULL AND s.participation_mode = 'editorial'`;
+}
+
+/**
+ * 声优日常（/seiyuu）：成员个人账号发的、站里已经收下的帖子 —— 收录进池子的（listedCondition）和日常
+ * lane（dailyCondition）都在内，像在 X 上关注了她们；BLOCK 掉的连 publication 都没有，自然不在这里。
+ *
+ * 只读成员账号（memberSourceCondition）：和 hasItemPage 同一道门，单条下架（visibility）和整源撤参会
+ * 同时让帖子从这里消失。乐队/账号筛选、游标与分页在 publication/seiyuu.ts。
+ *
+ * 只放有 X 原帖、能全文显示的（channel x + body_mode full）：这一页照 X 卡片画原帖和译文，没有原帖的
+ * 旧数据（上线前抓的、fxtwitter 也补不回来的）只剩 AI 写的摘要，站主 2026-10-08 定了不放进来。旧帖
+ * 用 scripts/refresh-x-posts.ts xpost 补原帖。
+ */
+export function seiyuuCondition(now: Date) {
+  return sql`(${listedCondition(now)} OR ${dailyCondition()}) AND ${memberSourceCondition()}
+    AND p.channel = 'x' AND p.body_mode = 'full'`;
 }
 
 /** Story reports include older editorial material outside the pool, but never withdrawn or not yet released content. */

@@ -322,8 +322,8 @@ export default function TopicRoute() {
         />
         <span className="text-[12px] text-ink-4">{all ? "这个主题收录的全部消息，含未选入头条的" : "经过筛选、值得一读的消息"}</span>
         {band && (
-          <Link viewTransition to={`/all?category=daily&subjects=${band.id}`} className="ml-auto text-[12.5px] font-semibold text-accent transition-colors hover:text-accent-ink">
-            成员日常 →
+          <Link viewTransition to={`/seiyuu?band=${band.id}`} className="ml-auto text-[12.5px] font-semibold text-accent transition-colors hover:text-accent-ink">
+            声优日常 →
           </Link>
         )}
       </div>
