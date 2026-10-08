@@ -8,7 +8,7 @@
 
 ## 内容类型
 
-`itemType` 必须十选一：
+`itemType` 必须十一选一：
 
 - `live_announcement`：Live 的公演公布、巡演公布、出演阵容、会场与日程
 - `ticket_info`：票务受理与贩售，含先行、抽选、一般贩售、追加席、当日券、转售、抽选结果与票价
@@ -16,14 +16,15 @@
 - `merch_bonus`：周边商品与特典，含 Goods、限定版、店铺特典、购入特典、受注生产、场贩与联动商品
 - `stream_info`：直播与影像，含 Live Streaming、生配信、Archive 回放、YouTube Premiere、配信票与观看期间
 - `collab_event`：联动与线下企划，含联名咖啡、游戏联动、品牌合作、Pop-up Store、展览与抽奖
+- `game_event`：游戏本体与游戏内活动，含活动剧情、挑战、卡池、角色或活动插画、版本更新、登录奖励与游戏内 Live；这不是现实中的公演或现场活动
 - `media_content`：媒体与访谈，含访谈、专栏、电视、广播、杂志、Podcast 与幕后花絮
 - `member_update`：成员重要动态，含加入、毕业、退出、活动休止与复归、出演节目、个人活动与个人发售
 - `official_notice`：官方通知，含中止、延期、会场或日程变更、规则变更、退款补演安排与注意唤起
 - `other`：不属于以上任何一类
 
-优先级：公布了 Live 选 `live_announcement`；受理、开售或抽选信息选 `ticket_info`；发售日与碟讯选 `release_news`；商品与特典选 `merch_bonus`；配信与回放选 `stream_info`；以联动企划为主体选 `collab_event`；以媒体内容为主体选 `media_content`；以成员本人动态为主体选 `member_update`；中止、延期、变更、规则与提醒选 `official_notice`。
+优先级：游戏内活动选 `game_event`；公布了现实 Live 选 `live_announcement`；受理、开售或抽选信息选 `ticket_info`；发售日与碟讯选 `release_news`；商品与特典选 `merch_bonus`；配信与回放选 `stream_info`；以联动企划为主体选 `collab_event`；以媒体内容为主体选 `media_content`；以成员本人动态为主体选 `member_update`；中止、延期、变更、规则与提醒选 `official_notice`。游戏内的“Live”不属于 `live_announcement`。
 
-输出前检查 `itemType` 与第一个分类标签是否自洽：`live_announcement` 对应“新 Live”“海外公演”“对盘/Festival”“出演阵容”；`ticket_info` 对应“开售/抽选”“一般贩售”“追加席”“当日券”“转售”“抽选结果”；`release_news` 对应“新作发售”“初回限定盘”“数字发行”“Blu-ray/DVD”；`merch_bonus` 对应“周边商品”“店铺特典”“联名商品”；`stream_info` 对应“直播/生配信”“Archive 回放”；`collab_event` 对应“联动企划”“线下活动”；`media_content` 对应“媒体访谈”“电视/广播”“杂志/专栏”；`member_update` 对应“成员动态”“加入/毕业”“活动休止/复归”；`official_notice` 对应“中止/延期”“会场/日程变更”“规则变更”“官方提醒”。如果二者冲突，按当前材料的核心事件修正后再输出。
+输出前检查 `itemType` 与第一个分类标签是否自洽：`game_event` 对应“游戏活动”；`live_announcement` 对应“新 Live”“海外公演”“对盘/Festival”“出演阵容”；`ticket_info` 对应“开售/抽选”“一般贩售”“追加席”“当日券”“转售”“抽选结果”；`release_news` 对应“新作发售”“初回限定盘”“数字发行”“Blu-ray/DVD”；`merch_bonus` 对应“周边商品”“店铺特典”“联名商品”；`stream_info` 对应“直播/生配信”“Archive 回放”；`collab_event` 对应“联动企划”“线下活动”；`media_content` 对应“媒体访谈”“电视/广播”“杂志/专栏”；`member_update` 对应“成员动态”“加入/毕业”“活动休止/复归”；`official_notice` 对应“中止/延期”“会场/日程变更”“规则变更”“官方提醒”。如果二者冲突，按当前材料的核心事件修正后再输出。
 
 ## 作者角色
 
@@ -35,12 +36,12 @@
 
 ## 标签
 
-`tags` 输出 1–6 个字符串。第一个必须从以下分类标签中选一个：开售/抽选、一般贩售、追加席、当日券、转售、抽选结果、新 Live、海外公演、对盘/Festival、出演阵容、新作发售、初回限定盘、数字发行、Blu-ray/DVD、周边商品、店铺特典、联名商品、直播/生配信、Archive 回放、联动企划、线下活动、成员动态、加入/毕业、活动休止/复归、中止/延期、会场/日程变更、规则变更、官方提醒、媒体访谈、电视/广播、杂志/专栏、其他。
+`tags` 输出 1–6 个字符串。第一个必须从以下分类标签中选一个：开售/抽选、一般贩售、追加席、当日券、转售、抽选结果、新 Live、海外公演、对盘/Festival、出演阵容、新作发售、初回限定盘、数字发行、Blu-ray/DVD、周边商品、店铺特典、联名商品、游戏活动、直播/生配信、Archive 回放、联动企划、线下活动、成员动态、加入/毕业、活动休止/复归、中止/延期、会场/日程变更、规则变更、官方提醒、媒体访谈、电视/广播、杂志/专栏、其他。
 
 其后可选 0–5 个适用标签，并且只能来自以下两个白名单：
 
 - 主题：One-man、Tour、对盘、Festival、Fan Meeting、海外、抽选、先行、一般贩售、追加席、当日券、转售、序列号、Single、Album、EP、数字发行、Blu-ray、Live 专辑、MV、限定版、店铺特典、受注生产、场贩、联动、咖啡、展览、游戏联动、生配信、Archive、YouTube、电视、广播、杂志、Podcast、声优、乐手、制作人、Staff
-- 实体：GIRLS BAND CRY、トゲナシトゲアリ、BanG Dream!、MyGO!!!!!、Ave Mujica、Roselia、結束バンド、ぼっち・ざ・ろっく！、Zepp、TOKYO DOME CITY HALL、日本武道館、ぴあアリーナMM、Kアリーナ横浜、有明アリーナ、LINE CUBE SHIBUYA、e+、チケットぴあ、ローソンチケット、イープラス、Animate、Gamers、Tower Records、HMV、Limista、音楽ナタリー、Animate Times、LisAni!、Billboard Japan、ORICON
+- 实体：GIRLS BAND CRY、トゲナシトゲアリ、BanG Dream!、Our Notes、アワーノーツ、MyGO!!!!!、Ave Mujica、Roselia、結束バンド、ぼっち・ざ・ろっく！、Zepp、TOKYO DOME CITY HALL、日本武道館、ぴあアリーナMM、Kアリーナ横浜、有明アリーナ、LINE CUBE SHIBUYA、e+、チケットぴあ、ローソンチケット、イープラス、Animate、Gamers、Tower Records、HMV、Limista、音楽ナタリー、Animate Times、LisAni!、Billboard Japan、ORICON
 
 正文中即使明确出现了其他乐队、其他会场或其他商店，也不要把它们放进 `tags`。不要创造白名单之外的标签。没有适用的主题或实体时，只返回第一个分类标签；例如一条与这些乐队无关的动画新闻，不需要强行归到“One-man”或“抽选”。
 

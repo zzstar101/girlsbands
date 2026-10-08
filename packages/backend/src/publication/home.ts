@@ -27,7 +27,7 @@ export async function loadHome(now = new Date()): Promise<HomeResponse> {
   const closing = upcoming.filter((d) => d.kind === 'lottery_end' || d.kind === 'stream_end');
   const weekEnd = addDays(from, (7 - new Date(`${from}T00:00:00Z`).getUTCDay()) % 7);
   const bandWeek = Object.fromEntries(Object.entries(ENTITIES).filter(([, e]) => e.kind === 'band').map(([id]) => [id, publicRows.filter((r) => r.tags.includes(`entity:${id}`)).length]));
-  const trackCounts = Object.fromEntries(['live', 'ticket', 'release', 'notice'].map((category) => [category, publicRows.filter((r) => r.category === category).length]));
+  const trackCounts = Object.fromEntries(['live', 'ticket', 'release', 'notice', 'game'].map((category) => [category, publicRows.filter((r) => r.category === category).length]));
   return {
     computedAt: now.toISOString(), today,
     stats: { today: publicRows.filter((r) => beijingDate(r.timeline_at) === today).length, soon: closing.filter((d) => d.soon).length,

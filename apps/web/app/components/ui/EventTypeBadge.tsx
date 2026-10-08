@@ -15,6 +15,7 @@ const CODES: Record<CategoryKey, string> = {
   merch: "MERCH",
   stream: "STREAM",
   collab: "COLLAB",
+  game: "GAME",
   member: "MEMBER",
   media: "MEDIA",
   other: "OTHER",

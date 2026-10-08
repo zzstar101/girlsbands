@@ -146,9 +146,9 @@
       "name": "Our Notes",
       "group": "band",
       "entityId": "our-notes",
-      "aliases": [],
+      "aliases": ["アワーノーツ"],
       "orgNames": ["Our Notes"],
-      "definition": "Our Notes 的全部动态：Live、单曲与专辑、抽选、周边与成员动态。"
+      "definition": "Our Notes 的全部动态：游戏内活动、剧情、卡池、角色与插画、版本更新，以及明确的现实联动与演出；不把游戏内 Live 当作现实公演。"
     },
     {
       "slug": "millsage",
@@ -212,6 +212,14 @@
       "tags": ["新 Live", "海外公演", "对盘/Festival", "出演阵容"],
       "chronicleTerms": ["Live", "ライブ", "公演", "ワンマン", "ONE-MAN", "ツアー", "巡演", "対バン", "フェス", "Festival", "出演"],
       "definition": "演出本身的消息：新 Live 公布、巡演与对盘、出演阵容、海外公演与场地日程。"
+    },
+    {
+      "slug": "game",
+      "name": "游戏活动",
+      "group": "field",
+      "tags": ["游戏活动"],
+      "chronicleTerms": ["游戏", "游戏内", "イベント", "活动剧情", "卡池", "挑战 Live", "挑战LIVE", "アップデート", "更新"],
+      "definition": "游戏本体与游戏内活动：活动剧情、挑战、卡池、角色与插画、版本更新和登录奖励；不等同于现实中的 Live。"
     },
     {
       "slug": "ticket",

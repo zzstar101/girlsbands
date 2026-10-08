@@ -44,7 +44,7 @@
  * 各类的定义在 prompts/selection-kind.md；同一件事只收第一次公布，提醒与重复宣传判 none。
  */
 export const MUST_SEE_KINDS = [
-  "new_anime", "new_project", "new_band", "live_new", "live_supplement", "release", "merch", "bonus",
+  "new_anime", "new_project", "new_band", "live_new", "live_supplement", "game_event", "release", "merch", "bonus",
   "ticket_window", "personal_event", "doujin_event", "member_change", "schedule_change",
 ] as const;
 /** 这些类的资料必须带图（商品物料图）才进精选。 */

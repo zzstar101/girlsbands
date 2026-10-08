@@ -27,6 +27,7 @@
 - `merch_bonus`：周边商品与特典，含 Goods、限定版、店铺特典、购入特典、受注生产、场贩与联动商品
 - `stream_info`：直播与影像，含 Live Streaming、生配信、Archive 回放、YouTube Premiere、配信票与观看期间
 - `collab_event`：联动与线下企划，含联名咖啡、游戏联动、品牌合作、Pop-up Store、展览与抽奖
+- `game_event`：游戏本体与游戏内活动，含活动剧情、挑战、卡池、角色或活动插画、版本更新与登录奖励；游戏内 Live 不属于现实公演。
 - `media_content`：媒体与访谈，含访谈、专栏、电视、广播、杂志、Podcast 与幕后花絮
 - `member_update`：成员重要动态，含加入、毕业、退出、活动休止与复归、出演节目、个人活动与个人发售
 - `official_notice`：官方通知，含中止、延期、会场或日程变更、规则变更、退款补演安排与注意唤起
@@ -52,6 +53,7 @@
 | merch_bonus | 1 | 2 | 2 | 2 | 3 |
 | stream_info | 1 | 2 | 2 | 2 | 3 |
 | collab_event | 1 | 2 | 2 | 3 | 2 |
+| game_event | 2 | 2 | 2 | 2 | 2 |
 | media_content | 1 | 3 | 1 | 4 | 1 |
 | member_update | 4 | 2 | 2 | 2 | 0 |
 | official_notice | 2 | 1 | 3 | 1 | 3 |

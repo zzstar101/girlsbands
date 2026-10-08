@@ -20,6 +20,7 @@ export const CATEGORIES = [
   { key: "merch", label: "周边", section: "周边与特典", guide: "商品与特典：Goods、限定版、店铺特典、购入特典、受注生产、会场物贩、联动商品。音像作品本身是发售。" },
   { key: "stream", label: "直播", section: "直播与影像", guide: "在线观看的一切：Live Streaming、生配信、Archive 回放、YouTube Premiere、观看期间与配信票。电视与广播节目本身是媒体。" },
   { key: "collab", label: "联动", section: "联动与活动企划", guide: "跨业合作与线下企划：联名咖啡、游戏联动、品牌合作、Pop-up Store、展览、圣地巡礼、抽奖企划。周边商品归周边。" },
+  { key: "game", label: "游戏", section: "游戏活动", guide: "游戏本体与游戏内活动：活动剧情、挑战、卡池、角色与插画、游戏版本更新及游戏内 Live。它们不是现实中的公演、现场活动或线下票务；现实公演仍归 Live，现实活动的票务仍归票务。" },
   { key: "member", label: "成员", section: "成员动态", guide: "成员与出演者本人：加入、毕业、退出、活动休止与复归、出演节目、个人活动、个人发售，以及本人发布的重要告知。纯日常（吃了什么、随手拍照）没有资讯价值，判为噪声而非本类。" },
   { key: "media", label: "媒体", section: "媒体与访谈", guide: "媒体内容本身：访谈、专栏、电视、广播、杂志、Podcast、乐评、幕后花絮。版权方自己的宣传短文不算媒体内容。", commentary: true },
   { key: "other", label: "其他", section: "其他", guide: "确实属于这个企划或乐队、但落不进上面任何一类的材料：企划整体动向、商业模式、粉丝活动、行业层面的消息。无依据的传闻与转述不属于本类。" },
@@ -72,7 +73,7 @@ export const PLAIN_TERMS: readonly string[] = ["live", "bd", "cd", "fc", "mv", "
  */
 export const ITEM_TYPES = [
   "live_announcement", "ticket_info", "release_news", "merch_bonus", "stream_info",
-  "collab_event", "media_content", "member_update", "official_notice", "other",
+  "collab_event", "game_event", "media_content", "member_update", "official_notice", "other",
 ] as const;
 
 // ── 标签词表 ────────────────────────────────────────────────────────────────────────────
@@ -83,6 +84,7 @@ export const CATEGORY_TAGS = [
   "新 Live", "海外公演", "对盘/Festival", "出演阵容",
   "新作发售", "初回限定盘", "数字发行", "Blu-ray/DVD",
   "周边商品", "店铺特典", "联名商品",
+  "游戏活动",
   "直播/生配信", "Archive 回放", "联动企划", "线下活动",
   "成员动态", "加入/毕业", "活动休止/复归",
   "中止/延期", "会场/日程变更", "规则变更", "官方提醒",
@@ -139,6 +141,7 @@ export const TAG_SYNONYMS: Readonly<Record<string, string>> = {
   archive: "Archive 回放", 回放: "Archive 回放", アーカイブ: "Archive 回放", 见逃: "Archive 回放",
   // 联动 / 活动
   联动: "联动企划", コラボ: "联动企划", 合作: "联动企划", 联名: "联动企划",
+  游戏活动: "游戏活动", 游戏内活动: "游戏活动", 卡池: "游戏活动", 挑战Live: "游戏活动", "挑战 Live": "游戏活动", 活动剧情: "游戏活动",
   线下活动: "线下活动", 展览: "线下活动", 展示会: "线下活动", popup: "线下活动", 快闪店: "线下活动", 咖啡: "线下活动",
   // 成员
   成员: "成员动态", メンバー: "成员动态", 个人活动: "成员动态", 出演: "成员动态",
@@ -313,8 +316,8 @@ export const ENTITIES: Record<string, { name: string; displayTag: string | null;
     kind: "project",
     name: "Our Notes",
     displayTag: "Our Notes",
-    aliases: ["Our Notes"],
-    otherNames: ["Our Notes"],
+    aliases: ["Our Notes", "アワーノーツ"],
+    otherNames: ["Our Notes", "アワーノーツ"],
   },
   millsage: {
     accent: "#aa22ee",
@@ -440,7 +443,7 @@ export const IDENTITY_LEXICON: ReadonlyArray<{ id: string; name: string; pattern
   { id: "morfonica", name: "Morfonica", patterns: [/morfonica|モルフォニカ/i] },
   { id: "raise-a-suilen", name: "RAISE A SUILEN", patterns: [/raise\s?a\s?suilen|レイズアスイレン/i] },
   { id: "mugendai-mewtype", name: "夢限大みゅーたいぷ", patterns: [/夢限大みゅーたいぷ|夢限大/i] },
-  { id: "our-notes", name: "Our Notes", patterns: [/our\s?notes/i] },
+  { id: "our-notes", name: "Our Notes", patterns: [/our\s?notes|アワーノーツ/i] },
   { id: "millsage", name: "millsage", patterns: [/millsage/i] },
   { id: "ikkadumbrock", name: "一家Dumb Rock!", patterns: [/一家\s?dumb\s?rock/i] },
   { id: "canna-lily", name: "Canna Lily", patterns: [/canna\s?lily/i] },
