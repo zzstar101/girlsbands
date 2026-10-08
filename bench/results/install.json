@@ -1,0 +1,195 @@
+{
+  "cpus": "0,1",
+  "memory": "4g",
+  "proxy": "http://192.168.5.2:7897",
+  "at": "2026-10-08T02:29:52.943Z",
+  "note": "cold = empty cache, registry via host proxy (network-bound, noisy); warm = cache in named volume, fresh node_modules, registry still reachable; runs interleaved, order alternating",
+  "node": {
+    "image": "node:24-trixie-slim",
+    "version": "v24.21.0 / 11.19.0",
+    "command": "npm ci --no-audit --no-fund",
+    "cold": {
+      "medianSeconds": 10.01,
+      "minSeconds": 9.119,
+      "maxSeconds": 10.106,
+      "allSeconds": [
+        10.008,
+        9.119,
+        10.106
+      ],
+      "runs": [
+        {
+          "seconds": 10.008,
+          "nodeModulesMiB": 261,
+          "allNodeModulesMiB": 263,
+          "nodeModulesDirs": 2,
+          "cacheMiB": 67
+        },
+        {
+          "seconds": 9.119,
+          "nodeModulesMiB": 261,
+          "allNodeModulesMiB": 263,
+          "nodeModulesDirs": 2,
+          "cacheMiB": 67
+        },
+        {
+          "seconds": 10.106,
+          "nodeModulesMiB": 261,
+          "allNodeModulesMiB": 263,
+          "nodeModulesDirs": 2,
+          "cacheMiB": 67
+        }
+      ]
+    },
+    "prime": {
+      "seconds": 9.832,
+      "nodeModulesMiB": 261,
+      "allNodeModulesMiB": 263,
+      "nodeModulesDirs": 2,
+      "cacheMiB": 67
+    },
+    "warm": {
+      "medianSeconds": 3,
+      "minSeconds": 2.698,
+      "maxSeconds": 3.179,
+      "allSeconds": [
+        3.179,
+        2.997,
+        2.698,
+        2.916,
+        2.997
+      ],
+      "runs": [
+        {
+          "seconds": 3.179,
+          "nodeModulesMiB": 261,
+          "allNodeModulesMiB": 263,
+          "nodeModulesDirs": 2,
+          "cacheMiB": 67
+        },
+        {
+          "seconds": 2.997,
+          "nodeModulesMiB": 261,
+          "allNodeModulesMiB": 263,
+          "nodeModulesDirs": 2,
+          "cacheMiB": 67
+        },
+        {
+          "seconds": 2.698,
+          "nodeModulesMiB": 261,
+          "allNodeModulesMiB": 263,
+          "nodeModulesDirs": 2,
+          "cacheMiB": 67
+        },
+        {
+          "seconds": 2.916,
+          "nodeModulesMiB": 261,
+          "allNodeModulesMiB": 263,
+          "nodeModulesDirs": 2,
+          "cacheMiB": 67
+        },
+        {
+          "seconds": 2.997,
+          "nodeModulesMiB": 261,
+          "allNodeModulesMiB": 263,
+          "nodeModulesDirs": 2,
+          "cacheMiB": 67
+        }
+      ]
+    }
+  },
+  "bun": {
+    "image": "oven/bun:1.4-slim",
+    "version": "1.4.2",
+    "command": "bun install --frozen-lockfile",
+    "cold": {
+      "medianSeconds": 13.13,
+      "minSeconds": 12.231,
+      "maxSeconds": 17.066,
+      "allSeconds": [
+        13.13,
+        17.066,
+        12.231
+      ],
+      "runs": [
+        {
+          "seconds": 13.13,
+          "nodeModulesMiB": 320,
+          "allNodeModulesMiB": 320,
+          "nodeModulesDirs": 1,
+          "cacheMiB": 321
+        },
+        {
+          "seconds": 17.066,
+          "nodeModulesMiB": 320,
+          "allNodeModulesMiB": 320,
+          "nodeModulesDirs": 1,
+          "cacheMiB": 321
+        },
+        {
+          "seconds": 12.231,
+          "nodeModulesMiB": 320,
+          "allNodeModulesMiB": 320,
+          "nodeModulesDirs": 1,
+          "cacheMiB": 321
+        }
+      ]
+    },
+    "prime": {
+      "seconds": 9.993,
+      "nodeModulesMiB": 321,
+      "allNodeModulesMiB": 321,
+      "nodeModulesDirs": 1,
+      "cacheMiB": 321
+    },
+    "warm": {
+      "medianSeconds": 0.75,
+      "minSeconds": 0.656,
+      "maxSeconds": 0.9,
+      "allSeconds": [
+        0.656,
+        0.732,
+        0.748,
+        0.9,
+        0.858
+      ],
+      "runs": [
+        {
+          "seconds": 0.656,
+          "nodeModulesMiB": 321,
+          "allNodeModulesMiB": 321,
+          "nodeModulesDirs": 1,
+          "cacheMiB": 321
+        },
+        {
+          "seconds": 0.732,
+          "nodeModulesMiB": 321,
+          "allNodeModulesMiB": 321,
+          "nodeModulesDirs": 1,
+          "cacheMiB": 321
+        },
+        {
+          "seconds": 0.748,
+          "nodeModulesMiB": 321,
+          "allNodeModulesMiB": 321,
+          "nodeModulesDirs": 1,
+          "cacheMiB": 321
+        },
+        {
+          "seconds": 0.9,
+          "nodeModulesMiB": 321,
+          "allNodeModulesMiB": 321,
+          "nodeModulesDirs": 1,
+          "cacheMiB": 321
+        },
+        {
+          "seconds": 0.858,
+          "nodeModulesMiB": 321,
+          "allNodeModulesMiB": 321,
+          "nodeModulesDirs": 1,
+          "cacheMiB": 321
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "phase": "og",
+  "cpus": "0,1",
+  "memory": "4g",
+  "at": "2026-10-08T02:25:29.858Z",
+  "rounds": 2,
+  "order": [
+    "node,bun",
+    "bun,node"
+  ],
+  "versions": {
+    "node": {
+      "image": "gb-bench:node",
+      "imageId": "sha256:109d16e0c4d088319d1820f78566322e4526058573ae95e4f3a44a14648967b0",
+      "version": "v24.21.0"
+    },
+    "bun": {
+      "image": "gb-bench:bun",
+      "imageId": "sha256:a8fd7bcd0895477386f63d21282090b74452049bef35fea64547558b000d779d",
+      "version": "1.4.2"
+    }
+  },
+  "node": [
+    {
+      "runtime": "node v24.21.0",
+      "card": "/og/site.png (+ unique meta line)",
+      "firstRenderMs": 461,
+      "sequential": {
+        "runs": 40,
+        "concurrency": 1,
+        "totalMs": 6014,
+        "msPerOp": 150.34,
+        "opsPerSecond": 6.65,
+        "latencyMs": {
+          "p50": 145.3,
+          "p90": 168.8,
+          "max": 271.8
+        },
+        "pngBytes": 56778
+      },
+      "concurrent": {
+        "runs": 40,
+        "concurrency": 4,
+        "totalMs": 2992,
+        "msPerOp": 74.8,
+        "opsPerSecond": 13.37,
+        "latencyMs": {
+          "p50": 271.1,
+          "p90": 307.2,
+          "max": 444.1
+        },
+        "pngBytes": 56585
+      },
+      "peakRssMiB": 483.7
+    },
+    {
+      "runtime": "node v24.21.0",
+      "card": "/og/site.png (+ unique meta line)",
+      "firstRenderMs": 454,
+      "sequential": {
+        "runs": 40,
+        "concurrency": 1,
+        "totalMs": 8173,
+        "msPerOp": 204.33,
+        "opsPerSecond": 4.89,
+        "latencyMs": {
+          "p50": 151.7,
+          "p90": 203.2,
+          "max": 1500.4
+        },
+        "pngBytes": 56778
+      },
+      "concurrent": {
+        "runs": 40,
+        "concurrency": 4,
+        "totalMs": 4713,
+        "msPerOp": 117.83,
+        "opsPerSecond": 8.49,
+        "latencyMs": {
+          "p50": 402.8,
+          "p90": 657.5,
+          "max": 709.7
+        },
+        "pngBytes": 56431
+      },
+      "peakRssMiB": 535.9
+    }
+  ],
+  "bun": [
+    {
+      "runtime": "bun 1.4.2",
+      "card": "/og/site.png (+ unique meta line)",
+      "firstRenderMs": 283,
+      "sequential": {
+        "runs": 40,
+        "concurrency": 1,
+        "totalMs": 5730,
+        "msPerOp": 143.26,
+        "opsPerSecond": 6.98,
+        "latencyMs": {
+          "p50": 144.5,
+          "p90": 151.9,
+          "max": 153.7
+        },
+        "pngBytes": 56778
+      },
+      "concurrent": {
+        "runs": 40,
+        "concurrency": 4,
+        "totalMs": 3082,
+        "msPerOp": 77.04,
+        "opsPerSecond": 12.98,
+        "latencyMs": {
+          "p50": 286.6,
+          "p90": 387.3,
+          "max": 416
+        },
+        "pngBytes": 56585
+      },
+      "peakRssMiB": 345.6
+    },
+    {
+      "runtime": "bun 1.4.2",
+      "card": "/og/site.png (+ unique meta line)",
+      "firstRenderMs": 267,
+      "sequential": {
+        "runs": 40,
+        "concurrency": 1,
+        "totalMs": 5792,
+        "msPerOp": 144.79,
+        "opsPerSecond": 6.91,
+        "latencyMs": {
+          "p50": 141.5,
+          "p90": 149.7,
+          "max": 255.8
+        },
+        "pngBytes": 56778
+      },
+      "concurrent": {
+        "runs": 40,
+        "concurrency": 4,
+        "totalMs": 3373,
+        "msPerOp": 84.32,
+        "opsPerSecond": 11.86,
+        "latencyMs": {
+          "p50": 319.7,
+          "p90": 479.6,
+          "max": 491.1
+        },
+        "pngBytes": 56585
+      },
+      "peakRssMiB": 332.9
+    }
+  ]
+}

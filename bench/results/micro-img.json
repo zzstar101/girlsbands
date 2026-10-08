@@ -1,0 +1,499 @@
+{
+  "phase": "img",
+  "cpus": "0,1",
+  "memory": "4g",
+  "at": "2026-10-08T02:29:13.647Z",
+  "rounds": 2,
+  "order": [
+    "node,bun",
+    "bun,node"
+  ],
+  "versions": {
+    "node": {
+      "image": "gb-bench:node",
+      "imageId": "sha256:109d16e0c4d088319d1820f78566322e4526058573ae95e4f3a44a14648967b0",
+      "version": "v24.21.0"
+    },
+    "bun": {
+      "image": "gb-bench:bun",
+      "imageId": "sha256:a8fd7bcd0895477386f63d21282090b74452049bef35fea64547558b000d779d",
+      "version": "1.4.2"
+    }
+  },
+  "node": [
+    {
+      "runtime": "node v24.21.0",
+      "iterations": 24,
+      "concurrency": 4,
+      "results": [
+        {
+          "case": "png 1200×800 alpha → image-720",
+          "inputBytes": 3707778,
+          "output": {
+            "type": "image/webp",
+            "bytes": 186194,
+            "width": 720,
+            "height": 480
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 161.61,
+            "opsPerSecond": 6.19
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 81.14,
+            "opsPerSecond": 12.33
+          }
+        },
+        {
+          "case": "png 2400×1600 opaque → image-1200",
+          "inputBytes": 10704091,
+          "output": {
+            "type": "image/webp",
+            "bytes": 469816,
+            "width": 1200,
+            "height": 800
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 307.9,
+            "opsPerSecond": 3.25
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 166.05,
+            "opsPerSecond": 6.02
+          }
+        },
+        {
+          "case": "webp 2000×2000 → image-336",
+          "inputBytes": 2669098,
+          "output": {
+            "type": "image/webp",
+            "bytes": 12444,
+            "width": 336,
+            "height": 336
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 323.64,
+            "opsPerSecond": 3.09
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 163.09,
+            "opsPerSecond": 6.13
+          }
+        },
+        {
+          "case": "webp 2000×2000 → image-1200",
+          "inputBytes": 2668732,
+          "output": {
+            "type": "image/webp",
+            "bytes": 542040,
+            "width": 1200,
+            "height": 1200
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 503.16,
+            "opsPerSecond": 1.99
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 270.03,
+            "opsPerSecond": 3.7
+          }
+        },
+        {
+          "case": "jpeg 4000×3000 → image-720 (sharp on both: control)",
+          "inputBytes": 8542054,
+          "output": {
+            "type": "image/jpeg",
+            "bytes": 27496,
+            "width": 720,
+            "height": 540
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 234.36,
+            "opsPerSecond": 4.27
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 74.14,
+            "opsPerSecond": 13.49
+          }
+        }
+      ],
+      "peakRssMiB": 576.2
+    },
+    {
+      "runtime": "node v24.21.0",
+      "iterations": 24,
+      "concurrency": 4,
+      "results": [
+        {
+          "case": "png 1200×800 alpha → image-720",
+          "inputBytes": 3707789,
+          "output": {
+            "type": "image/webp",
+            "bytes": 185186,
+            "width": 720,
+            "height": 480
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 157.75,
+            "opsPerSecond": 6.34
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 110.25,
+            "opsPerSecond": 9.07
+          }
+        },
+        {
+          "case": "png 2400×1600 opaque → image-1200",
+          "inputBytes": 10704613,
+          "output": {
+            "type": "image/webp",
+            "bytes": 467462,
+            "width": 1200,
+            "height": 800
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 312.86,
+            "opsPerSecond": 3.2
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 154.42,
+            "opsPerSecond": 6.48
+          }
+        },
+        {
+          "case": "webp 2000×2000 → image-336",
+          "inputBytes": 2668538,
+          "output": {
+            "type": "image/webp",
+            "bytes": 11264,
+            "width": 336,
+            "height": 336
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 276.62,
+            "opsPerSecond": 3.62
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 146.64,
+            "opsPerSecond": 6.82
+          }
+        },
+        {
+          "case": "webp 2000×2000 → image-1200",
+          "inputBytes": 2669410,
+          "output": {
+            "type": "image/webp",
+            "bytes": 532884,
+            "width": 1200,
+            "height": 1200
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 485.41,
+            "opsPerSecond": 2.06
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 256.18,
+            "opsPerSecond": 3.9
+          }
+        },
+        {
+          "case": "jpeg 4000×3000 → image-720 (sharp on both: control)",
+          "inputBytes": 8541727,
+          "output": {
+            "type": "image/jpeg",
+            "bytes": 27370,
+            "width": 720,
+            "height": 540
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 137.54,
+            "opsPerSecond": 7.27
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 72.08,
+            "opsPerSecond": 13.87
+          }
+        }
+      ],
+      "peakRssMiB": 575.2
+    }
+  ],
+  "bun": [
+    {
+      "runtime": "bun 1.4.2",
+      "iterations": 24,
+      "concurrency": 4,
+      "results": [
+        {
+          "case": "png 1200×800 alpha → image-720",
+          "inputBytes": 3707527,
+          "output": {
+            "type": "image/webp",
+            "bytes": 168726,
+            "width": 720,
+            "height": 480
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 110.27,
+            "opsPerSecond": 9.07
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 52.69,
+            "opsPerSecond": 18.98
+          }
+        },
+        {
+          "case": "png 2400×1600 opaque → image-1200",
+          "inputBytes": 10704399,
+          "output": {
+            "type": "image/webp",
+            "bytes": 431544,
+            "width": 1200,
+            "height": 800
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 248.91,
+            "opsPerSecond": 4.02
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 119.45,
+            "opsPerSecond": 8.37
+          }
+        },
+        {
+          "case": "webp 2000×2000 → image-336",
+          "inputBytes": 2668916,
+          "output": {
+            "type": "image/webp",
+            "bytes": 9994,
+            "width": 336,
+            "height": 336
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 241.73,
+            "opsPerSecond": 4.14
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 118.12,
+            "opsPerSecond": 8.47
+          }
+        },
+        {
+          "case": "webp 2000×2000 → image-1200",
+          "inputBytes": 2668586,
+          "output": {
+            "type": "image/webp",
+            "bytes": 553244,
+            "width": 1200,
+            "height": 1200
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 456.3,
+            "opsPerSecond": 2.19
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 269.77,
+            "opsPerSecond": 3.71
+          }
+        },
+        {
+          "case": "jpeg 4000×3000 → image-720 (sharp on both: control)",
+          "inputBytes": 8542679,
+          "output": {
+            "type": "image/jpeg",
+            "bytes": 27763,
+            "width": 720,
+            "height": 540
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 140.97,
+            "opsPerSecond": 7.09
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 109.21,
+            "opsPerSecond": 9.16
+          }
+        }
+      ],
+      "peakRssMiB": 339.8
+    },
+    {
+      "runtime": "bun 1.4.2",
+      "iterations": 24,
+      "concurrency": 4,
+      "results": [
+        {
+          "case": "png 1200×800 alpha → image-720",
+          "inputBytes": 3707713,
+          "output": {
+            "type": "image/webp",
+            "bytes": 166736,
+            "width": 720,
+            "height": 480
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 113.67,
+            "opsPerSecond": 8.8
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 52.16,
+            "opsPerSecond": 19.17
+          }
+        },
+        {
+          "case": "png 2400×1600 opaque → image-1200",
+          "inputBytes": 10704115,
+          "output": {
+            "type": "image/webp",
+            "bytes": 439472,
+            "width": 1200,
+            "height": 800
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 238.38,
+            "opsPerSecond": 4.19
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 117.24,
+            "opsPerSecond": 8.53
+          }
+        },
+        {
+          "case": "webp 2000×2000 → image-336",
+          "inputBytes": 2669042,
+          "output": {
+            "type": "image/webp",
+            "bytes": 11344,
+            "width": 336,
+            "height": 336
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 238.41,
+            "opsPerSecond": 4.19
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 117.36,
+            "opsPerSecond": 8.52
+          }
+        },
+        {
+          "case": "webp 2000×2000 → image-1200",
+          "inputBytes": 2669588,
+          "output": {
+            "type": "image/webp",
+            "bytes": 549856,
+            "width": 1200,
+            "height": 1200
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 446.04,
+            "opsPerSecond": 2.24
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 216.66,
+            "opsPerSecond": 4.62
+          }
+        },
+        {
+          "case": "jpeg 4000×3000 → image-720 (sharp on both: control)",
+          "inputBytes": 8541103,
+          "output": {
+            "type": "image/jpeg",
+            "bytes": 27502,
+            "width": 720,
+            "height": 540
+          },
+          "sequential": {
+            "runs": 24,
+            "concurrency": 1,
+            "msPerOp": 137.88,
+            "opsPerSecond": 7.25
+          },
+          "concurrent": {
+            "runs": 24,
+            "concurrency": 4,
+            "msPerOp": 73.23,
+            "opsPerSecond": 13.66
+          }
+        }
+      ],
+      "peakRssMiB": 345
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+# The 2c4g benchmark stack (bench/run.ts drives it): the production services of docker-compose.yml,
+# all pinned to the same two cores of the Docker VM with 4 GiB between them, the way a 2-core 4 GB
+# server runs them. The load generator runs in its own container on the other cores (bench/run.ts).
+# BENCH_IMAGE is the image under test and BENCH_RUNTIME the binary that runs it (node or bun).
+name: gbbench
+
+x-app: &app
+  image: ${BENCH_IMAGE:?}
+  env_file: bench.env
+  cpuset: "0,1"
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:17-alpine
+    cpuset: "0,1"
+    mem_limit: 1g
+    environment:
+      POSTGRES_USER: girlsbands
+      POSTGRES_PASSWORD: girlsbands
+      POSTGRES_DB: girlsbands
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U girlsbands -d girlsbands"]
+      interval: 1s
+      timeout: 5s
+      retries: 60
+
+  api:
+    <<: *app
+    mem_limit: 1280m
+    command: ["${BENCH_RUNTIME:?}", "apps/api/src/main.ts"]
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: "3001"
+      # Bun.SQL A/B: only the bun-sql-ab image understands it; empty keeps postgres.js.
+      DB_DRIVER: ${BENCH_DB_DRIVER:-}
+    ports: ["127.0.0.1:13001:3001"]
+
+  worker:
+    <<: *app
+    mem_limit: 768m
+    command: ["${BENCH_RUNTIME:?}", "apps/worker/src/main.ts"]
+
+  web:
+    <<: *app
+    mem_limit: 1g
+    command: ["${BENCH_RUNTIME:?}", "apps/web/server.ts"]
+    environment:
+      WEB_HOST: 0.0.0.0
+      WEB_PORT: "3000"
+    ports: ["127.0.0.1:13000:3000"]

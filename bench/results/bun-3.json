@@ -1,0 +1,406 @@
+{
+  "label": "bun-3",
+  "image": "gb-bench:bun",
+  "runtime": "bun",
+  "at": "2026-10-08T03:44:58.078Z",
+  "urls": {
+    "pages": {
+      "home": "/",
+      "topic": "/topics/bang-dream",
+      "item": "/items/apd2nhgu1i5jefb3m97t9bhd1"
+    },
+    "apis": {
+      "items": "/api/v1/items",
+      "hotTopics": "/api/v1/hot-topics",
+      "snapshot": "/api/v1/selected/snapshot",
+      "siteHome": "/api/site/home",
+      "feed": "/feed.xml",
+      "calendar": "/calendar.ics"
+    }
+  },
+  "startupMs": {
+    "api": {
+      "median": 1300,
+      "all": [
+        1293,
+        1264,
+        1259,
+        1231,
+        1257,
+        1397,
+        1413,
+        1333,
+        1384,
+        1300
+      ]
+    },
+    "web": {
+      "median": 854,
+      "all": [
+        851,
+        817,
+        809,
+        854,
+        843,
+        902,
+        851,
+        890,
+        854,
+        884
+      ]
+    }
+  },
+  "idleMemory": {
+    "process": {
+      "api": {
+        "rssMiB": 148.7,
+        "peakMiB": 156.3
+      },
+      "web": {
+        "rssMiB": 78.9,
+        "peakMiB": 96
+      },
+      "worker": {
+        "rssMiB": 123.5,
+        "peakMiB": 127.1
+      }
+    },
+    "container": {
+      "api": "97.37MiB",
+      "web": "39.25MiB",
+      "worker": "72.78MiB",
+      "db": "102.3MiB"
+    }
+  },
+  "endpoints": {
+    "api:items": {
+      "requests": 99896,
+      "rps": 4991.5,
+      "successRps": 4991.5,
+      "errorRate": 0,
+      "p50": 10.41,
+      "p90": 16.79,
+      "p99": 32.22,
+      "mean": 12.81,
+      "codes": {
+        "200": 99896
+      },
+      "errors": {}
+    },
+    "api:hotTopics": {
+      "requests": 853248,
+      "rps": 42654.7,
+      "successRps": 42654.7,
+      "errorRate": 0,
+      "p50": 1.29,
+      "p90": 1.84,
+      "p99": 4.51,
+      "mean": 1.5,
+      "codes": {
+        "200": 853248
+      },
+      "errors": {}
+    },
+    "api:snapshot": {
+      "requests": 32385,
+      "rps": 1616.3,
+      "successRps": 1616.3,
+      "errorRate": 0,
+      "p50": 38.78,
+      "p90": 55.63,
+      "p99": 72.92,
+      "mean": 39.55,
+      "codes": {
+        "200": 32385
+      },
+      "errors": {}
+    },
+    "api:siteHome": {
+      "requests": 6144,
+      "rps": 305.2,
+      "successRps": 305.2,
+      "errorRate": 0,
+      "p50": 219.87,
+      "p90": 296.23,
+      "p99": 352.96,
+      "mean": 209.11,
+      "codes": {
+        "200": 6144
+      },
+      "errors": {}
+    },
+    "api:feed": {
+      "requests": 12278,
+      "rps": 611.9,
+      "successRps": 611.9,
+      "errorRate": 0,
+      "p50": 76.63,
+      "p90": 200.96,
+      "p99": 550.38,
+      "mean": 104.38,
+      "codes": {
+        "200": 12278
+      },
+      "errors": {}
+    },
+    "api:calendar": {
+      "requests": 4008,
+      "rps": 196,
+      "successRps": 196,
+      "errorRate": 0,
+      "p50": 283.46,
+      "p90": 709.6,
+      "p99": 1038.98,
+      "mean": 323.23,
+      "codes": {
+        "200": 4008
+      },
+      "errors": {}
+    },
+    "ssr:home": {
+      "requests": 982,
+      "rps": 46.2,
+      "successRps": 46.2,
+      "errorRate": 0,
+      "p50": 1200.39,
+      "p90": 1943.2,
+      "p99": 4174.09,
+      "mean": 1347.05,
+      "codes": {
+        "200": 982
+      },
+      "errors": {}
+    },
+    "ssr:topic": {
+      "requests": 1305,
+      "rps": 63.7,
+      "successRps": 63.7,
+      "errorRate": 0,
+      "p50": 964.26,
+      "p90": 1386.63,
+      "p99": 2002.04,
+      "mean": 994.73,
+      "codes": {
+        "200": 1305
+      },
+      "errors": {}
+    },
+    "ssr:item": {
+      "requests": 3264,
+      "rps": 160.5,
+      "successRps": 160.5,
+      "errorRate": 0,
+      "p50": 383.36,
+      "p90": 623.15,
+      "p99": 858.15,
+      "mean": 397.39,
+      "codes": {
+        "200": 3264
+      },
+      "errors": {}
+    },
+    "web:proxy-items": {
+      "requests": 47071,
+      "rps": 2350.6,
+      "successRps": 2350.6,
+      "errorRate": 0,
+      "p50": 24.93,
+      "p90": 38.74,
+      "p99": 75.41,
+      "mean": 27.21,
+      "codes": {
+        "200": 47071
+      },
+      "errors": {}
+    }
+  },
+  "ttfb": {
+    "http://web:3000/": {
+      "ttfb": {
+        "mean": 19.08,
+        "p50": 17.67,
+        "p95": 27.28,
+        "p99": 54.4
+      },
+      "total": {
+        "mean": 20.3,
+        "p50": 18.77,
+        "p95": 28.79,
+        "p99": 56.72
+      }
+    },
+    "http://web:3000/topics/bang-dream": {
+      "ttfb": {
+        "mean": 20.8,
+        "p50": 18.57,
+        "p95": 32.27,
+        "p99": 63.52
+      },
+      "total": {
+        "mean": 22.01,
+        "p50": 19.69,
+        "p95": 34.24,
+        "p99": 65.55
+      }
+    },
+    "http://web:3000/items/apd2nhgu1i5jefb3m97t9bhd1": {
+      "ttfb": {
+        "mean": 8.93,
+        "p50": 8.55,
+        "p95": 11.65,
+        "p99": 14.81
+      },
+      "total": {
+        "mean": 9.08,
+        "p50": 8.71,
+        "p95": 11.84,
+        "p99": 14.93
+      }
+    }
+  },
+  "ramp": [
+    {
+      "concurrency": 8,
+      "pass": true,
+      "requests": 1946,
+      "rps": 97.1,
+      "successRps": 97.1,
+      "errorRate": 0,
+      "p50": 75.33,
+      "p90": 145.04,
+      "p99": 282.57,
+      "mean": 82.31,
+      "codes": {
+        "200": 1946
+      },
+      "errors": {},
+      "memory": {
+        "api": {
+          "rssMiB": 331,
+          "peakMiB": 368.1
+        },
+        "web": {
+          "rssMiB": 157.6,
+          "peakMiB": 188.9
+        },
+        "container": {
+          "api": "268.6MiB",
+          "web": "118.2MiB",
+          "worker": "74.94MiB",
+          "db": "194.4MiB"
+        }
+      }
+    },
+    {
+      "concurrency": 16,
+      "pass": true,
+      "requests": 2258,
+      "rps": 112.4,
+      "successRps": 112.4,
+      "errorRate": 0,
+      "p50": 131.95,
+      "p90": 248.69,
+      "p99": 424.54,
+      "mean": 142.05,
+      "codes": {
+        "200": 2258
+      },
+      "errors": {},
+      "memory": {
+        "api": {
+          "rssMiB": 306,
+          "peakMiB": 368.1
+        },
+        "web": {
+          "rssMiB": 158.5,
+          "peakMiB": 188.9
+        },
+        "container": {
+          "api": "251MiB",
+          "web": "119.1MiB",
+          "worker": "74.56MiB",
+          "db": "195.1MiB"
+        }
+      }
+    },
+    {
+      "concurrency": 32,
+      "pass": true,
+      "requests": 2288,
+      "rps": 113,
+      "successRps": 113,
+      "errorRate": 0,
+      "p50": 255.51,
+      "p90": 510.74,
+      "p99": 805.98,
+      "mean": 281.06,
+      "codes": {
+        "200": 2288
+      },
+      "errors": {},
+      "memory": {
+        "api": {
+          "rssMiB": 328.8,
+          "peakMiB": 368.1
+        },
+        "web": {
+          "rssMiB": 152.8,
+          "peakMiB": 188.9
+        },
+        "container": {
+          "api": "259.7MiB",
+          "web": "113.3MiB",
+          "worker": "74.61MiB",
+          "db": "195.5MiB"
+        }
+      }
+    },
+    {
+      "concurrency": 64,
+      "pass": false,
+      "requests": 2199,
+      "rps": 107.1,
+      "successRps": 107.1,
+      "errorRate": 0,
+      "p50": 538.94,
+      "p90": 1071.73,
+      "p99": 1623.89,
+      "mean": 590.74,
+      "codes": {
+        "200": 2199
+      },
+      "errors": {},
+      "memory": {
+        "api": {
+          "rssMiB": 309.3,
+          "peakMiB": 368.1
+        },
+        "web": {
+          "rssMiB": 176.5,
+          "peakMiB": 191.4
+        },
+        "container": {
+          "api": "256.1MiB",
+          "web": "137.1MiB",
+          "worker": "75.18MiB",
+          "db": "195.5MiB"
+        }
+      }
+    }
+  ],
+  "maxConcurrency": 32,
+  "peakMemory": {
+    "api": {
+      "rssMiB": 307.2,
+      "peakMiB": 368.1
+    },
+    "web": {
+      "rssMiB": 176.5,
+      "peakMiB": 191.4
+    },
+    "worker": {
+      "rssMiB": 126.2,
+      "peakMiB": 128.3
+    }
+  }
+}

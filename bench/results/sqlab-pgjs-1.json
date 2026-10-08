@@ -1,0 +1,224 @@
+{
+  "label": "sqlab-pgjs-1",
+  "image": "gb-bench:bun",
+  "runtime": "bun",
+  "at": "2026-10-08T02:33:10.814Z",
+  "urls": {
+    "pages": {
+      "home": "/",
+      "topic": "/topics/bang-dream",
+      "item": "/items/apd2nhgu1i5jefb3m97t9bhd1"
+    },
+    "apis": {
+      "items": "/api/v1/items",
+      "hotTopics": "/api/v1/hot-topics",
+      "snapshot": "/api/v1/selected/snapshot",
+      "siteHome": "/api/site/home",
+      "feed": "/feed.xml",
+      "calendar": "/calendar.ics",
+      "timeline": "/api/site/timeline",
+      "siteTopic": "/api/site/topics/bang-dream",
+      "pool": "/api/site/pool?q=%E9%82%A6&tab=relevance",
+      "siteItem": "/api/site/items/apd2nhgu1i5jefb3m97t9bhd1"
+    }
+  },
+  "endpoints": {
+    "api:items": {
+      "requests": 124757,
+      "rps": 6234.1,
+      "successRps": 6234.1,
+      "errorRate": 0,
+      "p50": 9.69,
+      "p90": 14.03,
+      "p99": 23.2,
+      "mean": 10.26,
+      "codes": {
+        "200": 124757
+      },
+      "errors": {}
+    },
+    "api:hotTopics": {
+      "requests": 1007908,
+      "rps": 50386.5,
+      "successRps": 50386.5,
+      "errorRate": 0,
+      "p50": 1.2,
+      "p90": 1.33,
+      "p99": 3.29,
+      "mean": 1.27,
+      "codes": {
+        "200": 1007908
+      },
+      "errors": {}
+    },
+    "api:snapshot": {
+      "requests": 29826,
+      "rps": 1424.6,
+      "successRps": 1424.6,
+      "errorRate": 0,
+      "p50": 39.26,
+      "p90": 58.42,
+      "p99": 79.73,
+      "mean": 44.43,
+      "codes": {
+        "200": 29826
+      },
+      "errors": {}
+    },
+    "api:siteHome": {
+      "requests": 3743,
+      "rps": 184.4,
+      "successRps": 184.4,
+      "errorRate": 0,
+      "p50": 301.53,
+      "p90": 627.38,
+      "p99": 942.96,
+      "mean": 344.51,
+      "codes": {
+        "200": 3743
+      },
+      "errors": {}
+    },
+    "api:feed": {
+      "requests": 23162,
+      "rps": 1155.9,
+      "successRps": 1155.9,
+      "errorRate": 0,
+      "p50": 44.43,
+      "p90": 84.53,
+      "p99": 182.25,
+      "mean": 55.31,
+      "codes": {
+        "200": 23162
+      },
+      "errors": {}
+    },
+    "api:calendar": {
+      "requests": 4469,
+      "rps": 220.5,
+      "successRps": 220.5,
+      "errorRate": 0,
+      "p50": 232.56,
+      "p90": 666.6,
+      "p99": 985.19,
+      "mean": 288.31,
+      "codes": {
+        "200": 4469
+      },
+      "errors": {}
+    },
+    "api:timeline": {
+      "requests": 7917,
+      "rps": 393.4,
+      "successRps": 393.4,
+      "errorRate": 0,
+      "p50": 138.66,
+      "p90": 219.43,
+      "p99": 784.77,
+      "mean": 162.23,
+      "codes": {
+        "200": 7917
+      },
+      "errors": {}
+    },
+    "api:siteTopic": {
+      "requests": 8255,
+      "rps": 411.2,
+      "successRps": 411.2,
+      "errorRate": 0,
+      "p50": 150.15,
+      "p90": 227.63,
+      "p99": 320.6,
+      "mean": 155.34,
+      "codes": {
+        "200": 8255
+      },
+      "errors": {}
+    },
+    "api:pool": {
+      "requests": 273160,
+      "rps": 13590.4,
+      "successRps": 86.9,
+      "errorRate": 0.9936,
+      "p50": 3.15,
+      "p90": 5.4,
+      "p99": 15.25,
+      "mean": 4.69,
+      "codes": {
+        "200": 1746,
+        "503": 271414
+      },
+      "errors": {}
+    },
+    "api:siteItem": {
+      "requests": 40095,
+      "rps": 2002.7,
+      "successRps": 2002.7,
+      "errorRate": 0,
+      "p50": 29.71,
+      "p90": 56.58,
+      "p99": 96.39,
+      "mean": 31.93,
+      "codes": {
+        "200": 40095
+      },
+      "errors": {}
+    },
+    "ssr:home": {
+      "requests": 1321,
+      "rps": 64.2,
+      "successRps": 64.2,
+      "errorRate": 0,
+      "p50": 935.98,
+      "p90": 1489.22,
+      "p99": 1910.53,
+      "mean": 981.61,
+      "codes": {
+        "200": 1321
+      },
+      "errors": {}
+    },
+    "ssr:topic": {
+      "requests": 1425,
+      "rps": 68.8,
+      "successRps": 68.8,
+      "errorRate": 0,
+      "p50": 919.73,
+      "p90": 1277.31,
+      "p99": 1585.36,
+      "mean": 920.58,
+      "codes": {
+        "200": 1425
+      },
+      "errors": {}
+    },
+    "ssr:item": {
+      "requests": 3247,
+      "rps": 159.9,
+      "successRps": 159.9,
+      "errorRate": 0,
+      "p50": 376.43,
+      "p90": 647.54,
+      "p99": 893.3,
+      "mean": 398.45,
+      "codes": {
+        "200": 3247
+      },
+      "errors": {}
+    },
+    "web:proxy-items": {
+      "requests": 50941,
+      "rps": 2544.2,
+      "successRps": 2544.2,
+      "errorRate": 0,
+      "p50": 24.12,
+      "p90": 34.45,
+      "p99": 50.49,
+      "mean": 25.14,
+      "codes": {
+        "200": 50941
+      },
+      "errors": {}
+    }
+  }
+}
