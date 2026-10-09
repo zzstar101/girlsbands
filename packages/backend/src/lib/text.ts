@@ -70,3 +70,16 @@ const HANGUL = /[\uac00-\ud7af]/;
 export function looksChinese(s: string): boolean {
   return /[㐀-鿿豈-﫿]/.test(s) && !KANA.test(s) && !HANGUL.test(s);
 }
+
+/**
+ * Whether prose that should be Chinese came back written in Japanese. Unlike `looksChinese`, kana is
+ * expected here: a Chinese sentence still quotes 「赤色の響祭」 or ぴあアリーナMM verbatim. So quoted names
+ * are dropped first, then hiragana — the particles and endings Japanese prose cannot do without — are
+ * weighed against Han characters.
+ */
+export function writtenInJapanese(s: string): boolean {
+  const prose = s.replace(/[「『“"]([^」』”"]*)[」』”"]/g, " ");
+  const hiragana = (prose.match(/[\u3041-\u309f]/g) ?? []).length;
+  const han = (prose.match(/[㐀-鿿豈-﫿]/g) ?? []).length;
+  return hiragana >= 8 && hiragana / (hiragana + han) > 0.2;
+}

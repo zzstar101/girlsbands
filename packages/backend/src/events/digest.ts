@@ -7,6 +7,7 @@ import { sql, type Db } from "../db.ts";
 import { chatJson } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
+import { writtenInJapanese } from "../lib/text.ts";
 import { evidenceCondition, listedCondition } from "../publication/scope.ts";
 import { promptText, promptVersion } from "../editorial/prompts.ts";
 import { changeSnapshot, changeSnapshotHash, diffChangeSnapshots, wordTextChanges } from "./change-diff.ts";
@@ -18,7 +19,8 @@ export const DIGEST_SYSTEM = promptText("story-digest");
 
 export const DigestSchema = z.object({
   title: z.string().max(120).catch(""),
-  digest: z.string().min(10).max(2000),
+  // 综述是给中文读者的：模型照着日文报道写成日文的，当作不可用，下一次重试再付一次。
+  digest: z.string().min(10).max(2000).refine((s) => !writtenInJapanese(s), "digest written in Japanese"),
 });
 
 export interface DigestReport {
@@ -98,7 +100,9 @@ export async function composeStoryDigest(storyId: number): Promise<{ updated: bo
   const [last] = await sql<{ article_ids: string[]; inputs_hash: string | null; facts_hash: string | null; facts: unknown; digest: string; receipt_id: number | null }[]>`
     SELECT article_ids, inputs_hash, facts_hash, facts, digest, receipt_id FROM story_digests WHERE story_id = ${storyId} ORDER BY version DESC LIMIT 1`;
   const sameReports = !!last && JSON.stringify([...last.article_ids].sort()) === JSON.stringify(ids);
-  if (story.digest !== null && sameReports && last!.inputs_hash === inputsHash && last!.facts_hash === factsHash) return { updated: false };
+  // 上一版写成了日文（语言检查之前留下的）就不算「没变」，也不拿来复用。
+  const reusable = !!last && !writtenInJapanese(last.digest);
+  if (story.digest !== null && reusable && sameReports && last!.inputs_hash === inputsHash && last!.facts_hash === factsHash) return { updated: false };
   // Same reports, different content: an editor corrected one. A report gone from the story (withdrawn,
   // or regrouped elsewhere) likewise. Rewrite from the reports as they are now, without the previous
   // digest, so a corrected or withdrawn fact does not survive as "earlier reports said".
@@ -123,7 +127,7 @@ export async function composeStoryDigest(storyId: number): Promise<{ updated: bo
   const changeKinds = [...new Set(changes.map((c) => c.kind))];
   // A withdrawal clears the public projection but retains its history. Restoring exactly the same
   // evidence reuses that digest through the normal version/input checks, without another model call.
-  const res = last?.inputs_hash === inputsHash ? { data: { title: "", digest: last.digest }, receiptId: last.receipt_id } : await chatJson({
+  const res = reusable && last?.inputs_hash === inputsHash ? { data: { title: "", digest: last.digest }, receiptId: last.receipt_id } : await chatJson({
     model: await modelFor("digest"), purpose: "story_digest", subject: `story:${storyId}@${ids.length}`, promptVersion: DIGEST_PROMPT_VERSION,
     system: DIGEST_SYSTEM, user, schema: DigestSchema, temperature: 0.3, maxTokens: 1200,
   });
