@@ -113,10 +113,12 @@ EdgeOne 侧要配（加速域名建在哪个 EdgeOne 站点，就走哪个套餐
 
 - 回源请求头加 `X-Origin-Auth: <ORIGIN_AUTH_SECRET>`，走 Gcore 的 Request Headers 选项，和 EdgeOne 那条规则同一个值。
 - 客户端地址：Gcore 和 EdgeOne 都会把真实访客追加在 `X-Forwarded-For` 末尾，`deploy/Caddyfile.edgeone` 原样透传这条头，应用取最后一项。别改回按某家 CDN 的专有头（`EO-Connecting-IP` 之类）取值，换 CDN 就会整站塌成一个访客。
-- 证书是手工上传的 Let's Encrypt 证书（DNS-01，用 Cloudflare 的 token 签 `girlsbands.com` 和加速域名），**不会自动续**：到期前重新签一张，再把资源的 `sslData` 换掉。Gcore 自带的 Let's Encrypt 走 HTTP-01、认的是资源自己的 CNAME，覆盖不到 `girlsbands.com` 这种挂在资源上的额外主机名，所以没用它。
+- 证书用 **Gcore 自带的 Let's Encrypt**（`automated: true`）：签出来的是 `CN=gc.girlsbands.com`、`SAN=DNS:gc.girlsbands.com,DNS:girlsbands.com`，加速域名和挂成 secondary hostname 的 `SITE_DOMAIN` 都覆盖到了，**到期前 30 天自动续期**（Gcore 自己重试，失败会往账号邮箱发通知），不需要手工签。
+- **别在有流量的时候用 API 把资源从「已上传证书」换成「刚建好、还没签发的托管证书」**：`PATCH /cdn/resources/{id} {"sslEnabled":true,"sslData":<新对象>}` 会让边缘立刻把证书换成空的，TLS 当场断。实测签发本身只有几秒（`GET /cdn/sslData/{id}/status` 的 `started` → `finished` 是 6 秒），所以中断窗口约等于签发耗时；签发一卡住窗口就跟着拉长，而站点有 HSTS preload，用户看到的是无法跳过的硬错误。`POST /cdn/resources/{id}/ssl/le/pre-validate` 返回 201 也挡不住这一点——文档里那句「the current certificate stays in use until the new certificate is ready」在这种切换上不成立。已经在托管证书上的续期没有这个问题。换证书时走 Gcore 门户最稳（同一个资源从手工证书换成托管 Let's Encrypt，实测没有感知到中断）。
+- HTTP-01 挑战路径在资源上会被 `redirect_http_to_https` 301 到 HTTPS：续期发生在到期前 30 天、当前证书还有效，所以挑战能过；只有「证书已经是坏的」那种窗口里才会卡死，别把希望寄托在它自愈上。
 - 缓存跟随源站的 `Cache-Control`，`redirect_http_to_https` 打开（80 → 301）。
 - HSTS 由源站的 Caddy 出（`deploy/Caddyfile.edgeone` 里 `(edgeone-origin)` 片段的那条 `header`），两家 CDN 都透传源站响应头。别在 Gcore 上用 Response headers 选项加：这个资源上试过，接口存得下、边缘始终不发。
-- 页面域名是资源的 secondary hostname，加速域名本身（`gc.girlsbands.com`）只是切换时的过渡，随时可以删。
+- 页面域名 `SITE_DOMAIN` 是这个资源的 secondary hostname，加速域名本身（`gc.girlsbands.com`）**不要删**：它是资源的主 custom domain（Gcore 创建后不可更改）、托管证书的 CN、也是 HTTP-01 挑战的目标，删了 DNS 之后证书续期会失败。
 
 `deploy/Caddyfile.edgeone` 在 compose 里是**单文件 bind mount**，容器启动时按 inode 绑定：用 `mv`、`git checkout` 这类会换掉 inode 的写法改这个文件之后，运行中的 caddy 读到的仍是旧内容，必须 `docker compose up -d --force-recreate caddy` 才会生效（`docker compose up -d` 不会重建它）。
 
