@@ -32,11 +32,18 @@ function bool(name: string, fallback: boolean): boolean {
 
 export const isProduction = env.NODE_ENV === "production";
 
+const siteUrl = str("SITE_URL", SITE.defaultUrl).replace(/\/+$/, "");
+
 export const config = {
   databaseUrl: str("DATABASE_URL", "postgres://127.0.0.1:5432/girlsbands"),
   apiPort: int("API_PORT", 3001),
   // Every generated absolute link uses this address, whatever Host a request arrives with.
-  siteUrl: str("SITE_URL", SITE.defaultUrl).replace(/\/+$/, ""),
+  siteUrl,
+  // The host that serves signed image-proxy addresses. Unset keeps them on siteUrl; a deployment whose
+  // images need an edge the pages do not — one that reaches the mainland — points this at it and leaves
+  // SITE_URL alone. The signature covers u|mode|exp and never the host, so addresses already handed out
+  // keep working across the move.
+  imageUrlBase: (env.IMAGE_BASE_URL || siteUrl).replace(/\/+$/, ""),
   egressProxyUrl: env.EGRESS_PROXY_URL || null,
   allowPrivateNetworkFetch: bool("ALLOW_PRIVATE_NETWORK_FETCH", false),
   feishuContentPushEnabled: bool("FEISHU_CONTENT_PUSH_ENABLED", false),

@@ -107,7 +107,8 @@ test("四个出口都带上同一条公告的主视觉，下架后跟着消失",
   assert.equal(detail.kind, "found");
   const item = detail.kind === "found" ? detail.item : null;
   assert.ok(item?.cover, "条目页带上公告自己的图");
-  assert.match(item.cover.url, /^\/api\/img-proxy\?/, "图走站内代理，不是直连原站");
+  const { config } = await import("@girlsbands/backend/config");
+  assert.ok(item.cover.url.startsWith(`${config.imageUrlBase}/api/img-proxy?`), "图走站内代理，不是直连原站");
   assert.match(item.cover.url, /mode=image-1200/);
   assert.equal(item.cover.width, 1024);
   assert.equal(item.cover.srcSet?.split(", ").length, 3, "hero 的三个尺寸都在 srcSet 里");

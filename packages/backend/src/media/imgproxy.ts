@@ -31,20 +31,21 @@ export function proxyExpiry(nowMs = Date.now(), lifetimeSeconds = LIFETIME_SECON
   return Math.ceil((nowMs / 1000 + lifetimeSeconds) / WINDOW_SECONDS) * WINDOW_SECONDS;
 }
 
-export function proxiedImage(url: string | null | undefined, mode: ProxyMode, absolute = false, nowMs = Date.now(), lifetimeSeconds = LIFETIME_SECONDS): string | null {
+export function proxiedImage(url: string | null | undefined, mode: ProxyMode, nowMs = Date.now(), lifetimeSeconds = LIFETIME_SECONDS): string | null {
   if (!url) return null;
   if (isTrackingImage(url)) return null;
   if (url.startsWith("data:")) return url;
   if (!/^https?:\/\//i.test(url)) return null;
   const exp = proxyExpiry(nowMs, lifetimeSeconds);
-  const path = `/api/img-proxy?u=${encodeURIComponent(url)}&mode=${mode}&exp=${exp}&sig=${signature(url, mode, exp).slice(0, SIG_HEX)}`;
-  return absolute ? `${config.siteUrl}${path}` : path;
+  // Always the image host, never a bare path: the address is used inside pages served from siteUrl, so a
+  // relative one would be fetched from there and the images would never reach the other edge at all.
+  return `${config.imageUrlBase}/api/img-proxy?u=${encodeURIComponent(url)}&mode=${mode}&exp=${exp}&sig=${signature(url, mode, exp).slice(0, SIG_HEX)}`;
 }
 
 /** Browser source candidates, each independently signed with the same expiry boundary. */
-export function proxiedImageSet(url: string | null | undefined, kind: ResponsiveImageKind, absolute = false, nowMs = Date.now(), lifetimeSeconds = LIFETIME_SECONDS): string | null {
+export function proxiedImageSet(url: string | null | undefined, kind: ResponsiveImageKind, nowMs = Date.now(), lifetimeSeconds = LIFETIME_SECONDS): string | null {
   if (!url || !/^https?:\/\//i.test(url) || isTrackingImage(url)) return null;
-  return RESPONSIVE_MODES[kind].map((mode) => `${proxiedImage(url, mode, absolute, nowMs, lifetimeSeconds)} ${IMAGE_WIDTHS[mode]}w`).join(", ");
+  return RESPONSIVE_MODES[kind].map((mode) => `${proxiedImage(url, mode, nowMs, lifetimeSeconds)} ${IMAGE_WIDTHS[mode]}w`).join(", ");
 }
 
 /**
@@ -78,9 +79,10 @@ export function verifyProxyRequest(params: { u?: string; mode?: string; exp?: st
 
 /**
  * Rewrites <img>/<video poster> sources in whitelisted body HTML to signed proxy URLs. Feed readers keep
- * items for days, so full RSS asks for a longer signature than a page.
+ * items for days, so full RSS asks for a longer signature than a page; `feed` also drops the responsive
+ * candidates, which readers handle poorly, and leaves one signed full image as before.
  */
-export function proxyBodyImages(html: string, absolute = false, lifetimeSeconds = LIFETIME_SECONDS): string {
+export function proxyBodyImages(html: string, feed = false, lifetimeSeconds = LIFETIME_SECONDS): string {
   const now = Date.now();
   return html
     .replace(/<img\b([^>]*)>/gi, (tag: string, attrs: string) => {
@@ -88,12 +90,11 @@ export function proxyBodyImages(html: string, absolute = false, lifetimeSeconds 
       if (!src) return tag;
       if (isTrackingImage(src[1]!, attrs.match(/\bwidth="([^"]+)"/i)?.[1], attrs.match(/\bheight="([^"]+)"/i)?.[1])) return "";
       const decoded = src[1]!.replace(/&amp;/g, "&");
-      const proxied = proxiedImage(decoded, "full", absolute, now, lifetimeSeconds);
+      const proxied = proxiedImage(decoded, "full", now, lifetimeSeconds);
       // Width descriptors change an image's natural CSS size. Only use them for a body image with
       // an explicit display width: unknown and small pictures must retain their intrinsic size.
-      // RSS keeps its existing single signed full image.
       const width = Number(attrs.match(/\bwidth="(\d+)"/i)?.[1] ?? 0);
-      const candidates = !absolute && width >= IMAGE_WIDTHS["image-720"] ? proxiedImageSet(decoded, "body", false, now, lifetimeSeconds) : null;
+      const candidates = !feed && width >= IMAGE_WIDTHS["image-720"] ? proxiedImageSet(decoded, "body", now, lifetimeSeconds) : null;
       // `sizes=auto` adds size containment in Chrome: stale publisher width/height metadata then
       // overrides the loaded image's real ratio. Let intrinsic dimensions win after loading.
       const responsive = candidates ? ` srcset="${candidates.replace(/&/g, "&amp;")}" sizes="(min-width: 1536px) 760px, (min-width: 1024px) calc(100vw - 524px), (min-width: 640px) 608px, calc(100vw - 32px)"` : "";
@@ -101,7 +102,7 @@ export function proxyBodyImages(html: string, absolute = false, lifetimeSeconds 
       return `<img${attrs.replace(src[0], source)}>`;
     })
     .replace(/<video\b([^>]*?)\sposter="([^"]+)"/gi, (_m, pre: string, src: string) => {
-      const proxied = proxiedImage(src.replace(/&amp;/g, "&"), "thumb", absolute, now, lifetimeSeconds);
+      const proxied = proxiedImage(src.replace(/&amp;/g, "&"), "thumb", now, lifetimeSeconds);
       return proxied ? `<video${pre} poster="${proxied.replace(/&/g, "&amp;")}"` : `<video${pre}`;
     });
 }

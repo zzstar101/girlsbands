@@ -5,6 +5,7 @@ import { closeDb, sql } from "@girlsbands/backend/db";
 import { InvalidCursorError } from "@girlsbands/backend/lib/cursor";
 import { loadSeiyuu } from "@girlsbands/backend/publication/seiyuu";
 import { ENTITIES } from "@girlsbands/industry/taxonomy";
+import { config } from "@girlsbands/backend/config";
 
 const T = `seiyuu-${tag()}`;
 const NOW = new Date('2026-10-05T03:00:00Z');
@@ -60,7 +61,8 @@ async function post(seed: Seed = {}): Promise<Row> {
 /** 头像走 imgproxy 签名：拿到的是代理地址，`u` 里才是原图。 */
 function proxyOf(avatarUrl: string | null, original: string) {
   assert.ok(avatarUrl, "avatarUrl 不该是 null");
-  assert.match(avatarUrl!, /^\/api\/img-proxy\?u=/);
+  assert.match(avatarUrl!, /^https?:\/\/[^/]+\/api\/img-proxy\?u=/, "代理地址是绝对地址，图片才会走图片域名");
+  assert.ok(avatarUrl!.startsWith(`${config.imageUrlBase}/api/img-proxy?u=`), "头像走站内代理签名");
   assert.equal(new URL(avatarUrl!, "https://aniband.test").searchParams.get("u"), original);
   return avatarUrl;
 }

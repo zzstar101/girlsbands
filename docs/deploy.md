@@ -73,23 +73,26 @@ MCP 默认接受 `SITE_URL` 的主机以及 `localhost`、`127.0.0.1`、`[::1]`�
 
 腾讯云 EdgeOne 终结对外的 TLS，回源到这台机器 443 上的 Caddy（EdgeOne 不校验源站证书）。页面和静态资源分两个域名，都解析到同一台机器、同一个 `web` 容器：
 
-- `SITE_DOMAIN` 是读者访问的页面域名，`SITE_URL` 也写它。
-- `STATIC_DOMAIN` 是静态资源域名，`ASSET_BASE_URL` 写它。构建时 Vite 的 `base` 只把带哈希的客户端资源（客户端入口、CSS、字体、modulepreload 链接、SSR 清单）指到这个域名，页面路由仍在 `SITE_DOMAIN` 上；`/favicon.ico`、`/robots.txt` 这些由站点域名自己出。
+- `SITE_DOMAIN` 是做回源 Host 头的页面域名，`SITE_URL` 也写它。
+- `STATIC_DOMAIN` 是做回源 Host 头的静态资源域名。
+- `ASSET_BASE_URL` 是读者实际访问的静态域名，构建时 Vite 的 `base` 只把带哈希的客户端资源（客户端入口、CSS、字体、modulepreload 链接、SSR 清单）指到它，页面路由仍在 `SITE_DOMAIN` 上；`/favicon.ico`、`/robots.txt` 这些由站点域名自己出。
+- `IMAGE_BASE_URL` 是 `/api/img-proxy` 签名后给出绝对地址用的域名，不设置时回落到 `SITE_URL`。图片地址必须是绝对的：相对地址在 `SITE_DOMAIN` 的页面上会被浏览器解析回页面域名，图片就永远走不到另一个边缘。签名里不含主机，所以换域名以后旧地址照样有效。
 
-`.env`：
+本站的静态资源和图片挂在 `gbcclub.com` 那个 EdgeOne 站点上（那个站点带大陆节点，`girlsbands.com` 那个不带），回源 Host 头仍用 `girlsbands.com` 一侧的旧域名，所以 Caddy 一行都不用改：
 
 ```bash
 SITE_URL=https://girlsbands.com
 SITE_DOMAIN=girlsbands.com
 STATIC_DOMAIN=static.girlsbands.com
-ASSET_BASE_URL=https://static.girlsbands.com   # 构建参数，改了要重新 build
+ASSET_BASE_URL=https://static.girlsbands.gbcclub.com   # 构建参数，改了要重新 build
+IMAGE_BASE_URL=https://img.girlsbands.gbcclub.com      # 运行时读，改 .env 重启即可
 ORIGIN_AUTH_SECRET=<一段随机字符串>
 CADDYFILE=Caddyfile.edgeone
 TRUST_PROXY=true
 PORT=127.0.0.1:3000
 ```
 
-`ASSET_BASE_URL` 只在构建时读（Dockerfile 的 `ASSET_BASE_URL` 构建参数，compose 从 `.env` 传给 `setup` 的 `build.args`），不设置或留空时资源照旧从站点自己的域名出。改完启动：
+`ASSET_BASE_URL` 只在构建时读（Dockerfile 的 `ASSET_BASE_URL` 构建参数，compose 从 `.env` 传给 `setup` 的 `build.args`），不设置或留空时资源照旧从站点自己的域名出。`IMAGE_BASE_URL` 是运行时读的（所有应用服务都 `env_file: .env`），改完启动：
 
 ```bash
 docker compose --profile https up -d --build
@@ -97,11 +100,11 @@ docker compose --profile https up -d --build
 
 `deploy/Caddyfile.edgeone` 与默认那份的区别：`tls internal` 自签证书，不做 ACME；每个请求都必须带 EdgeOne 回源时加的 `X-Origin-Auth`，和 `ORIGIN_AUTH_SECRET` 不一致的一律 403，转发前把这个头删掉，应用看不到；`X-Forwarded-For` 换成 EdgeOne 放在 `EO-Connecting-IP` 里的真实访客地址，配合 `TRUST_PROXY=true`，限流和后台看到的就是访客本人而不是 EdgeOne 节点。静态域名只放行 `/assets/*` 和 `/fonts/*`，其余 404，所以它取不到 `/api` 和 `/admin`。
 
-EdgeOne 侧要配：
+EdgeOne 侧要配（加速域名建在哪个 EdgeOne 站点，就走哪个套餐和哪个区域的节点）：
 
 - 源站：这台机器的 443，协议 HTTPS。
-- 回源 Host 头：加速域名本身。
-- 回源请求头加 `X-Origin-Auth: <ORIGIN_AUTH_SECRET>`。
+- 回源 Host 头：`SITE_DOMAIN` 或 `STATIC_DOMAIN`（`girlsbands.com` / `static.girlsbands.com`），不是加速域名本身。Caddy 按 Host 分站块，`STATIC_DOMAIN` 那块只放行 `/assets/*` 和 `/fonts/*`。
+- 回源请求头加 `X-Origin-Auth: <ORIGIN_AUTH_SECRET>`。加速域名和回源 Host 头不同域名时，这条要写成 EdgeOne 的「修改请求头」规则、条件按加速域名匹配；Caddy 不认得的回源一律 403。
 - 缓存：跟随源站的 `Cache-Control`（`/assets/*` 是一年不可变，页面是几分钟）；`/admin` 和 `/api/admin` 永远不要缓存。
 
 ### 更新
@@ -132,7 +135,7 @@ docker compose run --rm setup && docker compose up -d
   command="/opt/girlsbands/deploy/ci-deploy.sh",restrict ssh-ed25519 AAAA… girlsbands-ci
   ```
 
-  私钥放进 GitHub 的 `production` 环境密钥 `DEPLOY_SSH_KEY`，`ssh-keyscan <服务器>` 的输出放 `DEPLOY_KNOWN_HOSTS`；环境变量 `DEPLOY_TARGET`（如 `ubuntu@203.0.113.10`）、`SITE_URL`（部署后检查 `/api/health` 用）。仓库变量 `ASSET_BASE_URL` 必须和服务器 `.env` 里的一致：它在 CI 构建时写进镜像。
+  私钥放进 GitHub 的 `production` 环境密钥 `DEPLOY_SSH_KEY`，`ssh-keyscan <服务器>` 的输出放 `DEPLOY_KNOWN_HOSTS`；环境变量 `DEPLOY_TARGET`（如 `ubuntu@203.0.113.10`）、`SITE_URL`（部署后检查 `/api/health` 用）。仓库变量 `ASSET_BASE_URL` 必须和服务器 `.env` 里的一致：它在 CI 构建时写进镜像。`IMAGE_BASE_URL` 只在服务器 `.env` 里设（运行时读，不参与构建），不必配成仓库变量。
 
 `deploy/ci-deploy.sh` 做的事：校验传进来的是 `main` 上的提交 → 用部署密钥 fast-forward 到它 → 把 `.env` 的 `APP_IMAGE` 改成这个提交的镜像 → 用任务自带的 `GITHUB_TOKEN` 登录 GHCR（任务结束即失效，用完就登出）→ 运行 `deploy/update.sh`。`.env` 里有 `APP_IMAGE` 时，`update.sh` 拉镜像而不是构建，并删掉三天前没在用的旧镜像。
 

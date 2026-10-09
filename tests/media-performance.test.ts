@@ -20,6 +20,11 @@ const { xView } = await import("@girlsbands/backend/publication/items");
 let imageHits = 0;
 let failureHits = 0;
 let animationHits = 0;
+/** Proxy addresses are absolute so a page on the site host still reaches the image edge; inject wants a path. */
+const proxyPath = (target: string): string => {
+  const url = new URL(target);
+  return url.pathname + url.search;
+};
 const png = await sharp({ create: { width: 800, height: 400, channels: 3, background: "#176b75" } }).png().toBuffer();
 const webp = await sharp({ create: { width: 800, height: 400, channels: 3, background: "#176b75" } }).webp().toBuffer();
 // A tiny PNG whose IHDR claims a 20000x20000 canvas: the pixel limit must outlive the engine.
@@ -116,8 +121,8 @@ test("successive responsive candidates reuse the completed original download", a
 test("responsive URLs and web body candidates retain exact signatures and stable expiry", async () => {
   const { proxiedImageSet, proxyBodyImages, verifyProxyRequest } = await import("@girlsbands/backend/media/imgproxy");
   const now = Date.parse("2026-09-28T08:00:00Z");
-  const candidates = proxiedImageSet("https://example.org/image.png", "card", false, now)!;
-  assert.equal(candidates, proxiedImageSet("https://example.org/image.png", "card", false, now + 1000));
+  const candidates = proxiedImageSet("https://example.org/image.png", "card", now)!;
+  assert.equal(candidates, proxiedImageSet("https://example.org/image.png", "card", now + 1000));
   for (const candidate of candidates.split(", ")) {
     const [value, width] = candidate.split(" ");
     const u = new URL(value!, "http://localhost");
@@ -164,8 +169,10 @@ test("image HTTP responses keep earlier URLs valid, reject tampering before fetc
   const { proxiedImage } = await import("@girlsbands/backend/media/imgproxy");
   const short = proxiedImage(url, "image-336")!;
   assert.match(short, /&sig=[0-9a-f]{16}$/);
-  assert.equal((await app.inject({ url: short })).statusCode, 200);
-  assert.equal((await app.inject({ url: short.replace(/sig=(.)/, (_m, c: string) => `sig=${c === "0" ? "1" : "0"}`) })).statusCode, 403);
+  assert.match(short, /^https?:\/\/[^/]+\/api\/img-proxy\?/, "代理地址是绝对地址，图片才会走图片域名");
+  const shortPath = proxyPath(short);
+  assert.equal((await app.inject({ url: shortPath })).statusCode, 200);
+  assert.equal((await app.inject({ url: shortPath.replace(/sig=(.)/, (_m, c: string) => `sig=${c === "0" ? "1" : "0"}`) })).statusCode, 403);
   await app.close();
 });
 
@@ -296,18 +303,18 @@ test("binary-labelled real images work, but binary-labelled error pages still re
   const { proxiedImage } = await import("@girlsbands/backend/media/imgproxy");
   const app = Fastify();
   registerMedia(app);
-  const image = await app.inject({ url: proxiedImage(`${base}/binary-image`, "image-336")! });
+  const image = await app.inject({ url: proxyPath(proxiedImage(`${base}/binary-image`, "image-336")!) });
   assert.equal(image.statusCode, 200);
   assert.equal(image.headers["content-type"], "image/webp");
   assert.equal((await sharp(image.rawPayload).metadata()).width, 336);
-  const error = await app.inject({ url: proxiedImage(`${base}/binary-error`, "image-336")! });
+  const error = await app.inject({ url: proxyPath(proxiedImage(`${base}/binary-error`, "image-336")!) });
   assert.equal(error.statusCode, 502);
   // Arduino's CDN serves real JPEG/PNG bytes under this generic MIME alias. A 200 HTML error with
   // the same label must still fail; accepting the label alone would disguise an upstream failure.
-  const alias = await app.inject({ url: proxiedImage(`${base}/binary-alias`, "image-336")! });
+  const alias = await app.inject({ url: proxyPath(proxiedImage(`${base}/binary-alias`, "image-336")!) });
   assert.equal(alias.statusCode, 200);
   assert.equal((await sharp(alias.rawPayload).metadata()).width, 336);
-  const aliasError = await app.inject({ url: proxiedImage(`${base}/binary-alias-error`, "image-336")! });
+  const aliasError = await app.inject({ url: proxyPath(proxiedImage(`${base}/binary-alias-error`, "image-336")!) });
   assert.equal(aliasError.statusCode, 502);
   await app.close();
 });
@@ -330,13 +337,13 @@ test("a still WebP source is re-encoded like a PNG source, and a huge canvas is 
   const app = Fastify();
   registerMedia(app);
   try {
-    const still = await app.inject({ url: proxiedImage(`${base}/still.webp`, "image-336")! });
+    const still = await app.inject({ url: proxyPath(proxiedImage(`${base}/still.webp`, "image-336")!) });
     assert.equal(still.statusCode, 200);
     assert.equal(still.headers["content-type"], "image/webp");
     assert.equal((await sharp(still.rawPayload).metadata()).width, 336);
     // Whichever engine decodes it, a header claiming 20000×20000 pixels is refused: the route
     // answers 502, and the oversized original is cached as a failure like any other.
-    const oversized = await app.inject({ url: proxiedImage(`${base}/oversized.png`, "image-336")! });
+    const oversized = await app.inject({ url: proxyPath(proxiedImage(`${base}/oversized.png`, "image-336")!) });
     assert.equal(oversized.statusCode, 502);
   } finally {
     await app.close();

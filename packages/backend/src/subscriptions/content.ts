@@ -247,7 +247,7 @@ const EMAIL_IMAGE_LIFETIME_SECONDS = 31 * 86400;
 function digestImage(media: unknown, now: Date): DigestItem["image"] {
   const picture = pickPicture(media);
   if (!picture) return null;
-  const src = proxiedImage(picture.url, "image-720", true, now.getTime(), EMAIL_IMAGE_LIFETIME_SECONDS);
+  const src = proxiedImage(picture.url, "image-720", now.getTime(), EMAIL_IMAGE_LIFETIME_SECONDS);
   if (!src || !/^https?:\/\//.test(src)) return null;
   const w = picture.width && picture.width > 0 ? picture.width : 16;
   const h = picture.height && picture.height > 0 ? picture.height : 9;
