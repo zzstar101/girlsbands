@@ -949,6 +949,23 @@ export interface MemberPage {
 /** Where the run-up to a live stands. Derived at read time; what happened to the status stays separate. */
 export type LiveStage = "announced" | "ticketing" | "on_sale" | "live_day" | "finished" | "cancelled" | "postponed";
 
+/**
+ * `/api/site/lives`：Live 板块的演出日历。只放演出当天（抽选、发售留在截止雷达与「全部日程」）。
+ * `lives` 是这个月里有演出的场次（多日场跨月也算），`upcoming` 是从今天起还没结束的场次，最近的在前。
+ */
+export interface LiveCalendarResponse {
+  computedAt: string;
+  /** `YYYY-MM`。 */
+  month: string;
+  /** `YYYY-MM-DD`，北京时间的今天。 */
+  today: string;
+  band: string | null;
+  /** 有未结束演出的主体，按 ENTITIES 的顺序。 */
+  bands: Array<{ id: string; name: string }>;
+  lives: LiveEventSummary[];
+  upcoming: LiveEventSummary[];
+}
+
 /** The status the announcement itself stated. The reader-facing stage is derived around it. */
 export type LiveStatus = "scheduled" | "cancelled" | "postponed";
 

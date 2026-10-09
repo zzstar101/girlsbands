@@ -8,7 +8,7 @@ import { after, test } from "node:test";
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { linkLiveEvent } from "@girlsbands/backend/events/live";
 import { deriveLiveKey } from "@girlsbands/backend/lives/link";
-import { livesForSubject, liveRefForStory, loadLive } from "@girlsbands/backend/publication/lives";
+import { liveCalendar, livesForSubject, liveRefForStory, loadLive } from "@girlsbands/backend/publication/lives";
 import { addDays, beijingDate } from "@girlsbands/contracts/time";
 import { buildApp } from "../apps/api/src/app.ts";
 
@@ -264,4 +264,43 @@ test("公开接口答一场演出，未知的 id 是 404", async () => {
   } finally {
     await app.close();
   }
+});
+
+test("Live 板块：月历按月给出演出，列表从今天起排，乐队筛选和下架都生效", async () => {
+  const day = "2026-11-27";
+  const { factId, articleId } = await liveFact({ category: "live", deadlines: [{ kind: "event", at: day }], subjects: ["morfonica"], title: `Morfonica Live ${T}` });
+  const id = await linkLiveEvent(factId, articleId);
+  const [live] = await sql<{ public_id: string }[]>`SELECT public_id FROM live_events WHERE id = ${id}`;
+  const publicId = live!.public_id;
+  // 同一乐队同一天的场次会被合成一行（别的轮次留下的也算），所以按乐队+日期认。
+  const here = (lives: Array<{ subject: string; startsOn: string }>) => lives.some((l) => l.subject === "morfonica" && l.startsOn === day);
+
+  const nov = await liveCalendar(NOW, { month: "2026-11" });
+  assert.equal(nov.month, "2026-11");
+  assert.equal(nov.today, "2026-10-01");
+  assert.ok(here(nov.lives), "11 月的月历上有这一场");
+  assert.ok(here(nov.upcoming), "接下来的演出里有这一场");
+  assert.ok(nov.bands.some((b) => b.id === "morfonica"), "有演出的乐队出现在筛选里");
+  assert.ok(nov.upcoming.every((l) => (l.endsOn ?? l.startsOn) >= nov.today), "列表不放已经过去的场次");
+
+  assert.ok(!here((await liveCalendar(NOW, { month: "2026-12" })).lives), "别的月份不出现");
+  assert.equal((await liveCalendar(NOW, { month: "bogus" })).month, "2026-10", "读不懂的月份回到本月");
+  const other = await liveCalendar(NOW, { month: "2026-11", band: "roselia" });
+  assert.equal(other.band, "roselia");
+  const roseliaScope = new Set(["roselia", "bang-dream"]);
+  assert.ok(other.lives.every((l) => roseliaScope.has(l.subject)) && other.upcoming.every((l) => roseliaScope.has(l.subject)), "乐队筛选只留这支乐队和它企划名下的合同公演");
+
+  const app = await buildApp();
+  try {
+    const res = await app.inject({ method: "GET", url: "/api/site/lives?month=2026-11&band=morfonica" });
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal(res.json().band, "morfonica");
+    assert.match(String(res.headers["cache-control"]), /^public/);
+  } finally {
+    await app.close();
+  }
+
+  await sql`UPDATE publications SET visibility = 'withdrawn' WHERE article_id = ${articleId}`;
+  const gone = await liveCalendar(NOW, { month: "2026-11" });
+  assert.ok(!gone.lives.some((l) => l.publicId === publicId) && !gone.upcoming.some((l) => l.publicId === publicId), "报告下架了，Live 板块也不再列它");
 });

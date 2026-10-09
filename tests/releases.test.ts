@@ -10,7 +10,7 @@ import { upsertMaterial } from "@girlsbands/backend/content/materials";
 import { stopBoss } from "@girlsbands/backend/jobs/queue";
 import { publishArticle } from "@girlsbands/backend/publication/publish";
 import { loadRelease, releaseOfStory, releasesForSubject } from "@girlsbands/backend/publication/releases";
-import { releaseKindOf, releaseSubjectOf } from "@girlsbands/backend/releases/derive";
+import { releaseDayFromEve, releaseKindOf, releaseNameKey, releaseSubjectOf } from "@girlsbands/backend/releases/derive";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = `rel-${tag()}`;
@@ -138,6 +138,52 @@ test("发售日：模型 grounded 的那天优先，否则用 structure 抽出�
   const d = await material({ title: winter, tags: ["新作发售"], subjects: ["mygo"] });
   await publish([d], winter);
   assert.equal((await rowsOf(winter))[0]!.release_on, null, "原文只写今冬就不推算");
+
+  // Pre-save 公告只写「リリース前日 9月29日まで」：原文自己说了发售日是第二天。
+  const eve = `Pre-save キャンペーン ${T}`;
+  const e = await material({
+    title: eve, tags: ["新作发售"], subjects: ["millsage"],
+    deadlines: [{ kind: "other", at: "2026-09-29T20:00", note: "Pre-save活动截止", quote: "対象期間 リリース前日2026年9月29日(火) 20:00まで" }],
+  });
+  await publish([e], eve);
+  assert.equal((await rowsOf(eve))[0]!.release_on, "2026-09-30", "「リリース前日」那天的后一天就是发售日");
+  assert.equal(releaseDayFromEve("発売前日 2026年12月31日まで"), "2027-01-01", "跨年也对");
+  assert.equal(releaseDayFromEve("2026年9月29日まで"), null, "没说「前日」就不推");
+});
+
+test("同一张碟换个说法再公告一次：并进原来那一行，补上发售日", async () => {
+  const name = `鳴らす${T}`;
+  const first = `millsage 1st Single「${name}」`;
+  const a = await material({ title: first, tags: ["新作发售", "Single"], subjects: ["millsage"], release: { title: first, kind: "single" } });
+  await publish([a], first);
+  const before = (await rowsOf(first))[0]!;
+  assert.equal(before.release_on, null);
+
+  const second = `millsage「${name}」配信スタート`;
+  const b = await material({
+    title: second, tags: ["新作发售", "数字发行"], subjects: ["millsage"],
+    deadlines: [{ kind: "release_start", at: "2026-09-30" }], release: { title: second, kind: "digital" },
+  });
+  await publish([b], second);
+  assert.equal((await rowsOf(second)).length, 0, "不另起一行");
+  const after = (await rowsOf(first))[0]!;
+  assert.equal(after.id, before.id);
+  assert.equal(after.release_on, "2026-09-30", "第二条公告补上了发售日");
+
+  assert.equal(releaseNameKey("millsage 1st Single「鳴らす」"), releaseNameKey("millsage「鳴 らす」配信"));
+  assert.notEqual(releaseNameKey("「鳴らす」"), releaseNameKey("「ピースフル・ピーシーズ！」"));
+  assert.notEqual(
+    releaseNameKey("劇場版総集編「ガールズバンドクライ」【前編】青春狂走曲（初回限定版）"),
+    releaseNameKey("『ガールズバンドクライ』 2nd Anniversary LIVE"),
+    "括号里是企划名的不算作品名",
+  );
+  assert.equal(releaseNameKey("『ガールズバンドクライ』 2nd Anniversary LIVE"), releaseNameKey("『ガールズバンドクライ』2nd Anniversary LIVE"));
+  assert.equal(releaseNameKey("『ガールズバンドクライ』 2nd Anniversary LIVE Blu-ray & DVD"), releaseNameKey("『ガールズバンドクライ』2nd Anniversary LIVE"), "结尾的载体字样不算名字");
+  assert.equal(
+    releaseNameKey("トゲナシトゲアリ「LIVE in 日本武道館 “奏檄の叫”」"),
+    releaseNameKey('トゲナシトゲアリ LIVE in 日本武道館 "奏檄の叫" Blu-ray & DVD'),
+    "演出名外面再套一层引号也认得出",
+  );
 });
 
 test("版本、店铺特典与序列号跟着公告落下来，序列号指到同名的那场演出", async () => {

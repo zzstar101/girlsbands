@@ -18,7 +18,7 @@ export function useChangelogDot(latestVersion: string | null): boolean {
 }
 /** 友站去重（同一个站可能挂在好几支乐队下）。 */
 const FRIENDS = [...new Map(Object.values(FRIEND_SITES).map((f) => [f.url, f])).values()];
-const MAIN = [['/', '首页'], ['/all', '全部消息'], ['/seiyuu', '声优日常'], ['/deadlines', '截止雷达'], ['/calendar', '日历'], ['/hot', '热议'], ['/daily', '日报']] as const;
+const MAIN = [['/', '首页'], ['/all', '全部消息'], ['/seiyuu', '声优日常'], ['/deadlines', '截止雷达'], ['/live', 'Live 日程'], ['/hot', '热议'], ['/daily', '日报']] as const;
 export function Sidebar({ changelogVersion, home }: { changelogVersion: string | null; home?: HomeResponse | null }) {
   const { pathname } = useLocation();
   const dot = useChangelogDot(changelogVersion);

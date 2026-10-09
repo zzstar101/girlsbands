@@ -13,8 +13,9 @@ import { MonthCalendar, eventAccent } from "../features/topic/Calendar";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import { IconCalendar } from "../components/icons";
 import type { Screen } from "../components/shell/screens";
+import { LiveSwitch } from "../features/live/LiveSwitch";
 
-export const handle: Screen = { home: "ticket", name: "日历" };
+export const handle: Screen = { tab: "live", name: "全部日程" };
 
 const DEFAULT_SUBJECT = FRANCHISES[0]!;
 
@@ -86,7 +87,7 @@ export default function CalendarPage() {
   return (
     <div className="pb-10">
       <PhoneBar
-        title="日历"
+        title="全部日程"
         large
         sub={<>{current?.label ?? subject} · 共 {calendar.total} 个有日期的节点</>}
         actions={
@@ -95,6 +96,7 @@ export default function CalendarPage() {
           </a>
         }
       />
+      <div className="pt-1"><LiveSwitch active="all" /></div>
       <header className="hidden pb-5 pt-1 lg:block">
         <p className="text-[12px] font-semibold tracking-[0.08em] text-band">日程一览</p>
         <h1 className="mt-1.5 text-[24px] font-bold leading-[1.3] tracking-[-0.01em] text-ink lg:text-[26px]">{current?.label ?? subject} 日历</h1>

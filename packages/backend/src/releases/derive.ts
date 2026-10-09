@@ -13,7 +13,8 @@
 //
 // 日期不在这里存第三份：能出现在雷达、日历、.ics 与提醒信里的日期只有 `deadlines` 一份真源（序列号
 // 的应募期间属于它指向的那场演出的轮次）。`release_on` 是「哪天发售」这一个属性，没有就留 null ——
-// 原文只写「今冬発売」时，页面上就只写今冬，不推算。
+// 原文只写「今冬発売」时，页面上就只写今冬，不推算；唯一的例外是原文自己写了「リリース前日 X 月 Y 日」，
+// 那就是在说发售日是 Y+1 日。
 //
 // 推不出主体就不建：`subject_entity` 是这条链的锚，一张没有归属的碟在任何页面上都无处安放。
 import { timezoneDate } from "@girlsbands/contracts/time";
@@ -53,7 +54,7 @@ export interface ReleaseMaterial {
   timezone: Timezone;
   publishedAt: Date | null;
   output: {
-    fact?: { deadlines?: readonly { kind?: string | null; at?: string | null; note?: string | null }[] | null } | null;
+    fact?: { deadlines?: readonly { kind?: string | null; at?: string | null; note?: string | null; quote?: string | null }[] | null } | null;
     release?: Record<string, unknown> | null;
   } | null;
 }
@@ -85,7 +86,17 @@ export function releaseSubjectOf(subjects: readonly string[]): string | null {
   return known.find((s) => ENTITIES[s]!.kind === "band") ?? known[0] ?? null;
 }
 
-/** 发售日：模型给的（已 grounded）优先，其次 structure 抽出的发售日期，最后留 null。 */
+/** 原文写的是「リリース前日 / 発売前日 2026年9月29日」：那一天的后一天就是发售日（原文明说的，不是推算）。 */
+const EVE = /(?:リリース|発売|配信)前日\s*[（(]?\s*(\d{4})\s*[年/.]\s*(\d{1,2})\s*[月/.]\s*(\d{1,2})/;
+
+export function releaseDayFromEve(quote: string | null | undefined): string | null {
+  const hit = quote ? EVE.exec(quote) : null;
+  if (!hit) return null;
+  const d = new Date(Date.UTC(Number(hit[1]), Number(hit[2]) - 1, Number(hit[3]) + 1));
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
+/** 发售日：模型给的（已 grounded）优先，其次 structure 抽出的发售日期，再其次原文的「発売前日 X」，最后留 null。 */
 function releaseDayOf(m: ReleaseMaterial, kind: ReleaseKind, modelDay: string | null): string | null {
   if (modelDay) return modelDay;
   const wanted = kind === "merch" ? ["merch_start", "release_start"] : ["release_start", "merch_start"];
@@ -94,7 +105,32 @@ function releaseDayOf(m: ReleaseMaterial, kind: ReleaseKind, modelDay: string | 
     const hit = deadlines.find((d) => d?.kind === want && dayOf(d?.at));
     if (hit) return dayOf(hit.at);
   }
+  for (const d of deadlines) {
+    const day = releaseDayFromEve(d?.quote) ?? releaseDayFromEve(d?.note);
+    if (day) return day;
+  }
   return null;
+}
+
+/**
+ * 认同一张碟用的名字：标题里第一对「」里的作品名（没有就是整个标题），去空白、小写。
+ * 「millsage 1st Single「鳴らす」」和「millsage「鳴らす」配信開始」是同一张。
+ */
+const norm = (v: string) => v.normalize("NFKC").replace(/[\s「」『』]+/g, "").toLowerCase();
+/** 括号里写的是企划/乐队名（『ガールズバンドクライ』）就不是作品名，不能拿来认碟。 */
+const ENTITY_NAMES: ReadonlySet<string> = new Set(
+  Object.values(ENTITIES).flatMap((e) => [e.name, ...e.aliases, ...(e.otherNames ?? [])]).map(norm),
+);
+
+export function releaseNameKey(title: string): string {
+  // 作品名常套在 「」『』 里，演出名还会再套一层 “” 或 ""：取最短的那段（最里层的名字），
+  // 企划/乐队名不算。都没有就用整个标题，去掉结尾的载体字样（Blu-ray & DVD 之类）。
+  const t = title.normalize("NFKC");
+  const names = [/[「『]([^」』]+)[」』]/g, /[“”]([^“”]+)[“”]/g, /"([^"]+)"/g]
+    .flatMap((re) => [...t.matchAll(re)].map((hit) => norm(hit[1]!)))
+    .filter((inner) => inner && !ENTITY_NAMES.has(inner))
+    .sort((x, y) => x.length - y.length);
+  return names[0] ?? norm(title).replace(/(blu-?ray|dvd|bd|[&/・＆化])+$/g, "");
 }
 
 /** 发售那天的出处：原文里写发售日的那句话（结构步骤给过 note 就用它）。 */
@@ -195,7 +231,30 @@ export async function deriveReleases(db: Db, m: ReleaseMaterial): Promise<number
   const announcedOn = read.announcedOn ?? announcedDayOf(m);
   const quote = read.quote ?? releaseQuoteOf(m, kind);
 
-  const [row] = await db<{ id: string }[]>`
+  // 同一乐队、同一个作品名、同一类（或一边是「其他」）、日期不冲突：是同一张碟的又一条公告，
+  // 补上那一行缺的发售日，而不是因为标题措辞或日期从无到有就另起一行。
+  const key = releaseNameKey(title);
+  const candidates = await db<{ id: string; title: string; kind: string; release_on: string | null }[]>`
+    SELECT id, title, kind, release_on FROM releases
+    WHERE subject_entity = ${subject}
+      AND (kind = ${kind}::text OR kind = 'other' OR ${kind}::text = 'other' OR (kind IN ('single','digital') AND ${kind}::text IN ('single','digital')))
+      AND (release_on IS NULL OR ${releaseOn}::text IS NULL OR release_on = ${releaseOn}::text)
+    ORDER BY (release_on IS NOT NULL) DESC, id`;
+  const same = candidates.find((c) => releaseNameKey(c.title) === key);
+  if (same) {
+    await db`
+      UPDATE releases SET
+        release_on = COALESCE(release_on, ${releaseOn}::text),
+        kind = CASE WHEN kind = 'other' THEN ${kind}::text ELSE kind END,
+        announced_on = COALESCE(announced_on, ${announcedOn}::text),
+        story_id = COALESCE(story_id, ${m.storyId}),
+        first_fact_id = COALESCE(first_fact_id, ${m.factId}),
+        quote = COALESCE(quote, ${quote}),
+        updated_at = now()
+      WHERE id = ${same.id}`;
+  }
+
+  const [row] = same ? [{ id: same.id }] : await db<{ id: string }[]>`
     INSERT INTO releases (public_id, subject_entity, title, kind, release_on, announced_on, timezone,
                           story_id, first_fact_id, first_article_id, quote)
     VALUES (${`r${newShortId(8)}`}, ${subject}, ${title}, ${kind}, ${releaseOn}, ${announcedOn}, ${m.timezone},

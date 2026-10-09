@@ -25,7 +25,7 @@ import { calendarPage, calendarSubject } from "@girlsbands/backend/publication/c
 import { registerFeedback } from "./feedback.ts";
 import { registerSubscribe } from "./subscribe.ts";
 import { loadHot, loadStoryDetail, resolveStory } from "@girlsbands/backend/publication/stories";
-import { loadLive } from "@girlsbands/backend/publication/lives";
+import { liveCalendar, loadLive } from "@girlsbands/backend/publication/lives";
 import { loadRelease } from "@girlsbands/backend/publication/releases";
 import { listReports, loadReport, reportNavigation, loadReportNavigation, loadReportMonth, type ReportKind } from "@girlsbands/backend/publication/reports";
 import { looseQuery, sendJsonWithEtag, sendProblem } from "../http/respond.ts";
@@ -208,6 +208,17 @@ export function registerSite(app: FastifyInstance) {
     const data = await calendarPage(new Date(), looseQuery(req).month ?? null, subject.id);
     if (!data) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "no such month", cacheControl: "public, max-age=60" });
     return sendJsonWithEtag(req, reply, data, { etagPrefix: "calendar", cacheControl: "public, max-age=300, s-maxage=300" });
+  }));
+
+  // Live 板块的演出日历：?month=YYYY-MM&band=<entity id>。
+  app.get("/api/site/lives", siteHandler(async (req, reply) => {
+    const q = looseQuery(req);
+    const band = q.band?.trim() || null;
+    if (band && !ENTITIES[band]) return sendProblem(req, reply, { status: 400, code: "invalid_request", detail: "unknown band", cacheControl: "public, max-age=60" });
+    const month = q.month?.trim() || null;
+    if (month && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return sendProblem(req, reply, { status: 400, code: "invalid_request", detail: "month must be YYYY-MM", cacheControl: "public, max-age=60" });
+    const data = await liveCalendar(new Date(), { month, band });
+    return sendJsonWithEtag(req, reply, data, { etagPrefix: "lives", cacheControl: "public, max-age=300, s-maxage=300" });
   }));
 
   registerFeedback(app);

@@ -46,7 +46,8 @@ export const SIDEBAR: Array<{ title: string; items: NavItem[] }> = [
     title: "追踪",
     items: [
       { to: "/deadlines", label: "截止雷达", icon: IconClock },
-      { to: "/calendar", label: "日历", icon: IconCalendar },
+      { to: "/live", label: "Live 日程", icon: IconCalendar },
+      { to: "/calendar", label: "全部日程", icon: IconCalendar },
       { to: "/topics/live", label: "Live 与活动", icon: IconCalendar },
       { to: "/topics/ticket", label: "票务与抽选", icon: IconTicket },
       { to: "/topics/release", label: "发售与周边", icon: IconDisc },
@@ -91,7 +92,7 @@ export interface Tab {
 export const TABS: Tab[] = [
   { key: "featured", to: "/", label: "首页", icon: IconBolt },
   { key: "feed", to: "/all", label: "动态", icon: IconList },
-  { key: "live", to: "/topics/live", label: "Live", icon: IconCalendar },
+  { key: "live", to: "/live", label: "Live", icon: IconCalendar },
   { key: "ticket", to: "/deadlines", label: "截止", icon: IconClock },
   { key: "me", to: "/more", label: "我的", icon: IconUser, changelog: true },
 ];
@@ -102,6 +103,8 @@ export const TABS: Tab[] = [
  */
 export function tabForPath(pathname: string): TabKey | undefined {
   const bare = pathname.replace(/\/page\/\d+$/, "");
+  // Live 新闻页（/topics/live）原来就是 Live 这一栏，入口换成 /live 后仍归在这一栏下。
+  if (bare === "/topics/live") return "live";
   const tab = TABS.find((t) => t.to === bare);
   return tab && tab.key !== "me" ? tab.key : undefined;
 }

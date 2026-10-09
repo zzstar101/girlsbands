@@ -2,9 +2,9 @@
 // 和报告里的日期读出来，所以它不落库 —— 存下来的阶段过一夜就会过时。
 //
 // 可见性跟其它公开出口一套：一条报告被下架就不算它的报告，报告全都下架后演出页跟着 404（下架不漏）。
-import type { DeadlineView, LiveEventSummary, LiveEventView, LiveRef, LiveStatus, SetlistEntryView, StoryReportView, Timezone } from "@girlsbands/contracts/site";
+import type { DeadlineView, LiveCalendarResponse, LiveEventSummary, LiveEventView, LiveRef, LiveStatus, SetlistEntryView, StoryReportView, Timezone } from "@girlsbands/contracts/site";
 import { addDays, beijingDate, timezoneDate } from "@girlsbands/contracts/time";
-import { ENTITIES } from "@girlsbands/industry/taxonomy";
+import { ENTITIES, isBand, isProject, seriesKeyOf, seriesOf } from "@girlsbands/industry/taxonomy";
 import { sql } from "../db.ts";
 import { isFinished, stageOf } from "../lives/stage.ts";
 import { deadlineRange } from "./deadlines.ts";
@@ -237,4 +237,87 @@ export async function liveSitemapEntries(now: Date, limit: number): Promise<Arra
     )
     ORDER BY le.updated_at DESC
     LIMIT ${limit}`;
+}
+
+// ---------- Live 板块的演出日历 ----------
+
+const MONTH = /^\d{4}-\d{2}$/;
+const MAX_MONTH_LIVES = 120;
+const MAX_UPCOMING_LIVES = 60;
+
+/** 一批演出行 → 列表卡片，日期与封面各一次取完。 */
+async function summariesOf(rows: LiveRow[], now: Date): Promise<LiveEventSummary[]> {
+  if (rows.length === 0) return [];
+  const [dates, covers] = await Promise.all([datesByLive(rows, now), coversOfItems(rows.flatMap((row) => row.item_ids), now)]);
+  return rows.map((row) => ({
+    ...refOf(row, dates.get(row.id) ?? [], now),
+    endsOn: row.ends_on,
+    daysLeft: daysLeftOf(row, now),
+    reportCount: row.report_count,
+    cover: row.item_ids.map((id) => covers.get(id)).find((cover) => cover !== undefined) ?? null,
+  }));
+}
+
+/**
+ * 同一支乐队同一天的多行：会场认不出（null）的那行和认出会场的那行讲的是同一场，留认出来的。
+ * 会场不同或者开演时刻不同（昼夜两场）才算两场。
+ */
+function dedupeSameDay(rows: LiveRow[]): LiveRow[] {
+  const venued = new Set(rows.filter((row) => row.venue).map((row) => `${row.subject_entity}|${row.starts_on}`));
+  return rows.filter((row) => row.venue || !venued.has(`${row.subject_entity}|${row.starts_on}`));
+}
+
+function monthOf(now: Date, month: string | null | undefined): string {
+  return month && MONTH.test(month) ? month : beijingDate(now).slice(0, 7);
+}
+
+function nextMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
+/** Live 板块：这个月有哪些演出（月历上的点）+ 从今天起接下来的演出（下面的列表）。只认有公开报告的场次。 */
+export async function liveCalendar(now: Date, options: { month?: string | null; band?: string | null } = {}): Promise<LiveCalendarResponse> {
+  const month = monthOf(now, options.month);
+  const band = options.band ?? null;
+  const first = `${month}-01`;
+  const last = addDays(`${nextMonth(month)}-01`, -1);
+  const today = beijingDate(now);
+  // 选一支乐队：它自己的场次，加上它所在企划名下的合同公演（赤色の響祭 记在 GIRLS BAND CRY 名下，
+  // トゲナシトゲアリ 也上台）。选企划：企划自己的加上旗下各乐队的。
+  const series = band ? seriesKeyOf(band) : null;
+  const scope = !band ? [] : isProject(band) ? [...seriesOf(band)] : series && series !== band ? [band, series] : [band];
+  const bandFilter = band ? sql`AND le.subject_entity IN ${sql(scope)}` : sql``;
+  const [monthRows, upcomingRows, subjects] = await Promise.all([
+    sql<LiveRow[]>`
+      SELECT ${LIVE_SELECT(now)}
+      WHERE le.starts_on <= ${last}::date AND COALESCE(le.ends_on, le.starts_on) >= ${first}::date
+        AND r.report_count > 0 ${bandFilter}
+      ORDER BY le.starts_on, le.starts_time NULLS LAST, le.id
+      LIMIT ${MAX_MONTH_LIVES}`,
+    sql<LiveRow[]>`
+      SELECT ${LIVE_SELECT(now)}
+      WHERE COALESCE(le.ends_on, le.starts_on) >= ${today}::date
+        AND r.report_count > 0 ${bandFilter}
+      ORDER BY le.starts_on, le.starts_time NULLS LAST, le.id
+      LIMIT ${MAX_UPCOMING_LIVES}`,
+    sql<{ subject_entity: string }[]>`
+      SELECT DISTINCT le.subject_entity FROM live_events le
+      WHERE COALESCE(le.ends_on, le.starts_on) >= ${today}::date
+        AND EXISTS (
+          SELECT 1 FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id
+          JOIN publications p ON p.article_id = fa.article_id JOIN sources s ON s.id = p.source_id
+          WHERE f.live_event_id = le.id AND ${storyReportCondition(now)})`,
+  ]);
+  // 企划名下的合同公演也给旗下乐队各开一个入口，不然只有企划自己的那块 logo。
+  const have = new Set(subjects.flatMap((row) => isProject(row.subject_entity)
+    ? [row.subject_entity, ...seriesOf(row.subject_entity).filter(isBand)]
+    : [row.subject_entity]));
+  if (band) have.add(band);
+  const bands = Object.entries(ENTITIES).filter(([id]) => have.has(id)).map(([id, entity]) => ({ id, name: entity.name }));
+  const [lives, upcoming] = await Promise.all([
+    summariesOf(dedupeSameDay(monthRows), now),
+    summariesOf(dedupeSameDay(upcomingRows).filter((row) => !isFinished(row, now)), now),
+  ]);
+  return { computedAt: now.toISOString(), month, today, band, bands, lives, upcoming };
 }

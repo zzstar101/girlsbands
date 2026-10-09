@@ -27,6 +27,30 @@
       "syndicate_fulltext": false
     },
     {
+      "id": "web-gbc-live",
+      "name": "GIRLS BAND CRY 官网 Live",
+      "kind": "web_list",
+      "config": {
+        "url": "https://girls-band-cry.com/live/",
+        "itemSelector": "ul.sw-List li.sw-List_Item",
+        "linkSelector": "a",
+        "titleSelector": "div.ttl",
+        "_girlsbands": {
+          "initialBackfillLimit": 12
+        }
+      },
+      "tier": "T1",
+      "owner_entity_id": "girls-band-cry",
+      "participation_mode": "editorial",
+      "interval_minutes": 360,
+      "tags": [
+        "官方",
+        "演出"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
       "id": "web-kessoku-band-info",
       "name": "結束バンド 官网 INFO",
       "kind": "web_list",
@@ -72,6 +96,31 @@
       "interval_minutes": 60,
       "tags": [
         "官方"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "web-bang-dream-events",
+      "name": "BanG Dream! 官网 Live・Event",
+      "kind": "web_list",
+      "config": {
+        "url": "https://bang-dream.com/events/",
+        "itemSelector": "article.p-live-event-list__item",
+        "linkSelector": "a.p-live-event-list__item-link",
+        "titleSelector": "div.p-live-event-list__item-title",
+        "summarySelector": "div.p-live-event-list__item-category, div.p-live-event-list__item-description, div.p-live-event-list__item-artist",
+        "_girlsbands": {
+          "initialBackfillLimit": 20
+        }
+      },
+      "tier": "T1",
+      "owner_entity_id": "bang-dream",
+      "participation_mode": "editorial",
+      "interval_minutes": 360,
+      "tags": [
+        "官方",
+        "演出"
       ],
       "site_fulltext": true,
       "syndicate_fulltext": false

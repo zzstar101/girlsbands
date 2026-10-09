@@ -28,6 +28,7 @@ export function meta() {
 /** 站内能帮上忙的三个入口（`.ics` 是 api 路由，用原生 <a>）。 */
 const INSIDE: Array<{ to: string; label: string; detail: string; external?: boolean }> = [
   { to: "/deadlines", label: "截止雷达", detail: "哪些演出要开票、什么时候截止" },
+  { to: "/live", label: "Live 日程", detail: "接下来要办的演出，月历 + 按日期排" },
   { to: "/topics/live", label: "Live 与活动", detail: "各乐队自己的 Live、巡演与拼盘" },
   { to: "/calendar.ics", label: "日历订阅", detail: "把场次导进手机日历，到点提醒", external: true },
 ];
