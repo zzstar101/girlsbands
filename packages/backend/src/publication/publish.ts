@@ -14,7 +14,7 @@ import { deriveMemberMentions } from "./member-mentions.ts";
 import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "./representative.ts";
 import { enqueue, QUEUES, shutdownSignal } from "../jobs/queue.ts";
 import {
-  bodyModeOf, channelOf, displayTags, isIndexable, isPoolEligible, isSelectable, mayRedistribute, publicSourceName, type SourceFacts,
+  bodyModeOf, channelOf, displayTags, expiredOnArrival, isIndexable, isPoolEligible, isSelectable, mayRedistribute, publicSourceName, type SourceFacts,
 } from "./rules.ts";
 import { latestCompositeCondition, ownFactEvidenceCondition } from "./scope.ts";
 
@@ -270,8 +270,10 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   const selectionCandidate = isSelectable(eligible, judgedSelected, source.tier);
   // Scoring nominates a report; a completed identity/value decision admits it to selection.
   // A historical import already has its public decision. Preserve that confirmed state on rebuild.
+  // 晚到的截止通知（发帖时还没截止、抓到时已经截止，又没有别的日期在前面）不进精选；编辑手动选上的除外。
+  const arrivedExpired = expiredOnArrival(analysis?.output?.fact?.deadlines, article.published_at, article.discovered_at, timezoneOf(source.config));
   const selected = selectionCandidate && article.grouping_status === "complete"
-    && (f.selected === true || article.selection_adds_value !== false);
+    && (f.selected === true || (article.selection_adds_value !== false && !arrivedExpired));
   const reason = selected ? pickString(f.reason, analysis?.reason_zh ?? null) : null;
   const hasXPost = !!article.x_post;
   const channel = channelOf(source.kind, hasXPost);

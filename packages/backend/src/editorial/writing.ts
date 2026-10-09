@@ -7,6 +7,24 @@ import { looksChinese } from "../lib/text.ts";
 import { onlyXArticleLink } from "../sources/x.ts";
 import type { AnalyzeInputArticle } from "./input.ts";
 import { promptText } from "./prompts.ts";
+import { DEFAULT_TIMEZONE } from "../sources/timezone.ts";
+import type { Timezone } from "@girlsbands/contracts/site";
+
+const WEEKDAY_ZH = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+/**
+ * The day the post was made, on the source's own clock, with its weekday: the anchor the writers turn
+ * 「本日」「明日」「今夜」 into a month and day against, so a post that reaches the reader a day late does
+ * not still say "today". A Japanese post at 00:30 JST is already the next day in Japan.
+ */
+export function postedDayLabel(d: Date | null | undefined, timezone: Timezone = DEFAULT_TIMEZONE): string {
+  if (!d || Number.isNaN(d.getTime())) return "未注明";
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const day = `${get("year")}-${get("month")}-${get("day")}`;
+  const weekday = WEEKDAY_ZH[new Date(`${day}T00:00:00Z`).getUTCDay()];
+  return `${day}（${weekday}，${timezone === "Asia/Shanghai" ? "北京时间" : "日本时间"}）`;
+}
 
 export const PREFILTER_SYSTEM = promptText("prefilter");
 export const UNDERSTAND_SYSTEM = promptText("understand");
@@ -100,7 +118,10 @@ export function renderContext(a: AnalyzeInputArticle, opts: { annotateQuoted?: b
   const name = a.xPost?.authorName || a.author;
   const handle = a.xPost?.handle;
   if (name || handle) lines.push(`【作者】${[name, handle ? `@${handle}` : null].filter(Boolean).join(" · ")}`);
-  if (a.publishedAt) lines.push(`【发布时间】${a.publishedAt.toISOString()}`);
+  if (a.publishedAt) {
+    lines.push(`【发布时间】${a.publishedAt.toISOString()}`);
+    lines.push(`【发布日期】${postedDayLabel(a.publishedAt, a.source.timezone)}`);
+  }
   const media = (a.xPost?.media ?? a.media ?? []) as Array<{ kind?: string }>;
   const images = media.filter((m) => m.kind === "image").length;
   const videos = media.filter((m) => m.kind === "video").length;
@@ -176,6 +197,8 @@ export interface TranslateInput {
   quotedText?: string;
   quotedAuthor?: string;
   publishedAt?: Date;
+  /** The source's clock, for the posted-day anchor. */
+  timezone?: Timezone;
 }
 
 export function translateInputOf(a: AnalyzeInputArticle): TranslateInput {
@@ -192,6 +215,7 @@ export function translateInputOf(a: AnalyzeInputArticle): TranslateInput {
     quotedText: a.xPost?.quoted?.text ? String(a.xPost.quoted.text) : undefined,
     quotedAuthor: a.xPost?.quoted?.handle ? String(a.xPost.quoted.handle) : undefined,
     publishedAt: a.publishedAt ?? undefined,
+    timezone: a.source.timezone,
   };
 }
 
@@ -292,7 +316,7 @@ function anchorDate(d: Date | undefined): string {
 
 export function buildArticlePrompt(input: TranslateInput): string {
   return promptText("summarize-article", {
-    publishedDate: anchorDate(input.publishedAt),
+    publishedDate: postedDayLabel(input.publishedAt, input.timezone),
     today: anchorDate(new Date()),
     sourceName: sourceName(input.sourceName),
     identity: identityPrompt(input),
@@ -309,16 +333,16 @@ function quotedBlock(input: TranslateInput, name: string): string {
 
 export function buildShortTweetPrompt(input: TranslateInput): string {
   const post = clampText(input.mainText || input.text || input.title, 4000);
-  return promptText("summarize-short-post", { sourceName: sourceName(input.sourceName), identity: identityPrompt(input), post }) + quotedBlock(input, "summarize-short-post-quoted") + glossaryForTexts([input.title, post, input.quotedText, input.sourceName]);
+  return promptText("summarize-short-post", { sourceName: sourceName(input.sourceName), identity: identityPrompt(input), publishedDate: postedDayLabel(input.publishedAt, input.timezone), post }) + quotedBlock(input, "summarize-short-post-quoted") + glossaryForTexts([input.title, post, input.quotedText, input.sourceName]);
 }
 
 export function buildLongTweetPrompt(input: TranslateInput): string {
   const post = clampText(input.mainText || input.text || input.title, 4000);
-  return promptText("summarize-long-post", { sourceName: sourceName(input.sourceName), identity: identityPrompt(input), post }) + quotedBlock(input, "summarize-long-post-quoted") + glossaryForTexts([input.title, post, input.quotedText, input.sourceName]);
+  return promptText("summarize-long-post", { sourceName: sourceName(input.sourceName), identity: identityPrompt(input), publishedDate: postedDayLabel(input.publishedAt, input.timezone), post }) + quotedBlock(input, "summarize-long-post-quoted") + glossaryForTexts([input.title, post, input.quotedText, input.sourceName]);
 }
 
 /** Prompt lines a model sometimes repeats after its answer (来源：…, 【已核验身份上下文】…, 原始标题：…). */
-const ECHO_LINE = /^(来源[:：]|【已核验身份上下文】|这些事实只用于防止|原始标题[:：]|【时间锚点】)/;
+const ECHO_LINE = /^(来源[:：]|【已核验身份上下文】|这些事实只用于防止|原始标题[:：]|发帖日期[:：]|【时间锚点】)/;
 
 /** The answer without prompt lines repeated at its end. */
 export function stripEcho(text: string): string {

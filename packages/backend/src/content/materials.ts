@@ -84,7 +84,11 @@ export function decideTimeline(claimed: Date | null | undefined, discoveredAt: D
   if (explicitBackfill) backfillReason = explicitBackfill;
   else if (publishedAt && discoveredAt.getTime() - publishedAt.getTime() > STALE_ON_DISCOVERY_MS) backfillReason = "stale-on-discovery";
   const backfill = backfillReason !== null;
-  const timelineAt = backfill && publishedAt ? publishedAt : discoveredAt;
+  // The timeline is ordered by when the source said it, not when we happened to find it: a post that
+  // reached us a day late (a mirror catching up) sits at its own time, not among today's news. A source
+  // time slightly ahead of discovery (within the tolerance) is clamped so nothing sorts above "now";
+  // material without a source time can only be placed by discovery.
+  const timelineAt = publishedAt && publishedAt.getTime() < discoveredAt.getTime() ? publishedAt : discoveredAt;
   return { publishedAt, timelineAt, backfill, backfillReason };
 }
 

@@ -3,6 +3,8 @@
 import { ORGANIZER_KINDS, type OrganizerKind } from "@girlsbands/contracts/site";
 import { seriesOf } from "@girlsbands/industry/taxonomy";
 import { sql } from "../db.ts";
+import { deadlineInstant, splitDeadlineAt } from "../sources/timezone.ts";
+import type { Timezone } from "@girlsbands/contracts/site";
 
 export interface SourceFacts {
   id: string;
@@ -64,6 +66,38 @@ export function hasItemPage(p: { visibility: string; sourceMode: string }): bool
 /** Selected: pool eligible, judged selected, and the source tier may enter the selection. */
 export function isSelectable(eligible: boolean, judgedSelected: boolean | null, tier: string): boolean {
   return eligible && judgedSelected === true && tier !== "EXCLUDE_MP";
+}
+
+/** Dates that close something the reader could still act on (apply, buy, pay, watch). */
+const CLOSING_KINDS: ReadonlySet<string> = new Set(["lottery_end", "sale_end", "stream_end", "payment_deadline"]);
+
+/**
+ * Arrived too late to act on: the post was made before its deadline, but by the time we found it the
+ * deadline had passed and nothing it names lies ahead any more (「今日 23:59 截止」 picked up two days
+ * later). Such a post is history, not news: it is not selected, so it reaches neither the selected
+ * timeline, the daily report nor a push. A notice posted after its own deadline (「受付終了」) is not
+ * this case, nor is one whose announced date — the live, the release — is still to come.
+ * A date without a clock closes at the end of that day on the source's clock.
+ */
+export function expiredOnArrival(
+  deadlines: readonly { kind?: string | null; at?: string | null }[] | null | undefined,
+  publishedAt: Date | null,
+  discoveredAt: Date,
+  timezone: Timezone,
+): boolean {
+  if (!publishedAt || !deadlines?.length) return false;
+  const found = discoveredAt.getTime();
+  let closedInBetween = false;
+  for (const d of deadlines) {
+    const at = d?.at ? splitDeadlineAt(d.at) : null;
+    if (!at) continue;
+    const start = deadlineInstant(at.day, at.localTime, timezone);
+    if (!Number.isFinite(start)) continue;
+    const instant = at.localTime ? start : start + 86_400_000;
+    if (instant >= found) return false; // something it names is still ahead
+    if (CLOSING_KINDS.has(d.kind ?? "") && instant >= publishedAt.getTime()) closedInBetween = true;
+  }
+  return closedInBetween;
 }
 
 /**

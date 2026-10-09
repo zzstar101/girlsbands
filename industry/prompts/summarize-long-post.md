@@ -23,5 +23,6 @@ summary_zh: <80-160字、最多3句的中文摘要>
 
 来源：{{sourceName}}
 {{identity}}
+发帖日期：{{publishedDate}}
 主推文内容：
 {{post}}

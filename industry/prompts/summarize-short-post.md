@@ -16,5 +16,6 @@ body_zh: <中文翻译>
 
 来源：{{sourceName}}
 {{identity}}
+发帖日期：{{publishedDate}}
 主推文内容：
 {{post}}

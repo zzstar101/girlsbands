@@ -3,6 +3,8 @@ import { beijingDate, beijingTime } from "@girlsbands/contracts/time";
 import { sql } from "../db.ts";
 import { collapseWhitespace, truncate } from "../lib/text.ts";
 import { produceImage } from "../media/images.ts";
+import { timezoneOf } from "../sources/timezone.ts";
+import type { Timezone } from "@girlsbands/contracts/site";
 import type { ContentPart } from "../providers/llm.ts";
 import { MAX_BODY_CHARS } from "./writing.ts";
 
@@ -30,6 +32,8 @@ export interface AnalyzeInputArticle {
     ownerEntityId?: string | null;
     /** The source asks for the article page (fetchPublicContent, detail pages, web listings). */
     fetchesBody?: boolean;
+    /** The clock the source's own 「今日」「明日」 are on (its config, Japan by default). */
+    timezone?: Timezone;
   };
   /** Stored Chinese translation of the body (e.g. a full post whose original was truncated). */
   translationZh?: string | null;
@@ -65,6 +69,7 @@ export async function loadAnalyzeInput(articleId: string): Promise<AnalyzeInputA
     source: {
       name: row.source_name, kind: row.source_kind, tier: row.tier, firstParty: row.tier === "T1", tags: row.source_tags, ownerEntityId: row.owner_entity_id,
       fetchesBody: row.config?.fetchPublicContent === true || !!row.config?.detail || row.source_kind === "web_list",
+      timezone: timezoneOf(row.config),
     },
     translationZh: row.translation_zh,
   };
