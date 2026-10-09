@@ -1,9 +1,10 @@
-# Origin behind Tencent EdgeOne. EdgeOne terminates the public TLS and fetches this server over HTTPS
-# on 443, so Caddy issues its own certificate instead of asking Let's Encrypt: `tls internal`, no ACME,
-# nothing to leave open on port 80 (EdgeOne does not verify origin certificates). Every back-to-origin
-# request carries X-Origin-Auth, and a request without the right secret — someone hitting 443 directly —
-# is refused before it reaches the app. Select this file with CADDYFILE=Caddyfile.edgeone, and keep
-# ORIGIN_AUTH_SECRET set: Caddy refuses to load this file without it rather than open the gate.
+# Origin behind a CDN that terminates the public TLS and fetches this server over HTTPS on 443 — Tencent
+# EdgeOne for the asset and image hosts, Gcore for the pages — so Caddy issues its own certificate
+# instead of asking Let's Encrypt: `tls internal`, no ACME, nothing to leave open on port 80 (neither
+# CDN verifies origin certificates). Every back-to-origin request carries X-Origin-Auth, and a request
+# without the right secret — someone hitting 443 directly — is refused before it reaches the app.
+# Select this file with CADDYFILE=Caddyfile.edgeone, and keep ORIGIN_AUTH_SECRET set: Caddy refuses to
+# load this file without it rather than open the gate.
 #
 # SITE_DOMAIN is the site people visit, STATIC_DOMAIN the asset host ASSET_BASE_URL points at. Both are
 # the same web container; page routes only live on SITE_DOMAIN.
@@ -11,6 +12,10 @@
 (edgeone-origin) {
 	tls internal
 	encode zstd gzip
+	# Neither CDN in front of this file declares HSTS for every host it answers for (EdgeOne used to,
+	# for the page host; the asset host's zone never did), and both pass origin response headers
+	# through, so the origin states it once for all of them.
+	header Strict-Transport-Security "max-age=31536000;includeSubDomains;preload"
 	# One handle block, written first: the gate must decide before any proxy route does. The header is
 	# stripped on the way out (header_up -X-Origin-Auth) rather than here, so that removing it cannot
 	# happen before this matcher runs.
@@ -23,10 +28,11 @@
 {$SITE_DOMAIN} {
 	import edgeone-origin
 	reverse_proxy web:3000 {
-		# EdgeOne reports the real client address in EO-Connecting-IP. Replacing X-Forwarded-For with
-		# exactly that keeps the last entry — the one apps/web/server.ts reads when TRUST_PROXY=true —
-		# the visitor, never the EdgeOne node. The app must not see the origin secret either.
-		header_up X-Forwarded-For {http.request.header.EO-Connecting-IP}
+		# The CDN that terminated the public TLS appends the visitor it saw to X-Forwarded-For — both
+		# EdgeOne and Gcore do — and apps/web/server.ts reads the last entry when TRUST_PROXY=true.
+		# Copying the header through unchanged stops Caddy appending its own peer, so that last entry
+		# stays the visitor and never the CDN node. The app must not see the origin secret either.
+		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
 		header_up -X-Origin-Auth
 	}
 }
@@ -38,7 +44,7 @@
 	@assets path /assets/* /fonts/*
 	handle @assets {
 		reverse_proxy web:3000 {
-			header_up X-Forwarded-For {http.request.header.EO-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
 			header_up -X-Origin-Auth
 		}
 	}

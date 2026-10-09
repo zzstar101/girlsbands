@@ -98,7 +98,7 @@ PORT=127.0.0.1:3000
 docker compose --profile https up -d --build
 ```
 
-`deploy/Caddyfile.edgeone` 与默认那份的区别：`tls internal` 自签证书，不做 ACME；每个请求都必须带 EdgeOne 回源时加的 `X-Origin-Auth`，和 `ORIGIN_AUTH_SECRET` 不一致的一律 403，转发前把这个头删掉，应用看不到；`X-Forwarded-For` 换成 EdgeOne 放在 `EO-Connecting-IP` 里的真实访客地址，配合 `TRUST_PROXY=true`，限流和后台看到的就是访客本人而不是 EdgeOne 节点。静态域名只放行 `/assets/*` 和 `/fonts/*`，其余 404，所以它取不到 `/api` 和 `/admin`。
+`deploy/Caddyfile.edgeone` 与默认那份的区别：`tls internal` 自签证书，不做 ACME；每个请求都必须带回源 CDN 加的 `X-Origin-Auth`，和 `ORIGIN_AUTH_SECRET` 不一致的一律 403，转发前把这个头删掉，应用看不到；`X-Forwarded-For` 原样透传，不追加 Caddy 自己的对端地址——EdgeOne 和 Gcore 都会把真实访客追加在这条头的末尾，而 `apps/web/server.ts` 在 `TRUST_PROXY=true` 时取最后一项，所以限流和后台看到的是访客本人而不是 CDN 节点（没有这条头的请求，比如直接打源站，才回落到连接地址）。静态域名只放行 `/assets/*` 和 `/fonts/*`，其余 404，所以它取不到 `/api` 和 `/admin`。
 
 EdgeOne 侧要配（加速域名建在哪个 EdgeOne 站点，就走哪个套餐和哪个区域的节点）：
 
@@ -106,6 +106,19 @@ EdgeOne 侧要配（加速域名建在哪个 EdgeOne 站点，就走哪个套餐
 - 回源 Host 头：`SITE_DOMAIN` 或 `STATIC_DOMAIN`（`girlsbands.com` / `static.girlsbands.com`），不是加速域名本身。Caddy 按 Host 分站块，`STATIC_DOMAIN` 那块只放行 `/assets/*` 和 `/fonts/*`。
 - 回源请求头加 `X-Origin-Auth: <ORIGIN_AUTH_SECRET>`。加速域名和回源 Host 头不同域名时，这条要写成 EdgeOne 的「修改请求头」规则、条件按加速域名匹配；Caddy 不认得的回源一律 403。
 - 缓存：跟随源站的 `Cache-Control`（`/assets/*` 是一年不可变，页面是几分钟）；`/admin` 和 `/api/admin` 永远不要缓存。
+
+### 页面走 Gcore（静态与图片仍走 EdgeOne）
+
+`SITE_DOMAIN`（页面）对外的 TLS 由 Gcore CDN 终结，静态资源和图片仍由上面那个 `gbcclub.com` 的 EdgeOne 站点出。Gcore 资源同样回源到这台机器的 443、回源 Host 头写 `SITE_DOMAIN`，所以 Caddy 和 `.env` 不用为它单独加配置：
+
+- 回源请求头加 `X-Origin-Auth: <ORIGIN_AUTH_SECRET>`，走 Gcore 的 Request Headers 选项，和 EdgeOne 那条规则同一个值。
+- 客户端地址：Gcore 和 EdgeOne 都会把真实访客追加在 `X-Forwarded-For` 末尾，`deploy/Caddyfile.edgeone` 原样透传这条头，应用取最后一项。别改回按某家 CDN 的专有头（`EO-Connecting-IP` 之类）取值，换 CDN 就会整站塌成一个访客。
+- 证书是手工上传的 Let's Encrypt 证书（DNS-01，用 Cloudflare 的 token 签 `girlsbands.com` 和加速域名），**不会自动续**：到期前重新签一张，再把资源的 `sslData` 换掉。Gcore 自带的 Let's Encrypt 走 HTTP-01、认的是资源自己的 CNAME，覆盖不到 `girlsbands.com` 这种挂在资源上的额外主机名，所以没用它。
+- 缓存跟随源站的 `Cache-Control`，`redirect_http_to_https` 打开（80 → 301）。
+- HSTS 由源站的 Caddy 出（`deploy/Caddyfile.edgeone` 里 `(edgeone-origin)` 片段的那条 `header`），两家 CDN 都透传源站响应头。别在 Gcore 上用 Response headers 选项加：这个资源上试过，接口存得下、边缘始终不发。
+- 页面域名是资源的 secondary hostname，加速域名本身（`gc.girlsbands.com`）只是切换时的过渡，随时可以删。
+
+`deploy/Caddyfile.edgeone` 在 compose 里是**单文件 bind mount**，容器启动时按 inode 绑定：用 `mv`、`git checkout` 这类会换掉 inode 的写法改这个文件之后，运行中的 caddy 读到的仍是旧内容，必须 `docker compose up -d --force-recreate caddy` 才会生效（`docker compose up -d` 不会重建它）。
 
 ### 更新
 
