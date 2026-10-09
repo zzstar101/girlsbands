@@ -271,7 +271,8 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   // Scoring nominates a report; a completed identity/value decision admits it to selection.
   // A historical import already has its public decision. Preserve that confirmed state on rebuild.
   // 晚到的截止通知（发帖时还没截止、抓到时已经截止，又没有别的日期在前面）不进精选；编辑手动选上的除外。
-  const arrivedExpired = expiredOnArrival(analysis?.output?.fact?.deadlines, article.published_at, article.discovered_at, timezoneOf(source.config));
+  // 只管当新消息进来的帖子；补录的旧内容（backfill）本来就是存档，保留它当初的精选。
+  const arrivedExpired = !article.backfill && expiredOnArrival(analysis?.output?.fact?.deadlines, article.published_at, article.discovered_at, timezoneOf(source.config));
   const selected = selectionCandidate && article.grouping_status === "complete"
     && (f.selected === true || (article.selection_adds_value !== false && !arrivedExpired));
   const reason = selected ? pickString(f.reason, analysis?.reason_zh ?? null) : null;

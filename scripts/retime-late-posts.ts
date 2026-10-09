@@ -20,9 +20,17 @@ const hours = (r: { published_at: Date; discovered_at: Date }) => (r.discovered_
 console.log(`late posts placed by discovery time: ${late.length}（其中已精选 ${late.filter((r) => r.selected).length}）`);
 for (const r of late.filter((r) => r.selected).slice(0, 20)) console.log(`  +${hours(r).toFixed(1)}h  ${r.id}  ${r.title.slice(0, 50)}`);
 
-if (!dry && late.length) {
-  const ids = late.map((r) => r.id);
-  await sql`UPDATE articles SET timeline_at = published_at WHERE id = ANY(${ids}) AND timeline_at = discovered_at`;
+// 已经改过时间、但仍在精选里的晚到帖子也再投影一次，让后来补上的「抓到时已截止」规则落到它们身上。
+const selectedLate = await sql<{ id: string; selected: boolean }[]>`
+  SELECT a.id, p.selected FROM articles a JOIN publications p ON p.article_id = a.id
+  WHERE (p.selected OR p.selected_ready_at IS NOT NULL) AND a.published_at IS NOT NULL AND a.published_at < a.discovered_at - interval '1 hour'
+    AND a.timeline_at <> a.discovered_at`;
+console.log(`selected/candidate late posts to re-check: ${selectedLate.length}`);
+
+if (!dry && (late.length || selectedLate.length)) {
+  const ids = [...new Set([...late.map((r) => r.id), ...selectedLate.map((r) => r.id)])];
+  const wasSelected = new Set([...late.filter((r) => r.selected).map((r) => r.id), ...selectedLate.filter((r) => r.selected).map((r) => r.id)]);
+  await sql`UPDATE articles SET timeline_at = published_at WHERE id = ANY(${late.map((r) => r.id)}) AND timeline_at = discovered_at`;
   const siblings = await sql<{ article_id: string }[]>`
     SELECT DISTINCT p2.article_id FROM publications p JOIN publications p2 ON p2.fact_id = p.fact_id
     WHERE p.article_id = ANY(${ids}) AND p.fact_id IS NOT NULL AND p2.article_id <> ALL(${ids})`;
@@ -31,7 +39,7 @@ if (!dry && late.length) {
   let unselected = 0;
   for (const id of all) {
     try {
-      const before = late.find((r) => r.id === id)?.selected;
+      const before = wasSelected.has(id);
       const res = await publishArticle(id);
       if (before && res && !res.selected) {
         unselected++;

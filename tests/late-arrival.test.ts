@@ -39,6 +39,9 @@ test("发帖时还没截止、抓到时已经截止的通知，算晚到", () =>
   assert.equal(expiredOnArrival([...todayClose, { kind: "event", at: "2026-11-03T18:00" }], posted, late, "Asia/Tokyo"), false);
   // 发帖时就已经过了的截止（「受付終了」通知）不是这个情况
   assert.equal(expiredOnArrival([{ kind: "sale_end", at: "2026-10-04T23:59" }], posted, late, "Asia/Tokyo"), false);
+  // 抽取把截止记成了别的类型（受注截止记成 merch_start），备注里写着截止也算
+  assert.equal(expiredOnArrival([{ kind: "merch_start", at: "2026-10-05T23:59", note: "周边受注截止" }, { kind: "event", at: "2026-09-27", note: "东京FINAL公演" }], posted, late, "Asia/Tokyo"), true);
+  assert.equal(expiredOnArrival([{ kind: "event", at: "2026-10-05T18:00", note: "公演当日券截止" }], posted, late, "Asia/Tokyo"), false, "演出日不算截止");
   // 开始类日期过了不算截止
   assert.equal(expiredOnArrival([{ kind: "sale_start", at: "2026-10-05T12:00" }], posted, late, "Asia/Tokyo"), false);
   assert.equal(expiredOnArrival([], posted, late, "Asia/Tokyo"), false);

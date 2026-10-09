@@ -70,6 +70,13 @@ export function isSelectable(eligible: boolean, judgedSelected: boolean | null, 
 
 /** Dates that close something the reader could still act on (apply, buy, pay, watch). */
 const CLOSING_KINDS: ReadonlySet<string> = new Set(["lottery_end", "sale_end", "stream_end", "payment_deadline"]);
+/** The extraction sometimes files a closing date under another kind (a 受注 close as merch_start); its note still says so. */
+const CLOSING_NOTE = /截止|締切|〆切|受付終了|终止/;
+
+function closes(d: { kind?: string | null; note?: string | null }): boolean {
+  if (CLOSING_KINDS.has(d.kind ?? "")) return true;
+  return d.kind !== "event" && CLOSING_NOTE.test(d.note ?? "");
+}
 
 /**
  * Arrived too late to act on: the post was made before its deadline, but by the time we found it the
@@ -80,7 +87,7 @@ const CLOSING_KINDS: ReadonlySet<string> = new Set(["lottery_end", "sale_end", "
  * A date without a clock closes at the end of that day on the source's clock.
  */
 export function expiredOnArrival(
-  deadlines: readonly { kind?: string | null; at?: string | null }[] | null | undefined,
+  deadlines: readonly { kind?: string | null; at?: string | null; note?: string | null }[] | null | undefined,
   publishedAt: Date | null,
   discoveredAt: Date,
   timezone: Timezone,
@@ -95,7 +102,7 @@ export function expiredOnArrival(
     if (!Number.isFinite(start)) continue;
     const instant = at.localTime ? start : start + 86_400_000;
     if (instant >= found) return false; // something it names is still ahead
-    if (CLOSING_KINDS.has(d.kind ?? "") && instant >= publishedAt.getTime()) closedInBetween = true;
+    if (closes(d) && instant >= publishedAt.getTime()) closedInBetween = true;
   }
   return closedInBetween;
 }
