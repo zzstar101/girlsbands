@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SeiyuuPost, SeiyuuResponse } from "@girlsbands/contracts/site";
 import { ENTITIES } from "@girlsbands/industry/taxonomy";
-import { Link, useFetcher, useLoaderData } from "react-router";
+import { Link, useFetcher, useLoaderData, useLocation } from "react-router";
 import type { Route } from "./+types/seiyuu";
 import { edgeTtl, loadOr404 } from "../lib/api.server";
 import { listPath, pageMeta } from "../lib/seo";
@@ -49,19 +49,35 @@ export function meta({ loaderData }: Route.MetaArgs) {
   });
 }
 
+/**
+ * 已经翻出来的帖子，按这一次浏览记录（location.key）记在内存里。点进详情再返回时，
+ * 先把翻过的几页原样摆回来，页面有原来那么长，ScrollRestoration 才能回到刚才看的那条；
+ * 否则只剩第一页，返回就落回顶上（用户反馈）。只在本次打开网站期间有效，刷新就从头来。
+ */
+const READ_SO_FAR = new Map<string, { filter: string; posts: SeiyuuPost[]; cursor: string | null }>();
+const READ_SO_FAR_LIMIT = 20;
+
+function remember(entry: string, value: { filter: string; posts: SeiyuuPost[]; cursor: string | null }) {
+  READ_SO_FAR.delete(entry);
+  READ_SO_FAR.set(entry, value);
+  while (READ_SO_FAR.size > READ_SO_FAR_LIMIT) READ_SO_FAR.delete(READ_SO_FAR.keys().next().value!);
+}
+
 /** 翻到底时接着读下一页：哨兵进入视口就取 cursor 那一页，接在已有的帖子后面。 */
 function useEndless(first: SeiyuuResponse, key: string) {
   const fetcher = useFetcher<typeof loader>();
-  const [posts, setPosts] = useState<SeiyuuPost[]>(first.posts);
-  const [cursor, setCursor] = useState<string | null>(first.nextCursor);
+  const entry = useLocation().key;
+  const saved = READ_SO_FAR.get(entry);
+  const restored = saved && saved.filter === key ? saved : null;
+  const [posts, setPosts] = useState<SeiyuuPost[]>(restored?.posts ?? first.posts);
+  const [cursor, setCursor] = useState<string | null>(restored ? restored.cursor : first.nextCursor);
   const asked = useRef<string | null>(null);
+  // 换乐队、换人、前进后退都是另一条浏览记录，页面按 location.key 整个重新挂载（见下方
+  // SeiyuuRoute），所以这里不用自己清空；同一条记录重新取了一遍第一页也不动已经翻出来的。
 
-  // 换了乐队或人：从头来过。
   useEffect(() => {
-    setPosts(first.posts);
-    setCursor(first.nextCursor);
-    asked.current = null;
-  }, [key, first]);
+    remember(entry, { filter: key, posts, cursor });
+  }, [entry, key, posts, cursor]);
 
   useEffect(() => {
     const next = fetcher.data?.data;
@@ -140,6 +156,12 @@ function AccountHeader({ account }: { account: NonNullable<SeiyuuResponse["accou
 }
 
 export default function SeiyuuRoute() {
+  // 每条浏览记录一个新的页面实例：初始值在第一次渲染时就从 READ_SO_FAR 摆好，
+  // 比 ScrollRestoration 恢复位置更早，返回时页面已经有原来那么长。
+  return <SeiyuuPage key={useLocation().key} />;
+}
+
+function SeiyuuPage() {
   const { data } = useLoaderData<typeof loader>();
   const { band, account } = data.filters;
   const key = `${band ?? ""}|${account ?? ""}`;

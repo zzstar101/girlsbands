@@ -32,7 +32,13 @@ export function BandFilter({ bands, active, hrefOf, label = "按乐队筛选" }:
       e.preventDefault();
       el.scrollLeft += e.deltaY;
     };
-    el.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    // 只横向把选中的那块挪进来。scrollIntoView 会连页面一起竖着滚，把返回时恢复好的阅读位置拉回顶上。
+    const on = el.querySelector<HTMLElement>('[aria-current="page"]');
+    if (on) {
+      const left = on.offsetLeft - el.offsetLeft;
+      if (left < el.scrollLeft) el.scrollLeft = left;
+      else if (left + on.offsetWidth > el.scrollLeft + el.clientWidth) el.scrollLeft = left + on.offsetWidth - el.clientWidth;
+    }
     sync();
     el.addEventListener("scroll", sync, { passive: true });
     el.addEventListener("wheel", wheel, { passive: false });
