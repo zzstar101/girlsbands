@@ -62,13 +62,20 @@ function TopList({ rows, label }: { rows: EdgeTop | Array<{ key: string; value: 
   return <ShareBars rows={rows.slice(0, 8).map((r) => ({ label: label ? label(r.key) : r.key, value: r.value }))} />;
 }
 
+/** "Gcore 页面 1,234 ＋ EdgeOne 静态图片 5,678" — a source with no numbers in the window is left out. */
+const split = (parts: Array<[string, number | null]>, fmt: (n: number) => string) =>
+  parts.filter(([, n]) => n !== null).map(([label, n]) => `${label} ${fmt(n!)}`).join(" ＋ ");
+
 export default function StatsAdmin({ loaderData: s }: Route.ComponentProps) {
   const t = s.traffic;
-  const trafficDays = daysOf(t.daily, t.edge?.daily ?? []);
+  const trafficDays = daysOf(t.daily, t.edge?.daily ?? [], t.gcore?.daily ?? []);
   const pv = sum(t.daily, (d) => d.pv);
   const uvAvg = t.daily.length ? Math.round(sum(t.daily, (d) => d.uv) / t.daily.length) : 0;
-  const edgeReq = sum(t.edge?.daily ?? [], (d) => d.requests);
-  const edgeFlux = sum(t.edge?.daily ?? [], (d) => d.fluxBytes);
+  const cdn = !!(t.edge || t.gcore);
+  const pageReq = sum(t.gcore?.daily ?? [], (d) => d.requests);
+  const pageFlux = sum(t.gcore?.daily ?? [], (d) => d.fluxBytes);
+  const assetReq = sum(t.edge?.daily ?? [], (d) => d.requests);
+  const assetFlux = sum(t.edge?.daily ?? [], (d) => d.fluxBytes);
 
   const contentDays = daysOf(s.content.daily);
   const modelDays = daysOf(s.models.daily);
@@ -82,7 +89,7 @@ export default function StatsAdmin({ loaderData: s }: Route.ComponentProps) {
   return (
     <AdminPage
       title="数据统计"
-      subtitle="访客数来自本站自己的计数（不存 IP、不用 Cookie，按天轮换的哈希去重）；CDN 请求数来自 EdgeOne，含爬虫与静态资源以外的接口请求。日期按北京时间。"
+      subtitle="访客数来自本站自己的计数（不存 IP、不用 Cookie，按天轮换的哈希去重）；CDN 请求数来自两家边缘：Gcore 记页面，EdgeOne 记静态文件与图片，含爬虫和没执行脚本的访问。日期按北京时间。"
       actions={<FilterChips param="days" options={[{ value: "7", label: "7 天" }, { value: "", label: "30 天" }, { value: "90", label: "90 天" }]} />}
     >
       <div className="grid gap-6">
@@ -92,8 +99,8 @@ export default function StatsAdmin({ loaderData: s }: Route.ComponentProps) {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Stat label="页面浏览（PV）" value={num(pv)} hint={`${trafficDays.length} 天合计`} />
             <Stat label="日均访客（UV）" value={num(uvAvg)} hint="每天去重后的访客，按天平均" />
-            <Stat label="CDN 请求" value={t.edge ? num(edgeReq) : "—"} hint={t.edge ? "EdgeOne，girlsbands.com" : "未配置腾讯云密钥"} />
-            <Stat label="CDN 流量" value={t.edge ? bytes(edgeFlux) : "—"} hint="EdgeOne 出流量" />
+            <Stat label="CDN 请求" value={cdn ? num(pageReq + assetReq) : "—"} hint={cdn ? split([["Gcore 页面", t.gcore ? pageReq : null], ["EdgeOne 静态图片", t.edge ? assetReq : null]], num) : "未配置 CDN 统计密钥"} />
+            <Stat label="CDN 流量" value={cdn ? bytes(pageFlux + assetFlux) : "—"} hint={cdn ? split([["Gcore 页面", t.gcore ? pageFlux : null], ["EdgeOne 静态图片", t.edge ? assetFlux : null]], bytes) : undefined} />
           </div>
           <Card title="每天的访问">
             {trafficDays.length ? (
@@ -102,7 +109,8 @@ export default function StatsAdmin({ loaderData: s }: Route.ComponentProps) {
                 series={[
                   { key: "pv", label: "PV", color: C.accent, values: series(trafficDays, t.daily, (d) => d.pv) },
                   { key: "uv", label: "UV", color: C.ok, values: series(trafficDays, t.daily, (d) => d.uv) },
-                  ...(t.edge ? [{ key: "edge", label: "CDN 请求", color: C.soft, dashed: true, values: series(trafficDays, t.edge.daily, (d) => d.requests) }] : []),
+                  ...(t.gcore ? [{ key: "gcore", label: "CDN 请求（页面）", color: C.soft, dashed: true, values: series(trafficDays, t.gcore.daily, (d) => d.requests) }] : []),
+                  ...(t.edge ? [{ key: "edge", label: "CDN 请求（静态图片）", color: C.tape, dashed: true, values: series(trafficDays, t.edge.daily, (d) => d.requests) }] : []),
                 ]}
               />
             ) : (
@@ -131,18 +139,23 @@ export default function StatsAdmin({ loaderData: s }: Route.ComponentProps) {
             <Card title="来源网站">
               <TopList rows={t.referrers.map((d) => ({ key: d.host, value: d.pv }))} />
             </Card>
-            <Card title="CDN：国家/地区">
-              <TopList rows={t.edge?.top.countries ?? []} />
-            </Card>
             {t.edge && (
               <>
-                <Card title="CDN：请求最多的路径" className="lg:col-span-2">
+                <Card title="EdgeOne：国家/地区">
+                  <TopList rows={t.edge.top.countries} />
+                </Card>
+                <Card title="EdgeOne：请求最多的路径" className="lg:col-span-2">
                   <TopList rows={t.edge.top.urls} />
                 </Card>
-                <Card title="CDN：设备">
+                <Card title="EdgeOne：设备">
                   <TopList rows={t.edge.top.devices} label={(k) => DEVICE[k] ?? k} />
                 </Card>
               </>
+            )}
+            {t.gcore && (
+              <Card title="Gcore：明细">
+                <Empty>Gcore 的统计接口只给请求数和流量；按国家、路径、设备拆分要用 Gcore 的 Advanced Analytics，当前账号还没开通。</Empty>
+              </Card>
             )}
           </div>
         </section>

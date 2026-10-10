@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import { sql } from "../db.ts";
 import { cached } from "../lib/cache.ts";
 import { credential } from "../config.ts";
-import type { EdgeTop } from "@girlsbands/contracts/admin-stats";
+import { EDGE_SOURCE } from "../operations/edgeanalytics.ts";
+import { GCORE_SOURCE } from "../operations/gcoreanalytics.ts";
+import type { CdnTraffic, EdgeTop } from "@girlsbands/contracts/admin-stats";
 
 const statsCache = cached(loadStats, { freshMs: 60_000, maxStaleMs: 60_000 });
 export const adminStats = (days: number) => statsCache.get(days);
@@ -44,18 +46,25 @@ async function loadStats(days: number) {
     sql`SELECT count(*) FILTER(WHERE status IN ('confirmed','pending'))::int subscribers,count(*) FILTER(WHERE status='confirmed')::int confirmed, (SELECT coalesce(json_agg(x),'[]'::json) FROM (SELECT to_char((created_at AT TIME ZONE 'Asia/Shanghai')::date,'YYYY-MM-DD') AS "day",count(*)::int "newSubs",count(*) FILTER(WHERE unsubscribed_at IS NOT NULL)::int unsubs FROM subscribers WHERE created_at>=now()-(${cutoff}::int*interval '1 day') GROUP BY 1 ORDER BY 1)x) daily FROM subscribers`,
     sql`SELECT to_char((created_at AT TIME ZONE 'Asia/Shanghai')::date,'YYYY-MM-DD') AS "day",count(*) FILTER(WHERE status='sent')::int sent,count(*) FILTER(WHERE status='failed')::int failed FROM email_sends WHERE created_at>=now()-(${cutoff}::int*interval '1 day') GROUP BY 1 ORDER BY 1`,
     sql`SELECT count(*) FILTER(WHERE status IN ('new','triaged'))::int open,count(*)::int total,(SELECT coalesce(json_agg(x ORDER BY x.day),'[]'::json) FROM (SELECT to_char((created_at AT TIME ZONE 'Asia/Shanghai')::date,'YYYY-MM-DD') AS day,count(*)::int count FROM feedback WHERE created_at>=now()-(${cutoff}::int*interval '1 day') GROUP BY 1)x) daily FROM feedback WHERE created_at>=now()-(${cutoff}::int*interval '1 day')`,
-    sql`SELECT day::text AS "day",requests,flux_bytes AS "fluxBytes",top FROM edge_traffic_daily WHERE day>=((now() AT TIME ZONE 'Asia/Shanghai')::date-${cutoff}::int) ORDER BY day`,
+    sql`SELECT domain,day::text AS "day",requests,flux_bytes AS "fluxBytes",top FROM edge_traffic_daily WHERE domain IN (${EDGE_SOURCE},${GCORE_SOURCE}) AND day>=((now() AT TIME ZONE 'Asia/Shanghai')::date-${cutoff}::int) ORDER BY day`,
   ]);
   const normalized = (rows: any[]) => rows.map((r) => ({ ...r, pv: Number(r.pv ?? 0), calls: Number(r.calls ?? 0), count: Number(r.count ?? 0) }));
   const modelRows = normalized(receipts as any[]);
-  const edge = edgeRows.length ? { daily: edgeRows.map((r: any) => ({ day:r.day,requests:Number(r.requests),fluxBytes:Number(r.fluxBytes) })), top: mergeTops(edgeRows.map((r: any) => r.top)) } : null;
+  // One series per CDN: the rows carry the source label, and a window with nothing counted for a source
+  // reads as null so the panel can say which one is missing instead of drawing a line at zero.
+  const cdn = (label: string): CdnTraffic | null => {
+    const rows = (edgeRows as any[]).filter((r) => r.domain === label);
+    return rows.length ? { daily: rows.map((r: any) => ({ day:r.day,requests:Number(r.requests),fluxBytes:Number(r.fluxBytes) })), top: mergeTops(rows.map((r: any) => r.top)) } : null;
+  };
+  const edge = cdn(EDGE_SOURCE);
+  const gcore = cdn(GCORE_SOURCE);
   const source = (sources as any[])[0] ?? { total:0,enabled:0,failing:[],stale:0 };
   const contentRows = contentDaily as any[];
   const fb = feedback as any[];
   const peak = await sql`SELECT coalesce(max(n),0)::int peak FROM (SELECT count(*) n FROM receipts WHERE created_at>now()-interval '90 days' GROUP BY date_trunc('minute',created_at)) x`;
   const purpose = await sql`SELECT purpose,count(*)::int calls,coalesce(avg(a.latency_ms),0)::int "avgLatencyMs" FROM receipts r LEFT JOIN receipt_attempts a ON a.receipt_id=r.id WHERE r.created_at>=now()-(${cutoff}::int*interval '1 day') GROUP BY purpose`;
   return {
-    traffic:{daily:traffic,topItems,topPaths,referrers,devices,edge},
+    traffic:{daily:traffic,topItems,topPaths,referrers,devices,edge,gcore},
     content:{daily:contentRows,byProject:byProject.filter((x:any)=>x.entity?.startsWith("entity:")).map((x:any)=>({...x,entity:x.entity.slice(7)}),),queue:(queue as any[])[0]},
     sources:{total:source.total,enabled:source.enabled,failing:source.failing,staleCount:source.stale},
     models:{perMinutePeak:(peak as any[])[0].peak,daily:modelRows.map((r:any)=>({day:r.day,calls:r.calls,failed:r.failed,rateLimited:r.limited,tokensIn:Number(r.tin),tokensOut:Number(r.tout),cost:Number(r.cost)})),byPurpose:purpose,budget:{perMinute:Number((budget as any[])[0]?.per_minute ?? 0)}},
@@ -64,9 +73,7 @@ async function loadStats(days: number) {
   };
 }
 
-export async function edgeSecretsConfigured(): Promise<boolean> { return !!credential("integrations","TENCENTCLOUD_SECRET_ID") && !!credential("integrations","TENCENTCLOUD_SECRET_KEY"); }
-
-/** Adds each day's EdgeOne top-N into one list per kind for the whole window (largest first). */
+/** Adds each day's CDN top-N into one list per kind for the whole window (largest first). */
 function mergeTops(days: Array<Record<string, Array<{ key: string; value: number }>> | null>): { urls: EdgeTop; countries: EdgeTop; devices: EdgeTop } {
   const merge = (kind: string): EdgeTop => {
     const sum = new Map<string, number>();

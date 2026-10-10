@@ -19,6 +19,7 @@ import { sendDeadlineReminders, sendDigest as sendSubscriberDigest } from "@girl
 import { backupConfigured, runBackup } from "@girlsbands/backend/operations/backup";
 import { sourceHealthWeekly } from "@girlsbands/backend/operations/reports";
 import { prunePageViews, pullEdgeOne } from "@girlsbands/backend/operations/edgeanalytics";
+import { pullGcore } from "@girlsbands/backend/operations/gcoreanalytics";
 
 interface Scheduled {
   name: string;
@@ -59,7 +60,9 @@ export const SCHEDULES: Scheduled[] = [
   { name: "email.digest", cron: "0 20 * * *", missed: "once", run: () => sendSubscriberDigest() },
   ...(backupConfigured() ? [{ name: "ops.backup", cron: "10 4 * * *", missed: "once" as const, run: () => runBackup() }] : []),
   { name: "reports.source-health", cron: "0 9 * * 1", missed: "once", run: () => sourceHealthWeekly() },
+  // The site's two outside counts: the pages at Gcore's edge, the static files and images at EdgeOne's.
   { name: "analytics.edgeone", cron: "0 * * * *", missed: "once", run: () => pullEdgeOne(3) },
+  { name: "analytics.gcore", cron: "5 * * * *", missed: "once", run: () => pullGcore(3) },
   { name: "analytics.page-view-retention", cron: "20 3 * * *", missed: "once", run: () => prunePageViews() },
   ...(collecting
     ? [

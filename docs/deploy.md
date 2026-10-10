@@ -122,6 +122,15 @@ EdgeOne 侧要配（加速域名建在哪个 EdgeOne 站点，就走哪个套餐
 
 `deploy/Caddyfile.edgeone` 在 compose 里是**单文件 bind mount**，容器启动时按 inode 绑定：用 `mv`、`git checkout` 这类会换掉 inode 的写法改这个文件之后，运行中的 caddy 读到的仍是旧内容，必须 `docker compose up -d --force-recreate caddy` 才会生效（`docker compose up -d` 不会重建它）。
 
+### 后台的 CDN 计数来自两家
+
+`/admin/stats` 顶上的「CDN 请求 / CDN 流量」是两家 CDN 的和，两个来源分开写进 `edge_traffic_daily`，`domain` 列存的是来源标签而不是请求的主机名（两个来源的读写在 `packages/backend/src/admin/stats.ts`）：
+
+- `gcore:pages`——页面（`SITE_DOMAIN`）的请求数与出流量，来自 Gcore 的 `GET /cdn/statistics/series`，密钥 `GCORE_API_KEY` 写在 `.env`（和 `TENCENTCLOUD_SECRET_*` 同一组，`credential("integrations", …)` 读），资源 id 在 `packages/backend/src/operations/gcoreanalytics.ts` 里写死。不配置这个来源整块不出现。
+- `edgeone:assets`——静态资源与图片两个加速域名的请求数与出流量，来自 EdgeOne 的 `DescribeTimingL7AnalysisData` / `DescribeTopL7AnalysisData`（站点 `zone-3p69kw70ulcy`，`Area: global`）。一次 `Filters` 里给两个主机名是「或」，所以一次调用覆盖两个域名。
+
+worker 每小时各跑一次（`analytics.edgeone` / `analytics.gcore`，见 `apps/worker/src/schedules.ts`）。小时桶在这里按北京日相加，而不是直接用接口的 `1d`——那个是按 UTC 日分桶的。按国家、路径、设备拆分的明细在 Gcore 的 Advanced Analytics 里，当前账号没开通（GraphQL `aggs` / `dims` 都返回空），所以那几张 top 卡只出 EdgeOne 的。旧站点（`girlsbands.com`，area `overseas`，已被 Gcore 取代）留下的行由 `database/migrations/0073_cdn_source_rows.sql` 删掉。
+
 ### 更新
 
 先按下节备份数据库。构建完成后停止旧服务，再运行迁移和新版服务：
