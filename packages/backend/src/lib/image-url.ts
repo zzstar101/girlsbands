@@ -69,3 +69,27 @@ export function firstPicture(mediaList: unknown[]): Picture | null {
   }
   return null;
 }
+
+/**
+ * The X picture behind a Nitter mirror's /pic/ address. Nitter RSS hands out its own proxy for every
+ * avatar and photo (`/pic/https%3A%2F%2Fpbs.twimg.com%2F…`, `/pic/media%2FXXXX.jpg`,
+ * `/pic/pbs.twimg.com%2Fmedia…`, `/pic/orig/…`, `/pic/enc/<base64>`); when the volunteer mirror goes
+ * down every one of those breaks, while the same picture is still on pbs.twimg.com. Null when the
+ * address is not such a proxy, or does not lead to an X image host.
+ */
+export function unwrapNitterPicture(url: string): string | null {
+  let u: URL;
+  try { u = new URL(url); } catch { return null; }
+  if (!/(^|\.)nitter\.|^xcancel\.com$/i.test(u.hostname)) return null;
+  const m = /^\/pic\/(?:orig\/)?(enc\/)?(.+)$/.exec(u.pathname);
+  if (!m) return null;
+  let rest: string;
+  try {
+    rest = m[1] ? Buffer.from(decodeURIComponent(m[2]!), "base64url").toString("utf8") : decodeURIComponent(m[2]! + u.search);
+  } catch { return null; }
+  const target = /^https?:\/\//i.test(rest) ? rest : /^(pbs|video)\.twimg\.com\//i.test(rest) ? `https://${rest}` : `https://pbs.twimg.com/${rest.replace(/^\/+/, "")}`;
+  try {
+    const host = new URL(target).hostname.toLowerCase();
+    return host === "pbs.twimg.com" || host === "video.twimg.com" ? target : null;
+  } catch { return null; }
+}

@@ -7,6 +7,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { config, credential } from "../config.ts";
 import { guardedFetch, type GuardedResponse } from "../lib/http-fetch.ts";
+import { unwrapNitterPicture } from "../lib/image-url.ts";
 import { getObject, headObject, putObject, type S3Target } from "../lib/s3.ts";
 import { IMAGE_WIDTHS } from "./renditions.ts";
 
@@ -89,7 +90,9 @@ function imageHeaders(url: string): Record<string, string> {
   return rule ? { ...headers, "user-agent": BROWSER_UA, referer: rule.referer } : headers;
 }
 
-async function fetchOriginal(url: string): Promise<GuardedResponse> {
+async function fetchOriginal(requested: string): Promise<GuardedResponse> {
+  // 镜像的 /pic/ 代理直接去 X 的图床取：镜像挂了图也不跟着挂（已签名的旧地址不用改）。
+  const url = unwrapNitterPicture(requested) ?? requested;
   const res = await guardedFetch(url, { timeoutMs: 20_000, maxBytes: 15 * 1024 * 1024, headers: imageHeaders(url) });
   if (res.status !== 200) throw new Error(`upstream ${res.status}`);
   return res;
