@@ -377,7 +377,11 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   // backfill or stale-on-discovery material).
   if (selected && !previous?.selected && !options.releasedAt && !article.backfill && visibility === "public") {
     await enqueue(QUEUES.notifySelected, { articleId }, { singletonKey: `selected:${articleId}`, startAfter: new Date(now.getTime() + 5_000) }, tx);
-    // Prepare its images alongside the newly confirmed selection.
+  }
+  // Every public item keeps its pictures as it is published (not only selected ones: the seiyuu
+  // timeline shows unselected member posts, and an X mirror going away must not take their images
+  // along). Pictures already kept cost a cache check, so publishing again is cheap.
+  if (visibility === "public" && (eligible || category === "daily")) {
     await enqueue(QUEUES.prepareMedia, { articleId }, { singletonKey: `media:${articleId}` }, tx);
   }
 

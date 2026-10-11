@@ -1,8 +1,10 @@
 // Image fetch, resize and cache, shared by the signed image proxy and the vision analysis: a (mode, url)
 // is fetched once through the egress route and both get the same file. The cache is files under
 // <dataDir>/imgcache, or objects in an S3-compatible store when IMAGE_STORE_* is configured.
+// The source bytes are kept there too: once an image has been fetched, any later rendition is made
+// from the kept copy, so a source (an X mirror, a site) going away no longer breaks its pictures.
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { config, credential } from "../config.ts";
@@ -64,7 +66,7 @@ function original(url: string): Promise<GuardedResponse> {
   failures.delete(url);
   let job = originals.get(url);
   if (!job) {
-    job = fetchOriginal(url).then((res) => {
+    job = loadOriginal(url).then((res) => {
       rememberOriginal(url, res);
       return res;
     }).catch((error: unknown) => {
@@ -96,6 +98,53 @@ async function fetchOriginal(requested: string): Promise<GuardedResponse> {
   const res = await guardedFetch(url, { timeoutMs: 20_000, maxBytes: 15 * 1024 * 1024, headers: imageHeaders(url) });
   if (res.status !== 200) throw new Error(`upstream ${res.status}`);
   return res;
+}
+
+/** Where an original is kept: by its real address, so a mirror's /pic/ URL and the pbs.twimg.com one share it. */
+function originalKey(url: string): string {
+  return cacheKey(unwrapNitterPicture(url) ?? url, "original");
+}
+
+/** Only pictures are kept: a 200 that is an HTML block page must not become the image for good. */
+async function isPicture(body: Buffer, type: string): Promise<boolean> {
+  if (/^image\//i.test(type)) return true;
+  if (decodeIco(body)) return true;
+  return sharp(body, { limitInputPixels: false }).metadata().then((meta) => !!meta.format, () => false);
+}
+
+/** The kept original when there is one; otherwise fetched from the source and kept (best effort). */
+async function loadOriginal(url: string): Promise<GuardedResponse> {
+  const cache = imageCache();
+  const key = originalKey(url);
+  const kept = await cache.read(key).catch(() => null);
+  if (kept) {
+    return { status: 200, url, headers: new Headers({ "content-type": kept.type }), body: kept.body, text: () => kept.body.toString("utf8") };
+  }
+  const res = await fetchOriginal(url);
+  const type = res.headers.get("content-type") ?? "";
+  if (await isPicture(res.body, type)) {
+    await cache.write(key, { body: res.body, type: type || "application/octet-stream" })
+      .catch((error: unknown) => console.warn(`[images] keeping original failed: ${error instanceof Error ? error.message : error}`));
+  }
+  return res;
+}
+
+/**
+ * Keeps an image's source bytes in the cache now (publish-time preparation and the backfill), so its
+ * renditions never depend on the source again. "kept" when it was already there.
+ */
+export async function keepOriginal(url: string): Promise<"kept" | "stored"> {
+  const cache = imageCache();
+  const key = originalKey(url);
+  if (await cache.has(key)) return "kept";
+  await original(url);
+  if (!(await cache.has(key))) throw new Error(`not kept: ${url} did not answer with a picture`);
+  return "stored";
+}
+
+/** Whether this rendition is already in the cache (a cheap check, without reading it). */
+export function hasRendition(url: string, mode: string): Promise<boolean> {
+  return imageCache().has(cacheKey(url, mode));
 }
 
 /**
@@ -165,6 +214,7 @@ interface StoredImage {
 /** One prepared rendition's bytes, wherever the cache keeps them. */
 interface ImageCache {
   read(key: string): Promise<StoredImage | null>;
+  has(key: string): Promise<boolean>;
   write(key: string, image: StoredImage): Promise<void>;
   /** Replaces body and type in one step, so a reader never sees the new bytes with the old type. */
   replace(key: string, image: StoredImage): Promise<void>;
@@ -178,6 +228,7 @@ const diskCache: ImageCache = {
     const [body, type] = await Promise.all([readFile(file).catch(() => null), readFile(`${file}.type`, "utf8").catch(() => null)]);
     return body && type ? { body, type } : null;
   },
+  has: (key) => access(`${cachePath(key)}.type`).then(() => true, () => false),
   async write(key, image) {
     const file = cachePath(key);
     await mkdir(path.dirname(file), { recursive: true });
@@ -202,6 +253,7 @@ function objectCache(store: S3Target): ImageCache {
   const objectKey = (key: string) => `${OBJECT_PREFIX}/${key.slice(0, 2)}/${key}`;
   return {
     read: (key) => getObject(store, objectKey(key)),
+    has: (key) => headObject(store, objectKey(key)),
     write: (key, image) => putObject(store, objectKey(key), image.body, image.type),
     // A single PUT is atomic, so replacing a GIF with its prepared WebP needs no temp key.
     replace: (key, image) => putObject(store, objectKey(key), image.body, image.type),

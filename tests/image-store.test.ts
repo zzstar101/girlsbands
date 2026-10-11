@@ -44,8 +44,11 @@ const base = `http://127.0.0.1:${(store.address() as { port: number }).port}`;
 // The upstream image the cache would fetch; the object store stands between it and the cache.
 const png = await sharp({ create: { width: 800, height: 400, channels: 3, background: "#176b75" } }).png().toBuffer();
 let upstreamHits = 0;
-const upstream = createServer((_req, res) => {
+let upstreamDown = false;
+const upstream = createServer((req, res) => {
   upstreamHits++;
+  if (upstreamDown) return void res.writeHead(502).end("bad gateway");
+  if (req.url === "/blocked.png") return void res.writeHead(200, { "content-type": "text/html" }).end("<html>are you a robot?</html>");
   res.writeHead(200, { "content-type": "image/png" }).end(png);
 });
 await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
@@ -56,7 +59,8 @@ Object.assign(process.env, {
   IMAGE_STORE_BUCKET: "images", IMAGE_STORE_ENDPOINT: base, IMAGE_STORE_REGION: "auto",
 });
 const { putObject, getObject, headObject } = await import("@girlsbands/backend/lib/s3");
-const { produceImage, convertAnimated } = await import("@girlsbands/backend/media/images");
+const { produceImage, convertAnimated, keepOriginal } = await import("@girlsbands/backend/media/images");
+const { prepareAvatars } = await import("@girlsbands/backend/media/prepare");
 const target = { endpoint: base, bucket: "images", region: "auto", accessKey: "test-image-key", secretKey: "test-image-secret" };
 const objectKey = (key: string) => `images/imgcache/${key.slice(0, 2)}/${key}`;
 const cacheKey = (url: string, mode: string) => createHash("sha256").update(`${mode}|${url}`).digest("hex");
@@ -117,4 +121,39 @@ test("the prepared marker is a sibling object and short-circuits a converted GIF
   assert.equal(await convertAnimated(url, "full"), 0);
   assert.equal(upstreamHits, hits);
   assert.equal(objects.get(objectKey(key))!.body.toString(), "gif-bytes");
+});
+
+// 站主 2026-10-11：X 镜像挂了图就全挂 →「为什么不直接把图存下来」「头像那些也要缓存」。
+test("the source picture is kept, so later renditions no longer need the source", async () => {
+  const url = `${origin}/kept.png`;
+  assert.equal(await keepOriginal(url), "stored");
+  assert.deepEqual(objects.get(objectKey(cacheKey(url, "original"))), { body: png, type: "image/png" });
+  assert.equal(await keepOriginal(url), "kept");
+  // A copy kept earlier (another process, the backfill) serves a new size while the source is down.
+  const earlier = `${origin}/kept-earlier.png`;
+  objects.set(objectKey(cacheKey(earlier, "original")), { body: png, type: "image/png" });
+  upstreamDown = true;
+  try {
+    const hits = upstreamHits;
+    const image = await produceImage(earlier, "image-336");
+    assert.equal(image.type, "image/webp");
+    assert.equal(upstreamHits, hits, "made from the kept copy");
+  } finally {
+    upstreamDown = false;
+  }
+});
+
+test("a 200 that is not a picture (a bot-check page) is not kept as the original", async () => {
+  const url = `${origin}/blocked.png`;
+  await assert.rejects(keepOriginal(url));
+  assert.equal(objects.has(objectKey(cacheKey(url, "original"))), false);
+});
+
+test("avatars are kept with every size a card asks for", async () => {
+  const url = `${origin}/avatar.png`;
+  const result = await prepareAvatars([url, url]);
+  assert.deepEqual({ originals: result.originals, renditions: result.renditions, made: result.made, failed: result.failed }, { originals: 1, renditions: 3, made: 3, failed: 0 });
+  for (const mode of ["avatar", "avatar-48", "avatar-96"]) assert.ok(objects.has(objectKey(cacheKey(url, mode))), mode);
+  const again = await prepareAvatars([url]);
+  assert.deepEqual({ originals: again.originals, made: again.made }, { originals: 0, made: 0 });
 });

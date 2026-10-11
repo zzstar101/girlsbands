@@ -8,6 +8,7 @@
  * 展示时的补齐发生在查询的 JOIN 里（publication/items.ts）。
  */
 import { sql } from "../db.ts";
+import { enqueue, QUEUES } from "../jobs/queue.ts";
 import { guardedFetch } from "../lib/http-fetch.ts";
 import type { MediaItem, XPostData } from "../content/materials.ts";
 import type { Candidate } from "./types.ts";
@@ -167,6 +168,8 @@ export async function recordXProfiles(profiles: readonly XProfileSeed[]): Promis
   }
   if (!byHandle.size) return;
   const rows = [...byHandle.values()];
+  const known = new Map((await sql<{ handle: string; avatar_url: string | null }[]>`
+    SELECT handle, avatar_url FROM x_profiles WHERE handle = ANY(${rows.map((r) => r[0])}::text[])`).map((r) => [r.handle, r.avatar_url]));
   await sql`
     INSERT INTO x_profiles (handle, author_name, avatar_url)
     VALUES ${sql(rows.map((row) => (row as string[]), { simple: true }))}
@@ -174,6 +177,11 @@ export async function recordXProfiles(profiles: readonly XProfileSeed[]): Promis
       author_name = COALESCE(EXCLUDED.author_name, x_profiles.author_name),
       avatar_url = COALESCE(EXCLUDED.avatar_url, x_profiles.avatar_url),
       fetched_at = now()`;
+  // 新的或换了的头像当场存一份（各个尺寸），镜像哪天挂了头像也还在（站主 2026-10-11：「头像那些也要缓存」）。
+  const fresh = rows.flatMap(([handle, , avatar]) => (avatar && avatar !== known.get(handle) ? [avatar] : []));
+  if (fresh.length) {
+    await enqueue(QUEUES.prepareMedia, { avatars: fresh }).catch((error) => console.warn(`[x-profiles] avatar prepare not queued: ${error}`));
+  }
 }
 
 /** 该查一次的 handle：缓存里没有，或名字是 30 天前查的。 */
