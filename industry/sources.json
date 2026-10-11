@@ -1,5 +1,5 @@
 {
-  "$comment": "示范信源：首次启动时导入（scripts/seed.ts），已存在的不会被覆盖。之后在后台“信源”里新建、修改和暂停。字段说明见 docs/customize.md，各 kind 的配置项见 docs/sources.md。tier：T1 官方一手（官网、唱片公司）／T1_5 官方社交账号（企划、乐队、成员本人）／T2 专业媒体与商业平台。注意：数据库的 tier 只有这四个字面值，没有 “T3”；本仓库说的“T3 热点信号”用 participation_mode=“hot_signal” 表达（只做热度证据，不单独展示）。每条 URL 都在 2026 年实测过：只收录返回正常 RSS/Atom 的订阅源，以及用 curl 取回原始 HTML、再用 cheerio 真实解析确认过结构的列表页（选择器来自真实标记，未凭猜测填写）。这一轮实测被排除的：音楽ナタリー（AWS WAF，连 /robots.txt 都返回 405 Human Verification）、Animate Times（RSS 返回 0 字节、列表页 404）、ORICON（按 IP 限流，密集请求后 429）、Billboard Japan 与 THE FIRST TIMES／アニメアニメ／声グラ／VoiS（Feed 都能取到，但一次窗口里少女乐队命中率为 0/30、0/30、0/50、0/10、0/30，而框架没有“只保留命中关键词”的白名单过滤，收录只会灌入无关条目）、BARKS（10 条里命中 1 条，暂未收录）、イープラス等票务平台（列表由 JS 渲染，服务端 HTML 里没有条目链接）。x_search 需要 SOCIALDATA_API_KEY，未配置时整个 T1_5 官方社交层都收不到内容。2026-10 站主拍板：这个站把日文原文整篇搬进站内、翻成中文，不再看上游许可，所以 18 个 editorial 源的 site_fulltext 全部打开（正文抓得到就整篇展示，抓不到就退回摘要）；hot_signal 源没有公开页面，保持关闭。syndicate_fulltext 仍全关——它管的是 RSS 与公开 API 的 content 字段（把整篇再分发出去），那是另一个决定，要开再单独开。hot_signal 源（はてなブックマーク／Reddit／Zepp・LOFT・CLUB CITTA' 场馆日程／イープラス）只做热度证据：它们不进分析队列（不花模型钱），公开页面的取数条件要求 participation_mode='editorial'，所以也不会单独出现在时间线上，只能作为事件热度或被 T1 官方源认领后的旁证。三项已知限制写在这里以免后人踩坑：①场馆日程的日期拆在多个标签里，publishedAt 一定是空，时间线只能回落到 discovered_at；②イープラス 走的是搜索页内嵌 JSON（/sf/search 在它的 robots.txt 里被明确 Disallow，是否采集由站主拍板），且受付时间是 14 位 YYYYMMDDHHMMSS，框架不认，同样没有 publishedAt，并需在后台错峰开关；③Reddit 匿名 IP 约每分钟只能请求一次，两条 Reddit 源必须错峰，否则后一条会拿到 429 并被退避到 6 小时。后台每个信源都能先预览再启用。 X 采集的落地方式（2026-10 决定）：不用需要 SOCIALDATA_API_KEY 的 x_search，改用 Nitter 镜像的按账号 RSS（kind=rss），再用 itemUrlPrefixRewrite 把镜像域名改写成 x.com，所以拿到的是可点击、可被 T1 认领的推文原链；summaryIsBody=true 是因为推文正文就在 RSS 的 description 里，不需要再抓页面。两条已实测可用的镜像是 nitter.kareem.one 与 nitter.meowing.monster（各 200、各 20 条），2026-10-06 起全部 Nitter 源都走 nitter.meowing.monster（kareem.one 上 BDP_AveMujica 要小写才 200、故障也更频繁）；2026-10-11 meowing.monster 整体 502（RSS 与 /pic/ 图片代理一起挂），全部切回 nitter.kareem.one（此时原样大小写反而 200、小写 503，偶发 503 靠下次重试）。镜像挂掉时图片不受影响：图片代理把 /pic/ 地址还原成 pbs.twimg.com 直取（packages/backend/src/lib/image-url.ts unwrapNitterPicture）。镜子是志愿者实例，随时可能下线：挂掉时改 feedUrl 的域名和同一条的 itemUrlPrefixRewrite.from 即可（两处必须一致）。换实例时 handle 的大小写也要一起对：同一个 BDP_AveMujica 在 kareem.one 上返回 404、小写 bdp_avemujica 才 200，而 meowing.monster 原样大小写即可。三条实测得到的运维常识：①镜像在密集请求下会偶发 HTTP 404，同一账号隔几分钟重试就恢复 200，手动补抓要留 25–30 秒间隔；②镜像条目里约 45% 是转推，标题带 “RT by @xxx:” 前缀、链接与 dc:creator 都指向原作者，所以官方账号会带进被它转推的其他账号（既包括官方兄弟账号，也包括粉丝号与周边店）——这与旧 x_search（同样的 -filter:replies 查询其实也含转推）行为一致，靠预筛和评分压掉，暂不额外过滤；③短于 280 字的推文会命中 rss.ts 里“摘要超过 280 字才算正文”的规则，落到 body_status=pending 并触发两次注定失败的正文抓取（x.com 抓不到），但摘要里已经是完整推文，判定不受影响，代价只是每条多等约 20 分钟。④这条路的法律前提已经没了：2026-08-24 X Corp. 给 Nitter 与 XCancel 的作者各发律师函、限约 24 小时，两个服务当天下线、zedeus/nitter 仓库归档只读，其他实例也收到同类信件；更关键的是自 2024 年初 X 取消访客账号后，跑 Nitter 必须绑一个真实 X 账号（律师函指控的正是访问 X 账号与会话令牌这一点）。2026-10-06 站主拍板：继续用 Nitter，等彻底不行再切。兜底方案是 SocialData 的 x_search（读取器 packages/backend/src/sources/x.ts 已就绪并有测试，按返回条数 $0.0002，我们这个量级约 $0.6–1.7/月，预充值、余额不过期），启用方式见 docs/sources.md 的 x_search 一节。站主 2026-10-06 决定把各乐队/企划官方号与声优个人号都收进来：官方号 7 条 + 成员 74 条（含 5 个只有 bio 自证的号），staff/info 号只收本人号（@yopipi_artist、@aiai_staff、@okadameiSTAFF 不收），共用企划号的 9 支乐队不重复配源，@Roselia_staff 不收。",
+  "$comment": "示范信源：首次启动时导入（scripts/seed.ts），已存在的不会被覆盖。之后在后台“信源”里新建、修改和暂停。字段说明见 docs/customize.md，各 kind 的配置项见 docs/sources.md。tier：T1 官方一手（官网、唱片公司）／T1_5 官方社交账号（企划、乐队、成员本人）／T2 专业媒体与商业平台。注意：数据库的 tier 只有这四个字面值，没有 “T3”；本仓库说的“T3 热点信号”用 participation_mode=“hot_signal” 表达（只做热度证据，不单独展示）。每条 URL 都在 2026 年实测过：只收录返回正常 RSS/Atom 的订阅源，以及用 curl 取回原始 HTML、再用 cheerio 真实解析确认过结构的列表页（选择器来自真实标记，未凭猜测填写）。这一轮实测被排除的：音楽ナタリー（AWS WAF，连 /robots.txt 都返回 405 Human Verification）、Animate Times（RSS 返回 0 字节、列表页 404）、ORICON（按 IP 限流，密集请求后 429）、Billboard Japan 与 THE FIRST TIMES／アニメアニメ／声グラ／VoiS（Feed 都能取到，但一次窗口里少女乐队命中率为 0/30、0/30、0/50、0/10、0/30，而框架没有“只保留命中关键词”的白名单过滤，收录只会灌入无关条目）、BARKS（10 条里命中 1 条，暂未收录）、イープラス等票务平台（列表由 JS 渲染，服务端 HTML 里没有条目链接）。x_search 需要 SOCIALDATA_API_KEY，未配置时整个 T1_5 官方社交层都收不到内容。2026-10 站主拍板：这个站把日文原文整篇搬进站内、翻成中文，不再看上游许可，所以 18 个 editorial 源的 site_fulltext 全部打开（正文抓得到就整篇展示，抓不到就退回摘要）；hot_signal 源没有公开页面，保持关闭。syndicate_fulltext 仍全关——它管的是 RSS 与公开 API 的 content 字段（把整篇再分发出去），那是另一个决定，要开再单独开。hot_signal 源（はてなブックマーク／Reddit／Zepp・LOFT・CLUB CITTA' 场馆日程／イープラス）只做热度证据：它们不进分析队列（不花模型钱），公开页面的取数条件要求 participation_mode='editorial'，所以也不会单独出现在时间线上，只能作为事件热度或被 T1 官方源认领后的旁证。三项已知限制写在这里以免后人踩坑：①场馆日程的日期拆在多个标签里，publishedAt 一定是空，时间线只能回落到 discovered_at；②イープラス 走的是搜索页内嵌 JSON（/sf/search 在它的 robots.txt 里被明确 Disallow，是否采集由站主拍板），且受付时间是 14 位 YYYYMMDDHHMMSS，框架不认，同样没有 publishedAt，并需在后台错峰开关；③Reddit 匿名 IP 约每分钟只能请求一次，两条 Reddit 源必须错峰，否则后一条会拿到 429 并被退避到 6 小时。后台每个信源都能先预览再启用。 X 采集的落地方式（2026-10-12 起）：全部 X 账号走 SocialData 的 x_search（packages/backend/src/sources/x.ts），需要 SOCIALDATA_API_KEY，没配时整个 T1_5 官方社交层都收不到内容。每个账号一条源：query 固定写成 “from:<handle> -filter:replies”、searchType=Latest，这种形状的账号会被拼进共享分片一起查（每片最多 24 个账号、查询不超过 470 字），编辑源每 30 分钟查一次；查询末尾自动加 include:nativeretweets，转推落成原推本身并带 retweetedBy（声优日常卡片上的 “X 转发了”），与原先 Nitter 源的行为一致。config.url 填账号主页 https://x.com/<handle>，声优日常靠它认出“这条是谁的号发的”。计费按返回条数 $0.0002，我们这个量级约 $0.6–1.7/月，预充值、余额不过期；预算在后台 设置→付费请求上限（service=socialdata）。为什么换掉 Nitter：之前用 Nitter 镜像的按账号 RSS（kind=rss），2026-08-24 X Corp. 给 Nitter 与 XCancel 的作者发律师函、两个服务当天下线，剩下的志愿者实例随时会挂；2026-10-11 nitter.meowing.monster 整体 502，临时切到 nitter.kareem.one 也频繁 503，2026-10-12 站主拍板改用 SocialData。这批源的 id 仍是 rss-nitter-*（保留是因为已有文章挂在这些 id 上），看到前缀不要以为还在走 Nitter。历史上存下的 Nitter 图片地址（/pic/…）由图片代理还原成 pbs.twimg.com 直取（packages/backend/src/lib/image-url.ts unwrapNitterPicture），不用迁移。站主 2026-10-06 决定把各乐队/企划官方号与声优个人号都收进来：官方号 7 条 + 成员 74 条（含 5 个只有 bio 自证的号），staff/info 号只收本人号（@yopipi_artist、@aiai_staff、@okadameiSTAFF 不收），共用企划号的 9 支乐队不重复配源，@Roselia_staff 不收。",
   "sources": [
     {
       "id": "web-gbc-news",
@@ -148,14 +148,11 @@
     {
       "id": "rss-nitter-girlsbandcry",
       "name": "GIRLS BAND CRY 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/girlsbandcry/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:girlsbandcry -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/girlsbandcry",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -174,14 +171,11 @@
     {
       "id": "rss-nitter-gbc-firstriff",
       "name": "ガールズバンドクライ ゲーム 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/gbc_firstriff/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:gbc_firstriff -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/gbc_firstriff",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -200,14 +194,11 @@
     {
       "id": "rss-nitter-bang-dream-info",
       "name": "BanG Dream! 企划 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/bang_dream_info/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:bang_dream_info -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/bang_dream_info",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -226,14 +217,11 @@
     {
       "id": "rss-nitter-bang-dream-mygo",
       "name": "MyGO!!!!! 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/bang_dream_mygo/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:bang_dream_mygo -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/bang_dream_mygo",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -252,14 +240,11 @@
     {
       "id": "rss-nitter-bdp-avemujica",
       "name": "Ave Mujica 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/BDP_AveMujica/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:BDP_AveMujica -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/BDP_AveMujica",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -278,14 +263,11 @@
     {
       "id": "rss-nitter-btr-anime",
       "name": "ぼっち・ざ・ろっく！ 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/BTR_anime/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:BTR_anime -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/BTR_anime",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -304,14 +286,11 @@
     {
       "id": "rss-nitter-rina-togetoge",
       "name": "理名（トゲナシトゲアリ Vo）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/rina_togetoge/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:rina_togetoge -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/rina_togetoge",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -331,14 +310,11 @@
     {
       "id": "rss-nitter-yuri-togetoge",
       "name": "夕莉（トゲナシトゲアリ Gt）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/yuri_togetoge/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:yuri_togetoge -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/yuri_togetoge",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -358,14 +334,11 @@
     {
       "id": "rss-nitter-mirei-togetoge",
       "name": "美怜（トゲナシトゲアリ Dr）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/mirei_togetoge/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:mirei_togetoge -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/mirei_togetoge",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -385,14 +358,11 @@
     {
       "id": "rss-nitter-natsu-togetoge",
       "name": "凪都（トゲナシトゲアリ Key）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/natsu_togetoge/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:natsu_togetoge -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/natsu_togetoge",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -412,14 +382,11 @@
     {
       "id": "rss-nitter-shuri-togetoge",
       "name": "朱李（トゲナシトゲアリ Ba）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/shuri_togetoge/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:shuri_togetoge -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/shuri_togetoge",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -814,14 +781,11 @@
     {
       "id": "rss-nitter-bang-dream-on",
       "name": "Our Notes 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/bang_dream_on/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:bang_dream_on -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/bang_dream_on",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -840,14 +804,11 @@
     {
       "id": "rss-nitter-bdp-yumemita",
       "name": "夢限大みゅーたいぷ 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/BDP_yumemita/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:BDP_yumemita -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/BDP_yumemita",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -866,14 +827,11 @@
     {
       "id": "rss-nitter-millsage-ofc",
       "name": "millsage 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/millsage_ofc/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:millsage_ofc -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/millsage_ofc",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -892,14 +850,11 @@
     {
       "id": "rss-nitter-dumbrock-ofc",
       "name": "一家Dumb Rock! 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/DumbRock_ofc/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:DumbRock_ofc -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/DumbRock_ofc",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -918,14 +873,11 @@
     {
       "id": "rss-nitter-cannalily-gbc",
       "name": "Canna Lily 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/CannaLily_GBC/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:CannaLily_GBC -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/CannaLily_GBC",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -944,14 +896,11 @@
     {
       "id": "rss-nitter-f-272-gbc",
       "name": "F-272 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/F_272_GBC/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:F_272_GBC -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/F_272_GBC",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -970,14 +919,11 @@
     {
       "id": "rss-nitter-kzmmzk-gbc",
       "name": "クズミミズク 官方 X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/kzmmzk_GBC/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:kzmmzk_GBC -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/kzmmzk_GBC",
         "publisherRole": "organization",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -996,14 +942,11 @@
     {
       "id": "rss-nitter-yopipi555",
       "name": "青山吉能（結束バンド 後藤ひとり）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Yopipi555/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Yopipi555 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Yopipi555",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1023,14 +966,11 @@
     {
       "id": "rss-nitter-s-suzushiro",
       "name": "鈴代紗弓（結束バンド 伊地知虹夏）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/s_suzushiro/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:s_suzushiro -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/s_suzushiro",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1050,14 +990,11 @@
     {
       "id": "rss-nitter-mizuno-saku",
       "name": "水野朔（結束バンド 山田リョウ）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/mizuno_saku/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:mizuno_saku -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/mizuno_saku",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1077,14 +1014,11 @@
     {
       "id": "rss-nitter-reina-kondo",
       "name": "近藤玲奈（ダイヤモンドダスト 日菜）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/reina_kondo/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:reina_kondo -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/reina_kondo",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1104,14 +1038,11 @@
     {
       "id": "rss-nitter-matsuoka-misato",
       "name": "松岡美里（ダイヤモンドダスト 奈奈）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/matsuoka_misato/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:matsuoka_misato -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/matsuoka_misato",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1131,14 +1062,11 @@
     {
       "id": "rss-nitter-urushiyamayuuki",
       "name": "漆山ゆうき（ダイヤモンドダスト 凛）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/urushiyamayuuki/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:urushiyamayuuki -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/urushiyamayuuki",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1158,14 +1086,11 @@
     {
       "id": "rss-nitter-miyamo-0509",
       "name": "宮白桃子（ダイヤモンドダスト 爱）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/miyamo_0509/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:miyamo_0509 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/miyamo_0509",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1185,14 +1110,11 @@
     {
       "id": "rss-nitter-aina-kzmmzk",
       "name": "藍楠（クズミミズク 乙津歌留多）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/aina_kzmmzk/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:aina_kzmmzk -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/aina_kzmmzk",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1212,14 +1134,11 @@
     {
       "id": "rss-nitter-mana-kzmmzk",
       "name": "茉那（クズミミズク 飯豊澄羽）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/mana_kzmmzk/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:mana_kzmmzk -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/mana_kzmmzk",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1239,14 +1158,11 @@
     {
       "id": "rss-nitter-an-kzmmzk",
       "name": "和音（クズミミズク 若堀若葉）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/an_kzmmzk/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:an_kzmmzk -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/an_kzmmzk",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1266,14 +1182,11 @@
     {
       "id": "rss-nitter-noa-kzmmzk",
       "name": "乃逢（クズミミズク 卯木風薫）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/noa_kzmmzk/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:noa_kzmmzk -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/noa_kzmmzk",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1293,14 +1206,11 @@
     {
       "id": "rss-nitter-kaya-kzmmzk",
       "name": "佳哉（クズミミズク 八峰志乃）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/kaya_kzmmzk/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:kaya_kzmmzk -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/kaya_kzmmzk",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1320,14 +1230,11 @@
     {
       "id": "rss-nitter-kisakicannalily",
       "name": "紫乃月姫咲（Canna Lily 榊原紫苑）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/KisakiCannaLily/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:KisakiCannaLily -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/KisakiCannaLily",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1347,14 +1254,11 @@
     {
       "id": "rss-nitter-arunecannalily",
       "name": "椎名在音（Canna Lily 千ヶ崎竜胆）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/AruneCannaLily/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:AruneCannaLily -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/AruneCannaLily",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1374,14 +1278,11 @@
     {
       "id": "rss-nitter-rinecannalily",
       "name": "早坂莉寧（Canna Lily 星亜矢芽）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/RineCannaLily/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:RineCannaLily -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/RineCannaLily",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1401,14 +1302,11 @@
     {
       "id": "rss-nitter-yuwacannalily",
       "name": "箭野結羽（Canna Lily 橘田楓）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/YuwaCannaLily/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:YuwaCannaLily -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/YuwaCannaLily",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1428,14 +1326,11 @@
     {
       "id": "rss-nitter-sakuracannalily",
       "name": "佐野櫻（Canna Lily 雪志摩ナズナ）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/SakuraCannaLily/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:SakuraCannaLily -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/SakuraCannaLily",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1455,14 +1350,11 @@
     {
       "id": "rss-nitter-yoshi-f272",
       "name": "YOSHI（F-272 中村有）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/yoshi_F272/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:yoshi_F272 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/yoshi_F272",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1482,14 +1374,11 @@
     {
       "id": "rss-nitter-towa-f272",
       "name": "TOWA（F-272 宇田川琴）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/towa_F272/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:towa_F272 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/towa_F272",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1509,14 +1398,11 @@
     {
       "id": "rss-nitter-miyu-f272",
       "name": "MIYU（F-272 黒宮八月）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/miyu_F272/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:miyu_F272 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/miyu_F272",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1536,14 +1422,11 @@
     {
       "id": "rss-nitter-hinano-f272",
       "name": "HINANO（F-272 浅井萌々乃）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/hinano_F272/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:hinano_F272 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/hinano_F272",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1563,14 +1446,11 @@
     {
       "id": "rss-nitter-luca-f272",
       "name": "LUCA（F-272 加藤嗄生）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/luca_F272/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:luca_F272 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/luca_F272",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1590,14 +1470,11 @@
     {
       "id": "rss-nitter-aimi-sound",
       "name": "愛美（Poppin'Party 户山香澄）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/aimi_sound/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:aimi_sound -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/aimi_sound",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1617,14 +1494,11 @@
     {
       "id": "rss-nitter-sae-otsuka",
       "name": "大塚紗英（Poppin'Party 花园多惠）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Sae_Otsuka/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Sae_Otsuka -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Sae_Otsuka",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1644,14 +1518,11 @@
     {
       "id": "rss-nitter-rimi-nsmt",
       "name": "西本りみ（Poppin'Party 牛込里美）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Rimi_nsmt/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Rimi_nsmt -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Rimi_nsmt",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1671,14 +1542,11 @@
     {
       "id": "rss-nitter-ayakaohashi",
       "name": "大橋彩香（Poppin'Party 山吹沙绫）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/AyakaOhashi/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:AyakaOhashi -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/AyakaOhashi",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1698,14 +1566,11 @@
     {
       "id": "rss-nitter-ayasa-ito",
       "name": "伊藤彩沙（Poppin'Party 市谷有咲）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/ayasa_ito/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:ayasa_ito -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/ayasa_ito",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1725,14 +1590,11 @@
     {
       "id": "rss-nitter-emiryun",
       "name": "加藤英美里（Afterglow 上原绯玛丽）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Emiryun/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Emiryun -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Emiryun",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1752,14 +1614,11 @@
     {
       "id": "rss-nitter-maeshima-ami",
       "name": "前島亜美（Pastel*Palettes 丸山彩）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/_maeshima_ami/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:_maeshima_ami -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/_maeshima_ami",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1779,14 +1638,11 @@
     {
       "id": "rss-nitter-uesaka-official",
       "name": "上坂すみれ（Pastel*Palettes 白鹭千圣）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/uesaka_official/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:uesaka_official -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/uesaka_official",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1806,14 +1662,11 @@
     {
       "id": "rss-nitter-193",
       "name": "中上育実（Pastel*Palettes 大和麻弥）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/_193_/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:_193_ -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/_193_",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1833,14 +1686,11 @@
     {
       "id": "rss-nitter-shawako-914",
       "name": "秦佐和子（Pastel*Palettes 若宫伊芙）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/shawako_914/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:shawako_914 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/shawako_914",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1860,14 +1710,11 @@
     {
       "id": "rss-nitter-aibaaiai",
       "name": "相羽あいな（Roselia 凑友希那）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/aibaaiai/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:aibaaiai -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/aibaaiai",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1887,14 +1734,11 @@
     {
       "id": "rss-nitter-kudoharuka910",
       "name": "工藤晴香（Roselia 冰川纱夜）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/kudoharuka910/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:kudoharuka910 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/kudoharuka910",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1914,14 +1758,11 @@
     {
       "id": "rss-nitter-yuki-nakashim",
       "name": "中島由貴（Roselia 今井莉莎）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Yuki_Nakashim/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Yuki_Nakashim -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Yuki_Nakashim",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1941,14 +1782,11 @@
     {
       "id": "rss-nitter-sakuragawa-megu",
       "name": "櫻川めぐ（Roselia 宇田川亚子）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/sakuragawa_megu/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:sakuragawa_megu -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/sakuragawa_megu",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1968,14 +1806,11 @@
     {
       "id": "rss-nitter-kanon-shizaki",
       "name": "志崎樺音（Roselia 白金燐子）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Kanon_Shizaki/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Kanon_Shizaki -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Kanon_Shizaki",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -1995,14 +1830,11 @@
     {
       "id": "rss-nitter-infoitomiku",
       "name": "伊藤美来（ハロー、ハッピーワールド！ 弦卷心）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/InfoItomiku/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:InfoItomiku -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/InfoItomiku",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2022,14 +1854,11 @@
     {
       "id": "rss-nitter-azusatadokoro",
       "name": "田所あずさ（ハロー、ハッピーワールド！ 濑田薰）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/AzusaTadokoro/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:AzusaTadokoro -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/AzusaTadokoro",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2049,14 +1878,11 @@
     {
       "id": "rss-nitter-toyotamoe",
       "name": "豊田萌絵（ハロー、ハッピーワールド！ 松原花音）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/toyotamoe/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:toyotamoe -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/toyotamoe",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2076,14 +1902,11 @@
     {
       "id": "rss-nitter-tomoyokurosawa",
       "name": "黒沢ともよ（ハロー、ハッピーワールド！ 奥泽美咲）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/TomoyoKurosawa/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:TomoyoKurosawa -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/TomoyoKurosawa",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2103,14 +1926,11 @@
     {
       "id": "rss-nitter-amane-bushi",
       "name": "進藤あまね（Morfonica 仓田真白）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/amane_bushi/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:amane_bushi -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/amane_bushi",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2130,14 +1950,11 @@
     {
       "id": "rss-nitter-hina-suguta",
       "name": "直田姫奈（Morfonica 桐谷透子）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/hina_suguta/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:hina_suguta -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/hina_suguta",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2157,14 +1974,11 @@
     {
       "id": "rss-nitter-240y-k",
       "name": "西尾夕香（Morfonica 广町七深）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/240y_k/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:240y_k -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/240y_k",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2184,14 +1998,11 @@
     {
       "id": "rss-nitter-mika-d-dr",
       "name": "mika（Morfonica 二叶筑紫）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/mika_d_dr/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:mika_d_dr -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/mika_d_dr",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2211,14 +2022,11 @@
     {
       "id": "rss-nitter-ayasa-violin",
       "name": "Ayasa（Morfonica 八潮瑠唯）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/AyAsA_violin/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:AyAsA_violin -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/AyAsA_violin",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2238,14 +2046,11 @@
     {
       "id": "rss-nitter-hina-youmiya",
       "name": "羊宮妃那（MyGO!!!!! 高松灯）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Hina_Youmiya/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Hina_Youmiya -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Hina_Youmiya",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2265,14 +2070,11 @@
     {
       "id": "rss-nitter-ttisrn-0710",
       "name": "立石凛（MyGO!!!!! 千早爱音）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/ttisrn_0710/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:ttisrn_0710 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/ttisrn_0710",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2292,14 +2094,11 @@
     {
       "id": "rss-nitter-aoki-hina",
       "name": "青木陽菜（MyGO!!!!! 要乐奈）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/aoki__hina/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:aoki__hina -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/aoki__hina",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2319,14 +2118,11 @@
     {
       "id": "rss-nitter-kohinatamika",
       "name": "小日向美香（MyGO!!!!! 长崎爽世）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/kohinatamika/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:kohinatamika -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/kohinatamika",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2346,14 +2142,11 @@
     {
       "id": "rss-nitter-cocohayashi515",
       "name": "林鼓子（MyGO!!!!! 椎名立希）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/cocohayashi515/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:cocohayashi515 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/cocohayashi515",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2373,14 +2166,11 @@
     {
       "id": "rss-nitter-kanon-takao",
       "name": "高尾奏音（Ave Mujica 丰川祥子）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Kanon_Takao/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Kanon_Takao -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Kanon_Takao",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2400,14 +2190,11 @@
     {
       "id": "rss-nitter-watase-yuzuki",
       "name": "渡瀬結月（Ave Mujica 若叶睦）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Watase_Yuzuki/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Watase_Yuzuki -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Watase_Yuzuki",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2427,14 +2214,11 @@
     {
       "id": "rss-nitter-sasakirico",
       "name": "佐々木李子（Ave Mujica 三角初华）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/sasakirico/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:sasakirico -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/sasakirico",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2454,14 +2238,11 @@
     {
       "id": "rss-nitter-okada-mei0519",
       "name": "岡田夢以（Ave Mujica 八幡海铃）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/okada_mei0519/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:okada_mei0519 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/okada_mei0519",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2481,14 +2262,11 @@
     {
       "id": "rss-nitter-akaney-banu",
       "name": "米澤茜（Ave Mujica 祐天寺若麦）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/AkaneY_banu/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:AkaneY_banu -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/AkaneY_banu",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2508,14 +2286,11 @@
     {
       "id": "rss-nitter-arale-yumemita",
       "name": "仲町あられ（夢限大みゅーたいぷ）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/arale_yumemita/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:arale_yumemita -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/arale_yumemita",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2535,14 +2310,11 @@
     {
       "id": "rss-nitter-nonoka-yumemita",
       "name": "宮永ののか（夢限大みゅーたいぷ）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/nonoka_yumemita/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:nonoka_yumemita -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/nonoka_yumemita",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2562,14 +2334,11 @@
     {
       "id": "rss-nitter-ritsu-yumemita",
       "name": "峰月律（夢限大みゅーたいぷ）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/ritsu_yumemita/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:ritsu_yumemita -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/ritsu_yumemita",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2589,14 +2358,11 @@
     {
       "id": "rss-nitter-miyako-yumemita",
       "name": "藤都子（夢限大みゅーたいぷ）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/miyako_yumemita/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:miyako_yumemita -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/miyako_yumemita",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2616,14 +2382,11 @@
     {
       "id": "rss-nitter-yuno-yumemita",
       "name": "千石ユノ（夢限大みゅーたいぷ）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/yuno_yumemita/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:yuno_yumemita -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/yuno_yumemita",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2643,14 +2406,11 @@
     {
       "id": "rss-nitter-lay0113",
       "name": "Raychell（RAISE A SUILEN LAYER）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Lay0113/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Lay0113 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Lay0113",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2670,14 +2430,11 @@
     {
       "id": "rss-nitter-riko-kohara",
       "name": "小原莉子（RAISE A SUILEN LOCK）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Riko_kohara/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Riko_kohara -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Riko_kohara",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2697,14 +2454,11 @@
     {
       "id": "rss-nitter-nananananachume",
       "name": "夏芽（RAISE A SUILEN MASKING）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/nananananachume/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:nananananachume -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/nananananachume",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2724,14 +2478,11 @@
     {
       "id": "rss-nitter-kurachireo",
       "name": "倉知玲鳳（RAISE A SUILEN PAREO）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/kurachireo/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:kurachireo -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/kurachireo",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2751,14 +2502,11 @@
     {
       "id": "rss-nitter-risa-tsumugi",
       "name": "紡木吏佐（RAISE A SUILEN CHU²）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/risa_tsumugi/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:risa_tsumugi -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/risa_tsumugi",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2778,14 +2526,11 @@
     {
       "id": "rss-nitter-ria-yakushiji",
       "name": "薬師寺李有（millsage 汐見蛍）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/Ria_Yakushiji/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:Ria_Yakushiji -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/Ria_Yakushiji",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2805,14 +2550,11 @@
     {
       "id": "rss-nitter-chiharu-okr",
       "name": "千春（millsage 伊沢なつめ）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/chiharu_okr/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:chiharu_okr -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/chiharu_okr",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2832,14 +2574,11 @@
     {
       "id": "rss-nitter-igoma-y",
       "name": "伊駒ゆりえ（millsage 浜崎まほろ）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/igoma_y/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:igoma_y -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/igoma_y",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2859,14 +2598,11 @@
     {
       "id": "rss-nitter-hinano-sak122",
       "name": "咲川ひなの（millsage 和泉朋花）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/hinano_sak122/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:hinano_sak122 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/hinano_sak122",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2886,14 +2622,11 @@
     {
       "id": "rss-nitter-may-o-o-t",
       "name": "橘めい（一家Dumb Rock! 須賀蕾叶）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/May_o_o_T/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:May_o_o_T -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/May_o_o_T",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2913,14 +2646,11 @@
     {
       "id": "rss-nitter-suzumisakura305",
       "name": "涼泉桜花（一家Dumb Rock! 馬橋心玖）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/SuzumiSakura305/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:SuzumiSakura305 -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/SuzumiSakura305",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2940,14 +2670,11 @@
     {
       "id": "rss-nitter-hanamiya-nina",
       "name": "花宮初奈（一家Dumb Rock! 矢倉蓬咲）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/hanamiya_nina/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:hanamiya_nina -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/hanamiya_nina",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5
@@ -2967,14 +2694,11 @@
     {
       "id": "rss-nitter-hikaru-tono",
       "name": "遠野ひかる（一家Dumb Rock! 四宮寧月）X",
-      "kind": "rss",
+      "kind": "x_search",
       "config": {
-        "feedUrl": "https://nitter.kareem.one/hikaru_tono/rss",
-        "itemUrlPrefixRewrite": {
-          "from": "https://nitter.kareem.one/",
-          "to": "https://x.com/"
-        },
-        "summaryIsBody": true,
+        "query": "from:hikaru_tono -filter:replies",
+        "searchType": "Latest",
+        "url": "https://x.com/hikaru_tono",
         "publisherRole": "person",
         "_girlsbands": {
           "initialBackfillLimit": 5

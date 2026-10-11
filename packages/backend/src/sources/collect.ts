@@ -11,8 +11,8 @@ import { allowed, fetchDetail, fetchWebList, type DetailNeed } from "./web-list.
 import { unsupportedConfig } from "./config-keys.ts";
 import { fetchJsonList } from "./json-list.ts";
 import { detailUrl, fetchTicketDetail, withDetail, type DetailAdapter } from "./detail-adapters.ts";
-import { enrichXProfiles, xProfileSeeds } from "./x-profiles.ts";
-import { fetchXSearch, planXShards, readXSearch, shardHandle, shardQuery, selfThreadHandle, SHARDABLE_SQL, tweetToCandidate, type XBacklog } from "./x.ts";
+import { enrichXProfiles, recordXProfiles, xProfileSeeds } from "./x-profiles.ts";
+import { fetchXSearch, planXShards, readXSearch, shardHandle, shardQuery, selfThreadHandle, SHARDABLE_SQL, tweetToCandidate, xProfilesOf, type XBacklog } from "./x.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 
 export interface CollectResult {
@@ -188,6 +188,8 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
     else {
       const x = await fetchXSearch(source);
       candidates = x.candidates;
+      // Names and avatars for the timeline cards; display data only, never blocks the fetch.
+      try { await recordXProfiles(x.profiles); } catch { /* best effort */ }
       paidReceiptIds = x.receiptIds;
       if (x.lastId) nextCursor.lastTweetId = x.lastId;
       // A search longer than one run keeps its position for the next runs (shown in the admin).
@@ -354,6 +356,7 @@ export async function collectXShard(key: string, sourceIds: string[]): Promise<{
       }
     }
     const read = await readXSearch(shardQuery(members.map((m) => shardHandle(m)!), members.map(selfThreadHandle).filter((h): h is string => h !== null)), { lastId: String(since), backlog, subject: `x-shard:${key}` });
+    try { await recordXProfiles(xProfilesOf(read.tweets)); } catch { /* display data only */ }
     const detail = { shard: key, accounts: members.length, pages: read.pages, truncated: read.truncated, backlog: read.backlog.length, backlogPages: read.backlogPages, dropped: read.dropped };
     const counts = new Map<string, { found: number; created: number }>();
     for (const m of members) {

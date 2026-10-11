@@ -5,6 +5,7 @@ import { ProviderRejectedError } from "../providers/receipts.ts";
 import type { XPostData } from "../content/materials.ts";
 import { sha256 } from "../lib/ids.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
+import type { XProfileSeed } from "./x-profiles.ts";
 
 function avatar(url: string | undefined): string | null {
   // Larger avatar than the default 48px thumbnail.
@@ -26,6 +27,23 @@ export function toXPost(t: SdTweet): XPostData {
       ? { authorName: q.user.name, handle: q.user.screen_name, text: tweetText(q), url: `https://x.com/${q.user.screen_name}/status/${q.id_str}`, media: tweetMedia(q) }
       : null,
   };
+}
+
+/** Everyone a search showed with name and picture: the accounts, whom they retweeted, whom they quoted. */
+export function xProfilesOf(tweets: readonly SdTweet[]): XProfileSeed[] {
+  const out = new Map<string, XProfileSeed>();
+  const add = (t: SdTweet | null | undefined) => {
+    if (!t?.user?.screen_name) return;
+    const key = t.user.screen_name.toLowerCase();
+    if (!out.has(key)) out.set(key, { handle: t.user.screen_name, authorName: t.user.name || null, avatarUrl: avatar(t.user.profile_image_url_https) });
+  };
+  for (const t of tweets) {
+    add(t);
+    add(t.retweeted_status);
+    add(t.quoted_status);
+    add(t.retweeted_status?.quoted_status);
+  }
+  return [...out.values()];
 }
 
 const X_ARTICLE_LINK = /https?:\/\/(?:www\.)?(?:x|twitter)\.com\/i\/article\/\d+/gi;
@@ -53,8 +71,12 @@ export function xArticleText(article: SdArticle): { title: string; text: string 
   return text ? { title: (article.title ?? "").trim(), text } : null;
 }
 
-export function tweetToCandidate(t: SdTweet): Candidate {
-  const post = toXPost(t);
+/** A retweet becomes the original post, marked with who retweeted it (same shape the Nitter feeds gave). */
+export function tweetToCandidate(outer: SdTweet): Candidate {
+  const t = outer.retweeted_status ?? outer;
+  const post: XPostData = t === outer
+    ? toXPost(t)
+    : { ...toXPost(t), retweetedBy: { handle: outer.user.screen_name, authorName: outer.user.name || null } };
   const firstLine = post.text.split("\n").find((l) => l.trim()) ?? post.text;
   return {
     url: `https://x.com/${t.user.screen_name}/status/${t.id_str}`,
@@ -107,6 +129,7 @@ export interface XRead {
 
 export interface XFetch extends Omit<XRead, "tweets"> {
   candidates: Candidate[];
+  profiles: XProfileSeed[];
 }
 
 /**
@@ -180,7 +203,9 @@ export async function readXSearch(base: string, opts: { lastId: string | null; b
   }
 
   const seen = new Set<string>();
-  const tweets = all.filter((t) => !t.retweeted_status && !seen.has(t.id_str) && !!seen.add(t.id_str));
+  // Retweets stay (tweetToCandidate turns them into the original marked retweetedBy); the watermark
+  // follows the retweet's own id, which is what since_id compares.
+  const tweets = all.filter((t) => !seen.has(t.id_str) && !!seen.add(t.id_str));
   const maxId = tweets.reduce<string | null>((m, t) => (m === null || BigInt(t.id_str) > BigInt(m) ? t.id_str : m), lastId);
   return { tweets, receiptIds: [...receiptIds], lastId: maxId, backlog, pages, truncated, backlogPages, dropped };
 }
@@ -188,7 +213,10 @@ export async function readXSearch(base: string, opts: { lastId: string | null; b
 /** One account's own search (its first fetch, a query of its own, or a manual run from the admin). */
 export async function fetchXSearch(source: SourceRow): Promise<XFetch> {
   const handle = selfThreadHandle(source);
-  const base = handle ? `from:${handle} (-filter:replies OR filter:self_threads)` : String(source.config.query ?? "");
+  const query = String(source.config.query ?? "");
+  const base = handle
+    ? `from:${handle} (-filter:replies OR filter:self_threads)${RETWEETS}`
+    : SHARDABLE.test(query) ? `${query}${RETWEETS}` : query;
   if (!base) throw new FetchError("query missing");
   const { tweets, ...read } = await readXSearch(base, {
     lastId: source.cursor?.lastTweetId ?? null,
@@ -196,7 +224,7 @@ export async function fetchXSearch(source: SourceRow): Promise<XFetch> {
     subject: `source:${source.id}`,
     type: source.config.searchType ?? "Latest",
   });
-  return { candidates: tweets.map(tweetToCandidate), ...read };
+  return { candidates: tweets.map(tweetToCandidate), profiles: xProfilesOf(tweets), ...read };
 }
 
 // Shards: plain account queries read together
@@ -205,6 +233,11 @@ export async function fetchXSearch(source: SourceRow): Promise<XFetch> {
 const SHARDABLE = /^from:([A-Za-z0-9_]{1,15}) -filter:replies$/i;
 /** The same test in SQL, for the schedulers. */
 export const SHARDABLE_SQL = "^from:[A-Za-z0-9_]{1,15} -filter:replies$";
+/**
+ * An account's timeline includes what it retweets, as the Nitter feeds did: the 声优日常 timeline shows
+ * them as "X 转发了". Without the operator the search leaves retweets out.
+ */
+const RETWEETS = " include:nativeretweets";
 /** SocialData refuses queries over 512 characters; the since_id watermark takes about 30 of them. */
 const SHARD_QUERY_MAX = 470;
 const SHARD_MAX_ACCOUNTS = 24;
@@ -224,7 +257,7 @@ export function selfThreadHandle(s: Pick<SourceRow, "config">): string | null {
 export function shardQuery(handles: string[], selfThreads: string[] = []): string {
   const posts = `(${handles.map((h) => `from:${h}`).join(" OR ")}) -filter:replies`;
   const own = handles.filter((h) => selfThreads.includes(h));
-  return own.length ? `(${posts} OR (${own.map((h) => `from:${h}`).join(" OR ")}) filter:self_threads)` : posts;
+  return (own.length ? `(${posts} OR (${own.map((h) => `from:${h}`).join(" OR ")}) filter:self_threads)` : posts) + RETWEETS;
 }
 
 export interface XShard {

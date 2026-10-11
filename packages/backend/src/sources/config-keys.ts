@@ -21,7 +21,8 @@ const KEYS: Record<SourceRow["kind"], string[]> = {
     "imageField", "imagePrefix", "detailAdapter", "detailUrlTemplate",
   ],
   // X accounts are mostly read in shards, which apply only these.
-  x_search: [...PUBLISHER, "_girlsbands", "ingestNoiseFilter", "itemUrlPrefixRewrite", "query", "searchType"],
+  // url: the account page (https://x.com/<handle>), which names the account on the 声优日常 timeline.
+  x_search: [...PUBLISHER, "_girlsbands", "ingestNoiseFilter", "itemUrlPrefixRewrite", "query", "searchType", "url"],
   mp_account: [...PUBLISHER, "wxid", "ghid", "nickname"],
   external: [...PUBLISHER],
 };
