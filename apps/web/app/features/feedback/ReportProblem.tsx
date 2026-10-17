@@ -1,7 +1,8 @@
 // 「报告问题」（W18）：条目页、故事页、演出页、主题页、发售页共用同一枚入口。点开是一个小弹层，读者只需要
 // 选一类问题、写一句说明 —— 剩下的（限流、封禁、飞书转发、后台处理）全部沿用 /feedback 那条老路，所以这里
 // 没有新接口，只是往同一个 multipart 表单里多塞四个字段。
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { FeedbackChallenge, FeedbackChallengeScope, useFeedbackChallenge } from './FeedbackChallenge';
 import { Link } from "react-router";
 import { Sheet } from "../../components/ui/Sheet";
 import { Select } from "../../components/ui/Controls";
@@ -25,7 +26,9 @@ export function ReportProblem({ kind, id, what, className = "" }: {
       <button type="button" onClick={() => setOpen(true)} className={`text-[12.5px] text-ink-4 transition-colors hover:text-accent ${className}`}>
         发现错误？报告问题
       </button>
-      <ReportSheet open={open} onClose={() => setOpen(false)} kind={kind} id={id} what={what} />
+      <FeedbackChallengeScope active={open}>
+        <ReportSheet open={open} onClose={() => setOpen(false)} kind={kind} id={id} what={what} />
+      </FeedbackChallengeScope>
     </>
   );
 }
@@ -34,11 +37,16 @@ const field = "w-full rounded-card bg-bg-sunk text-ink outline-none ring-1 ring-
 const label = "mb-2 block text-[13px] font-semibold text-ink";
 
 function ReportSheet({ open, onClose, kind, id, what }: { open: boolean; onClose: () => void; kind: TargetKind; id: string; what?: string }) {
+  const challenge = useFeedbackChallenge();
   const [part, setPart] = useState("");
   const [expected, setExpected] = useState("");
   const [content, setContent] = useState("");
   const [email, setEmail] = useState("");
   const [state, setState] = useState<{ kind: "idle" | "sending" | "done" | "error"; message?: string; number?: number }>({ kind: "idle" });
+  const acceptToken = useCallback((token: string) => {
+    challenge.setToken(token);
+    if (token) setState((current) => current.kind === "error" && current.message === "请先完成人机验证。" ? { kind: "idle" } : current);
+  }, [challenge.setToken]);
 
   const close = () => {
     onClose();
@@ -56,9 +64,11 @@ function ReportSheet({ open, onClose, kind, id, what }: { open: boolean; onClose
     e.preventDefault();
     if (!part) return setState({ kind: "error", message: "请先选一类问题。" });
     if (content.trim().length < 2) return setState({ kind: "error", message: "请用一两句话说明哪里不对。" });
+    if (!challenge.token) return setState({ kind: 'error', message: '请先完成人机验证。' });
     setState({ kind: "sending" });
     try {
       const form = new FormData();
+      form.set('cf-turnstile-response', challenge.token);
       form.set("content", content);
       form.set("email", email);
       form.set("pageUrl", typeof location === "undefined" ? "" : location.href);
@@ -72,10 +82,12 @@ function ReportSheet({ open, onClose, kind, id, what }: { open: boolean; onClose
       setState({ kind: "done", number: body.id });
     } catch {
       setState({ kind: "error", message: "网络不太顺，稍后再提交一次。" });
+    } finally {
+      challenge.reset();
     }
   };
 
-  const canSend = part !== "" && content.trim().length >= 2 && state.kind !== "sending";
+  const canSend = !!challenge.token && part !== "" && content.trim().length >= 2 && state.kind !== "sending";
   return (
     <Sheet open={open} onClose={close} centered title="报告问题" label="报告问题">
       {state.kind === "done" ? (
@@ -143,6 +155,7 @@ function ReportSheet({ open, onClose, kind, id, what }: { open: boolean; onClose
             <input id="rp-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="留邮箱，我可以回信联系你" className={`${field} h-11 px-4 text-[14.5px]`} />
           </div>
 
+          {open && <FeedbackChallenge onToken={acceptToken} resetKey={challenge.resetKey} />}
           {state.kind === "error" && (
             <p role="alert" className="rounded-tile bg-hot-soft px-3.5 py-2.5 text-[13px] text-hot">{state.message}</p>
           )}

@@ -1,9 +1,10 @@
 // 情报投稿（W18）：读者把「这个账号/这个站值得收」丢过来。跟意见反馈共用同一条后端管线（同一张表、同一套
 // 限流与封禁），唯一的区别是 target_kind 固定为 source —— 它不指向站上任何一个对象，所以后台单独列出来人工看。
 // 这里只收链接：**读者给的地址永远不会被自动抓取**，人工确认之后才可能进 industry/sources.json。
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link } from "react-router";
 import { SITE } from "@girlsbands/industry/site";
+import { FeedbackChallenge, useFeedbackChallenge } from '../features/feedback/FeedbackChallenge';
 import { Presence } from "../components/ui/Presence";
 import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
@@ -75,16 +76,23 @@ function SubmitAside() {
 }
 
 export default function SubmitPage() {
+  const challenge = useFeedbackChallenge();
   const [content, setContent] = useState("");
   const [email, setEmail] = useState("");
   const [state, setState] = useState<{ kind: "idle" | "sending" | "done" | "error"; message?: string; id?: number }>({ kind: "idle" });
+  const acceptToken = useCallback((token: string) => {
+    challenge.setToken(token);
+    if (token) setState((current) => current.kind === "error" && current.message === "请先完成人机验证。" ? { kind: "idle" } : current);
+  }, [challenge.setToken]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (content.trim().length < 2) return setState({ kind: "error", message: "请写下要投稿的账号或网站。" });
+    if (!challenge.token) return setState({ kind: 'error', message: '请先完成人机验证。' });
     setState({ kind: "sending" });
     try {
       const form = new FormData();
+      form.set('cf-turnstile-response', challenge.token);
       form.set("content", content);
       form.set("email", email);
       // 这一页本身就是页面地址，没有别的意义；链接写在正文里，方便人工看也方便一起删。
@@ -98,6 +106,8 @@ export default function SubmitPage() {
       setEmail("");
     } catch {
       setState({ kind: "error", message: "网络不太顺，稍后再提交一次。" });
+    } finally {
+      challenge.reset();
     }
   };
 
@@ -125,7 +135,7 @@ export default function SubmitPage() {
 
   const field = "w-full rounded-card bg-bg-sunk text-ink outline-none ring-1 ring-inset ring-line-soft transition-[background-color,box-shadow] placeholder:text-ink-4 hover:ring-line-strong focus:bg-surface focus:shadow-[0_0_0_3px_var(--accent-soft)] focus:ring-accent dark:bg-bg-muted/60 dark:focus:bg-surface";
   const label = "mb-2 block text-[13px] font-semibold text-ink";
-  const canSend = content.trim().length >= 2 && state.kind !== "sending";
+  const canSend = !!challenge.token && content.trim().length >= 2 && state.kind !== "sending";
   return (
     <>
       <PhoneBar back={{ to: "/more", label: "我的" }} title="情报投稿" />
@@ -168,7 +178,8 @@ export default function SubmitPage() {
               <input id="sb-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="留下邮箱，有结果我可以回信告诉你" className={`${field} h-11 px-4 text-[14.5px]`} />
             </div>
 
-            <Presence show={state.kind === "error"} enter="anim-notice-in" exit="anim-fade-out" duration={160}>
+            <FeedbackChallenge onToken={acceptToken} resetKey={challenge.resetKey} />
+          <Presence show={state.kind === "error"} enter="anim-notice-in" exit="anim-fade-out" duration={160}>
               <p role="alert" className="rounded-tile bg-hot-soft px-3.5 py-2.5 text-[13px] text-hot">
                 {state.kind === "error" ? state.message : ""}
               </p>

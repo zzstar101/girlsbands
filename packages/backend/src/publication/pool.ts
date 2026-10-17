@@ -8,10 +8,7 @@ import {
   categoryCondition, channelCondition, ITEM_COLUMNS, ITEM_FROM, seatHolders, subjectCondition, subjectKey, tagCondition, toFeedItemSummary,
   type ItemRow,
 } from "./items.ts";
-import { dailyCondition, listedCondition } from "./scope.ts";
-
-/** The members' daily lane is its own list (scope.ts dailyCondition); every other filter reads the pool. */
-const scopeOf = (category: string | null | undefined, now: Date) => (category === "daily" ? dailyCondition() : listedCondition(now));
+import { listedCondition } from "./scope.ts";
 import { TOPICS } from "./topics.ts";
 
 export const POOL_PAGE_SIZE = 40;
@@ -108,7 +105,7 @@ export function publicMatchCondition(terms: string[]) {
 /** The listed items under the filters, up to the pages the pool offers. */
 async function listedCount(f: TimelineFilters, now: Date): Promise<number> {
   return Number(one(await sql<{ n: number }[]>`
-    SELECT count(*) AS n FROM (SELECT 1 FROM publications p WHERE ${scopeOf(f.category, now)}
+    SELECT count(*) AS n FROM (SELECT 1 FROM publications p WHERE ${listedCondition(now)}
       ${channelCondition(f.channel)} ${categoryCondition(f.category)} ${tagCondition(f.tag)} ${subjectCondition(f.subjects)} LIMIT ${POOL_MAX_PAGES * POOL_PAGE_SIZE}) t`).n);
 }
 
@@ -130,7 +127,7 @@ export async function loadPool(query: PoolQuery): Promise<PoolResponse> {
   const terms = q ? searchTerms(q) : [];
   const entityTag = q ? queryEntityTag(q) : null;
   const filters = sql`${channelCondition(query.channel)} ${categoryCondition(query.category)} ${tagCondition(query.tag)} ${subjectCondition(query.subjects)}`;
-  const scope = scopeOf(query.category, now);
+  const scope = listedCondition(now);
   const offset = (page - 1) * POOL_PAGE_SIZE;
   const cap = POOL_MAX_PAGES * POOL_PAGE_SIZE;
 

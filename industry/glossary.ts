@@ -16,7 +16,7 @@
 // 企划与乐队不在这里重复维护，直接从 `taxonomy.ts` 的 `ENTITIES` 生成；成员名与会场名两批
 // 数据量大（成员 162 条、会场 135 条），各自单独一个文件，都是逐条带来源的研究产物。
 import { ENTITIES } from "./taxonomy.ts";
-import { MEMBERS } from "./glossary-members.ts";
+import { MEMBERS, PROJECT_CAST } from "./glossary-members.ts";
 import { VENUES } from "./glossary-venues.ts";
 
 export type GlossaryKind = "project" | "band" | "work" | "member" | "venue" | "platform";
@@ -99,7 +99,7 @@ export function usable(form: string): boolean {
   return form.length >= 3;
 }
 
-export const GLOSSARY: readonly GlossaryEntry[] = [...entityEntries, ...WORKS, ...MEMBERS, ...VENUES, ...PLATFORMS]
+export const GLOSSARY: readonly GlossaryEntry[] = [...entityEntries, ...WORKS, ...MEMBERS, ...PROJECT_CAST, ...VENUES, ...PLATFORMS]
   .map((entry) => ({ kind: entry.kind, forms: entry.forms.filter(usable) }))
   .filter((entry) => entry.forms.length > 0);
 

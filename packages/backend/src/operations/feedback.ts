@@ -13,6 +13,7 @@ import { feedbackEmail, forwardFeedbackByEmail } from "./feedback-mail.ts";
 
 /** 反馈被拒绝的公开错误；与订阅共用同一套 429/400 语义。 */
 export { Rejected as FeedbackRejected } from "./abuse.ts";
+export { feedbackChallengeConfig, verifyFeedbackChallenge } from "./feedback-challenge.ts";
 
 /** The picture's real type from its first bytes (what the browser claimed is not trusted). */
 export function sniffImageType(data: Buffer): "image/png" | "image/jpeg" | "image/webp" | "image/gif" | null {

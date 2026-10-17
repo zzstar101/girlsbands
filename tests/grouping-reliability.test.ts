@@ -9,6 +9,8 @@ import { after, before, test } from "node:test";
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { upsertMaterial } from "@girlsbands/backend/content/materials";
 import { groupArticle } from "@girlsbands/backend/events/group";
+import { candidateViews } from "@girlsbands/backend/events/recall";
+import { pairUser } from "@girlsbands/backend/events/relate";
 import { BatchSchema, PairSchema, verdictsByFact, type CandidateView } from "@girlsbands/backend/events/relate";
 import { detachFromFact, requestRegroup } from "@girlsbands/backend/events/corrections";
 import { sweepUngrouped } from "@girlsbands/backend/jobs/events";
@@ -19,10 +21,14 @@ import { publishArticle } from "@girlsbands/backend/publication/publish";
 const T = tag();
 const sourceId = `group-reliability-${T}`;
 let response: "complete" | "missing" = "complete";
+const reviewInputs: string[] = [];
 const provider = await stub((_hit, request) => {
   const body = JSON.parse(request.body);
   const text = body.messages[1].content as string;
-  if (text.includes("【报道 A】")) return { choices: [{ message: { content: JSON.stringify({ a: "公布", b: "公布", relation: "SAME_OCCURRENCE", difference: "", confidence: 1 }) } }] };
+  if (text.includes("【报道 A】")) {
+    reviewInputs.push(text);
+    return { choices: [{ message: { content: JSON.stringify({ a: "公布", b: "公布", relation: "SAME_OCCURRENCE", difference: "", confidence: 1 }) } }] };
+  }
   const ids = [...text.matchAll(/【候选 (C\d+)】/g)].map(m => m[1]);
   return { choices: [{ message: { content: JSON.stringify({ query: "新 Live 公布", decisions: (response === "missing" ? [] : ids).map(id => ({ id, relation: "SAME_OCCURRENCE", confidence: 1, note: "" })), selection: { addsValue: true, reason: "fixture news" } }) } }] };
 });
@@ -52,6 +58,34 @@ before(async () => {
   await groupArticle(id);
 });
 after(async () => { await provider.close(); await embeddings.close(); await stopBoss(); await closeDb(); });
+
+test("grouping passes the incoming original to pair review, not just its misleading summary", async () => {
+  const id = await report('明日発売の案内');
+  await sql`UPDATE articles SET body_text='明日10/18(日) 12:00〜 一般発売開始' WHERE id=${id}`;
+  const start = reviewInputs.length;
+  await groupArticle(id);
+  assert.ok(reviewInputs.length > start, 'fixture must reach the actual pair-review path');
+  const incoming = reviewInputs[start]!.split('【报道 B】')[0]!;
+  assert.ok(incoming.includes('明日10/18(日) 12:00〜 一般発売開始'), incoming);
+});
+
+test("identity review and selected coverage retain source evidence instead of trusting summaries", async () => {
+  const [candidate] = await candidateViews([{ factId, storyId: 0, factTitle: '新 Live 公布', score: 0.76 }]);
+  assert.ok(candidate);
+  assert.equal(candidate.report.sourceText, '今日公布新 Live 和票务。');
+  const message = pairUser({ title: '明日开售', source: '成员', firstParty: true, at: new Date(), summary: '开始售票', sourceText: '明日10/18(日) 12:00〜' }, candidate.report);
+  assert.ok(message.includes('明日10/18(日) 12:00〜'));
+  assert.ok(message.includes('今日公布新 Live 和票务。'));
+});
+
+test("historical editorial imports still deduplicate but never add heat", async () => {
+  const id = await report('history');
+  await sql`UPDATE articles SET backfill=true, published_at=now()-interval '7 days' WHERE id=${id}`;
+  const result = await groupArticle(id);
+  assert.equal(result.verdict, 'same-fact');
+  assert.equal(result.factId, factId);
+  assert.equal((await sql`SELECT 1 FROM story_signals WHERE article_id=${id}`).length, 0);
+});
 
 test("missing and invalid identity answers cannot silently assert unrelated", () => {
   assert.equal(BatchSchema.safeParse({}).success, false);

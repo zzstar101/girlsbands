@@ -14,8 +14,17 @@ after(async () => {
   await closeDb();
 });
 
-test("current browser feedback still works", async () => {
+test("current browser feedback still works", async (t) => {
+  process.env.TURNSTILE_SITE_KEY = 'local-site-key';
+  process.env.TURNSTILE_SECRET_KEY = 'local-secret';
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = Object.assign(async (input: Parameters<typeof fetch>[0]) => {
+    assert.equal(String(input), 'https://challenges.cloudflare.com/turnstile/v0/siteverify');
+    return Response.json({ success: true, hostname: new URL(config.siteUrl).hostname, action: 'feedback' });
+  }, { preconnect: originalFetch.preconnect });
+  t.after(() => { globalThis.fetch = originalFetch; });
   const form = new FormData();
+  form.set('cf-turnstile-response', 'local-token');
   form.set("content", `Current browser feedback ${randomUUID()}`);
   form.set("email", "reader@example.com");
   form.set("pageUrl", "/about");

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { SITE } from "@girlsbands/industry/site";
+import { FeedbackChallenge, useFeedbackChallenge } from '../features/feedback/FeedbackChallenge';
 import { Presence } from "../components/ui/Presence";
 import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
@@ -88,12 +89,18 @@ const MAX_IMAGE = 5 * 1024 * 1024;
 const MAX_TEXT = 2000;
 
 export default function FeedbackPage() {
+  const challenge = useFeedbackChallenge();
   const [params] = useSearchParams();
   const [draft, setDraft] = useState<Draft>({ content: "", email: "", pageUrl: params.get("from") ?? "" });
   const [shot, setShot] = useState<{ file: File; url: string } | null>(null);
   const [state, setState] = useState<{ kind: "idle" | "sending" | "done" | "error"; message?: string; id?: number }>({ kind: "idle" });
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const acceptToken = useCallback((token: string) => {
+    challenge.setToken(token);
+    // A forced submit before verification leaves this one message; the newly verified token makes it stale.
+    if (token) setState((current) => current.kind === "error" && current.message === "请先完成人机验证。" ? { kind: "idle" } : current);
+  }, [challenge.setToken]);
 
   useEffect(() => {
     const saved = readDraft();
@@ -136,9 +143,11 @@ export default function FeedbackPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (draft.content.trim().length < 2) return setState({ kind: "error", message: "请写下反馈内容。" });
+    if (!challenge.token) return setState({ kind: 'error', message: '请先完成人机验证。' });
     setState({ kind: "sending" });
     try {
       const form = new FormData();
+      form.set('cf-turnstile-response', challenge.token);
       form.set("content", draft.content);
       form.set("email", draft.email);
       form.set("pageUrl", draft.pageUrl);
@@ -152,6 +161,8 @@ export default function FeedbackPage() {
       setShot(null);
     } catch {
       setState({ kind: "error", message: "网络不太顺，草稿已保存在本机，稍后再提交。" });
+    } finally {
+      challenge.reset();
     }
   };
 
@@ -176,7 +187,7 @@ export default function FeedbackPage() {
 
   const field = "w-full rounded-card bg-bg-sunk text-ink outline-none ring-1 ring-inset ring-line-soft transition-[background-color,box-shadow] placeholder:text-ink-4 hover:ring-line-strong focus:bg-surface focus:shadow-[0_0_0_3px_var(--accent-soft)] focus:ring-accent dark:bg-bg-muted/60 dark:focus:bg-surface";
   const label = "mb-2 block text-[13px] font-semibold text-ink";
-  const canSend = draft.content.trim().length >= 2 && state.kind !== "sending";
+  const canSend = !!challenge.token && draft.content.trim().length >= 2 && state.kind !== "sending";
   return (
     <>
     <PhoneBar back={{ to: "/more", label: "我的" }} title="意见反馈" />
@@ -264,6 +275,7 @@ export default function FeedbackPage() {
             <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => pick(e.target.files?.[0])} />
           </div>
 
+          <FeedbackChallenge onToken={acceptToken} resetKey={challenge.resetKey} />
           <Presence show={state.kind === "error"} enter="anim-notice-in" exit="anim-fade-out" duration={160}>
             <p role="alert" className="rounded-tile bg-hot-soft px-3.5 py-2.5 text-[13px] text-hot">
               {state.kind === "error" ? state.message : ""}

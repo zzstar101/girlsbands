@@ -1,4 +1,4 @@
-import "./setup.ts";
+import { stub } from "./setup.ts";
 import assert from "node:assert/strict";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,6 +11,15 @@ import { buildApp } from "../apps/api/src/app.ts";
 import { eraseFeedback } from "@girlsbands/backend/admin/feedback";
 
 process.env.FEISHU_INTERNAL_ENABLED = "false";
+process.env.TURNSTILE_SITE_KEY = 'local-site-key';
+process.env.TURNSTILE_SECRET_KEY = 'local-secret';
+const verifier = await stub(() => ({ success: true, hostname: new URL(config.siteUrl).hostname, action: 'feedback' }));
+const originalFetch = globalThis.fetch;
+globalThis.fetch = Object.assign((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+  assert.equal(String(input), 'https://challenges.cloudflare.com/turnstile/v0/siteverify');
+  return originalFetch(verifier.url, init);
+}, { preconnect: originalFetch.preconnect });
+after(async () => { globalThis.fetch = originalFetch; await verifier.close(); });
 config.dataDir = await mkdtemp(path.join(tmpdir(), "girlsbands-upload-"));
 const app = await buildApp();
 after(async () => { await app.close(); await closeDb(); await rm(config.dataDir, { recursive: true }); });
@@ -28,6 +37,7 @@ const fakePng = (size: number) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 
 async function upload(file: Buffer, ip: string, type = "image/png") {
   const form = new FormData();
   form.set("content", "手机截图反馈，文字保持不变");
+  form.set('cf-turnstile-response', 'local-token');
   form.set("email", "reader@example.com");
   form.set("pageUrl", "/daily");
   form.set("screenshot", new File([new Uint8Array(file)], "screenshot.png", { type }));
@@ -35,7 +45,7 @@ async function upload(file: Buffer, ip: string, type = "image/png") {
   // Bun forgets the content-type it generated for a form body once that body has been read, so read it first.
   const contentType = request.headers.get("content-type")!;
   const payload = Buffer.from(await request.arrayBuffer());
-  return app.inject({ method: "POST", url: "/api/site/feedback", headers: { "content-type": contentType, "x-real-ip": ip }, payload });
+  return app.inject({ method: "POST", url: "/api/site/feedback", remoteAddress: ip, headers: { "content-type": contentType }, payload });
 }
 
 test("a 5 MiB multipart screenshot waits intact for forwarding", async () => {

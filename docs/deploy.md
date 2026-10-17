@@ -2,6 +2,17 @@
 
 正式对外之前先过一遍 [上线检查单](launch-checklist.md)：哪些已经验过、哪些只有站主本人能定、上线当天按什么顺序开开关。
 
+## 本次更新：反馈验证与内容分区
+
+- **先配置再上线反馈验证**：反馈、投稿、条目纠错共用 `/api/site/feedback`，匿名免登录，但必须完成人机验证。在 API 的环境中设置 `TURNSTILE_SITE_KEY` 和 `TURNSTILE_SECRET_KEY`（也可放在既有 credentials 目录的 `auth.env`）。Docker Compose 已通过 `env_file: .env` 传入，无需改构建参数；网页只从公开配置接口读取 site key，secret 不进入客户端。若使用 `auth.env`，不要同时在环境或 `.env` 中留下这两项空值：环境变量优先，会遮蔽独立密钥文件；模板因此将两项写成注释。
+- Widget 允许的 hostname 应为 `SITE_URL` 的主机，使用 managed 模式。前端 action 固定 `feedback`，后端核对成功状态、hostname 和 action；token 单次使用、最长 2048 字符，不缓存成功。具体创建 widget 和配置真实密钥由站主另行确认，本次代码不会代为创建。
+- 缺配置或服务故障时拒绝提交，页面提供联系邮箱和重试，保留已填文字；不悄悄退回无验证接口。上线前需用真实 widget 验证手机/桌面及主要读者网络的加载与提交。只测到脚本 HTTP 200 不代表挑战可用，也不保证国内所有网络可用。
+- 若网关设置 CSP，允许 `https://challenges.cloudflare.com` 的 script/frame，不能代理或自托管其挑战脚本。反向代理继续按本页设置 `TRUST_PROXY` 并清理来路头；反馈限流读取框架确认的访客 IP，不直接采用调用者的 `X-Real-IP`。
+- **隐私说明需站主确认后更新**：验证组件会连接第三方服务，后端将验证 token 与访客 IP 发送给验证服务。不要在站主未确认时替换 `industry/pages/privacy.md`。参考 [服务端验证](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/) 与 [隐私条款](https://www.cloudflare.com/turnstile-privacy-policy/)。
+- 声优日常现在只显示 daily 分类的个人表达，不混入工作消息、不显示纯转帖；日常仍不进全部消息。混合帖若有实质新增工作信息，只进消息侧，精选另行判断。
+- 历史 editorial 回填仍按原文时间归档，但也要经过归组和信息增量判断，不再直接视为有新增价值；不增加热度。历史回填只处理本条事实归属，不自动合并既有 story、改变公开 URL 或同步既有 Live／票务轮次，这些需要另行审阅确认。新提示词与原文上下文不会自动改写已发布资料。已有精选合并、日期纠错与日常重新分区必须先看预览、另行批准，不在迁移或启动时批量重写。
+- 新增反田叶月账号 `x-tanda-hazuki`，归属 BanG Dream! 企划（不是 MyGO!!!!! 乐队成员）。更新时 seed 只插入新源；现有账号配置不覆盖，采集与模型开关保持站主的配置。
+
 ## 用 Docker（推荐）
 
 需要一台装了 Docker（带 Compose）的机器。云服务器建议至少 2 核、4 GB 内存，构建镜像时要用到。

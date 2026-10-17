@@ -180,7 +180,7 @@ test("a late refusal for an old revision preserves the new revision's completed 
 
 
 // Failure mode: archive analysis finishes but skips the new required grouping confirmation forever.
-test("historical analysis queues a free identity confirmation behind live news", async () => {
+test("historical analysis still confirms identity behind live news; missing facts are not auto-selected", async () => {
   const id = await article("historical-confirmation");
   await sql`UPDATE articles SET published_at=now()-interval '30 days',backfill=true WHERE id=${id}`;
   original = false;
@@ -190,8 +190,9 @@ test("historical analysis queues a free identity confirmation behind live news",
   assert.ok(job, "history must receive a completed identity decision too");
   assert.equal(job!.priority, -2);
   const hits = provider.hits();
-  assert.equal((await groupArticle(id)).verdict, "historical");
-  assert.equal(provider.hits(), hits, "historical grouping calls no model");
-  const [a] = await sql`SELECT grouping_status FROM articles WHERE id=${id}`;
+  assert.equal((await groupArticle(id)).verdict, "standalone");
+  assert.equal(provider.hits(), hits, "insufficient identity does not call a grouping model");
+  const [a] = await sql`SELECT grouping_status, selection_adds_value FROM articles WHERE id=${id}`;
   assert.equal(a!.grouping_status, "complete");
+  assert.equal(a!.selection_adds_value, false, 'being historical must not grant reading value');
 });

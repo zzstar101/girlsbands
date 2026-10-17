@@ -7,6 +7,12 @@
 // 中文名，其余照抄原文。每个名字的来源写在 TSV 的备注列。
 import type { GlossaryEntry } from "./glossary.ts";
 
+/** 企划关联、但不属于本站乐队角色页名单的演员；不能为开页面而伪造乐队归属。 */
+export const PROJECT_CAST: readonly GlossaryEntry[] = [
+  // BanG Dream! まな（sumimi）のCV: https://anime.bang-dream.com/mygo/character/mana/
+  { kind: "member", forms: ["反田叶月", "反田葉月", "たんだはづき", "Hazuki Tanda", "Tanda Hazuki"] },
+];
+
 export const MEMBERS: readonly GlossaryEntry[] = [
   { kind: "member", forms: ["井芹仁菜", "いせりにな", "Nina Iseri"] },
   { kind: "member", forms: ["河原木桃香", "かわらぎももか", "Momoka Kawaragi"] },

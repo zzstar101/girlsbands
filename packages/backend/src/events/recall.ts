@@ -195,16 +195,17 @@ export async function candidateViews(recalled: Recalled[]): Promise<CandidateVie
   if (recalled.length === 0) return [];
   const ids = recalled.map((r) => r.factId);
   type SelectedRow = RepresentativeRow & RepresentativeIdentity & {
-    fact_id: number; title: string; summary: string | null; source: string; first_party: boolean; at: Date;
+    fact_id: number; title: string; summary: string | null; source: string; first_party: boolean; at: Date; source_text: string | null;
   };
   const [rows, selectedRows] = await Promise.all([sql<{
     fact_id: number; story_id: number; fact_title: string; subject: string | null; action: string | null; object: string | null; occurred_at: Date | null;
-    title: string; summary: string | null; source: string; first_party: boolean; at: Date; members: number; root_fact_id: number;
+    title: string; summary: string | null; source: string; first_party: boolean; at: Date; members: number; root_fact_id: number; source_text: string | null;
   }[]>`
     SELECT DISTINCT ON (fa.fact_id) fa.fact_id, f.story_id, f.title AS fact_title, f.subject, f.action, f.object, f.occurred_at,
            p.title, p.summary, s.name AS source, (s.tier = 'T1') AS first_party, coalesce(p.published_at, p.discovered_at) AS at,
            (SELECT count(*) FROM fact_articles x WHERE x.fact_id = fa.fact_id AND x.role IN ('primary', 'report') AND NOT ${latestCompositeCondition(sql`x.article_id`)}) AS members,
-           ${rootFactOf(sql`f.story_id`)} AS root_fact_id
+           ${rootFactOf(sql`f.story_id`)} AS root_fact_id,
+           (SELECT left(a.body_text, 6000) FROM articles a WHERE a.id = p.article_id) AS source_text
     FROM fact_articles fa
     JOIN facts f ON f.id = fa.fact_id
     JOIN publications p ON p.article_id = fa.article_id
@@ -214,7 +215,8 @@ export async function candidateViews(recalled: Recalled[]): Promise<CandidateVie
     sql<SelectedRow[]>`
       SELECT p.fact_id, p.article_id, p.title, p.summary, p.body_mode, p.score, p.timeline_at,
         s.name AS source, (s.tier = 'T1') AS first_party, coalesce(p.published_at, p.discovered_at) AS at,
-        ${REPRESENTATIVE_COLUMNS}
+        ${REPRESENTATIVE_COLUMNS},
+        (SELECT left(a.body_text, 6000) FROM articles a WHERE a.id = p.article_id) AS source_text
       FROM publications p JOIN sources s ON s.id = p.source_id JOIN facts f ON f.id = p.fact_id
       WHERE p.fact_id = ANY(${ids}) AND ${selectedCondition(new Date())} AND ${ownFactEvidenceCondition()}`,
   ]);
@@ -234,9 +236,9 @@ export async function candidateViews(recalled: Recalled[]): Promise<CandidateVie
       storyRoot: Number(row.root_fact_id) === r.factId,
       score: r.score,
       selected: selected !== null,
-      selectedReport: selected ? { title: selected.title, summary: selected.summary, source: selected.source, firstParty: selected.first_party, at: selected.at } : null,
+      selectedReport: selected ? { title: selected.title, summary: selected.summary, source: selected.source, firstParty: selected.first_party, at: selected.at, sourceText: selected.source_text } : null,
       report: {
-        title: row.title, source: row.source, firstParty: row.first_party, at: row.at, summary: row.summary,
+        title: row.title, source: row.source, firstParty: row.first_party, at: row.at, summary: row.summary, sourceText: row.source_text,
         frame: { subject: row.subject, action: row.action, object: row.object, occurredAt: row.occurred_at ? beijingDate(row.occurred_at) : null },
       },
     }];

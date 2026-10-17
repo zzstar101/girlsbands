@@ -86,12 +86,13 @@ test("a discussion post that came before any report is grouped again when a repo
   assert.equal(again.storyId, founded.storyId);
 });
 
-test("history waits behind live work and founds no event; a new source's post from today is news", async () => {
+test("editorial history waits behind live work, groups for identity but adds no heat", async () => {
   const old = await report("old", { title: `旧闻 ${T}`, backfill: "first-import", publishedAt: new Date(Date.now() - 30 * 86_400_000) });
   await queueProcessing(old, { step: "analyze" });
   assert.deepEqual([(await job(old))?.name, (await job(old))?.priority], ["content.analyze", -2]);
-  assert.equal((await groupArticle(old)).verdict, "historical");
-  assert.equal((await sql`SELECT 1 FROM fact_articles WHERE article_id = ${old}`).length, 0);
+  assert.equal((await groupArticle(old)).verdict, "new-story");
+  assert.equal((await sql`SELECT 1 FROM fact_articles WHERE article_id = ${old}`).length, 1);
+  assert.equal((await sql`SELECT 1 FROM story_signals WHERE article_id = ${old}`).length, 0, 'history is identity evidence, not fresh heat');
 
   const fresh = await report("fresh", { title: `新闻 ${T}`, backfill: "first-import", publishedAt: new Date(Date.now() - 3_600_000) });
   await queueProcessing(fresh, { step: "analyze" });

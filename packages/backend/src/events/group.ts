@@ -14,7 +14,7 @@
 // them list each other as related (linkRelatedStories). A story a regrouped report leaves without
 // reports merges into where it went, so its address keeps working. Discussion posts that found no
 // story get another look when a report founds a fact close to them (rematchSignals); history
-// (isHistorical) founds no event. Runs serially (queue concurrency 1).
+// (isHistorical) adds no heat; editorial history still deduplicates. Runs serially (queue concurrency 1).
 import { modelFor } from "../editorial/models.ts";
 import { beijingDate } from "@girlsbands/contracts/time";
 import { sql, type Db, type Tx } from "../db.ts";
@@ -292,9 +292,11 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
     ? await sql.begin(async (tx) => { await lockCurrentRevision(tx, articleId, a.revision); return resetAutomatic(tx, articleId); })
     : [];
 
-  // History founds no event and adds no heat (isHistorical); a regroup takes it out of any it joined.
-  if (isHistorical(a)) {
-    await markGrouped(articleId, a.revision, { addsValue: true, reason: "历史资料按原文时间归档" });
+  // Editorial history still needs identity and reading-value checks: archiving is not a dedup bypass.
+  // Old discussion posts add neither events nor heat.
+  const historical = isHistorical(a);
+  if (historical && (opts.signalOnly || a.participation_mode !== "editorial")) {
+    await markGrouped(articleId, a.revision, { addsValue: false, reason: "历史讨论不参与精选与热度" });
     return { verdict: "historical" };
   }
 
@@ -322,7 +324,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
   }
   const title = an.title_zh || a.title;
   const query: ReportView = {
-    title, source: a.source_name, firstParty: a.first_party, at: observedAt, summary: an.summary_zh,
+    title, source: a.source_name, firstParty: a.first_party, at: observedAt, summary: an.summary_zh, sourceText: a.body_text,
     scope: composite ? "composite" : an.output?.scope === "single" ? "single" : "unknown",
     frame: frame ? { subject: frame.subject, action: frame.action, object: frame.object, occurredAt: frame.occurredAt } : null,
   };
@@ -340,7 +342,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
   let selection = NO_SELECTED_COVERAGE;
   const receipts: number[] = [];
   if (cands.length || reading.length) {
-    const judged = await judgeBatch(articleId, { ...query, sourceText: a.body_text }, cands, reading);
+    const judged = await judgeBatch(articleId, query, cands, reading);
     verdicts = judged.verdicts;
     selection = judged.selection;
     receipts.push(judged.receiptId);
@@ -454,7 +456,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
     const role = a.first_party && Number(hasPrimary?.n ?? 0) === 0 ? "primary" : "report";
     const evidence = [frame?.evidence, ...(Array.isArray(frame?.conditions) ? frame.conditions.map((c: { quote?: string }) => c.quote) : [])].filter((x): x is string => typeof x === "string" && !!x).join("\n") || null;
     await tx`INSERT INTO fact_articles (fact_id, article_id, role, evidence, created_at) VALUES (${fact}, ${articleId}, ${role}, ${evidence}, ${observedAt}) ON CONFLICT (fact_id, article_id) DO NOTHING`;
-    await recordSignal(tx, story, articleId, source, "editorial", observedAt);
+    if (!historical) await recordSignal(tx, story, articleId, source, "editorial", observedAt);
     await recordDecision(tx, articleId, fact, story, verdict, decisionCandidates, receipts[0] ?? null);
     await markGrouped(articleId, a.revision, selection, tx);
     return { manual: null, factId: fact, storyId: story };
@@ -462,6 +464,9 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
   for (const id of receipts) await completeReceipt(sql, id);
   if (written.manual) return { verdict: "manual", factId: written.manual.factId };
   const result: GroupResult = { verdict, factId: written.factId!, storyId: written.storyId! };
+  // History can acquire its own identity for deduplication, but must not rewrite existing story
+  // identities, live/ticket projections or URL aliases. Those repairs require a reviewed preview.
+  if (historical) return result;
 
   // 这是哪一场演出：fact 一写完（新建或并入）就挂上身份。推不出来或失败都不影响归组本身 —— 报告已经挂
   // 好了，下一条报告或回填脚本还能补。

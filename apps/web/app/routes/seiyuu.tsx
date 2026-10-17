@@ -1,4 +1,4 @@
-// /seiyuu：声优日常。成员个人 X 账号里站里收下的帖子（日常和工作告知都在），像刷 X 一样按时间
+// /seiyuu：声优日常。只收成员个人表达，不混入工作公告或纯转帖，像刷 X 一样按时间
 // 倒序往下翻。顶上按乐队筛；点头像或名字只看这一个人。翻到底自动接着读下一页（cursor），
 // 不分页码。被预筛拦下的帖子不在这里，数据见 packages/backend/src/publication/seiyuu.ts。
 import { useEffect, useRef, useState } from "react";
@@ -42,7 +42,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
   const who = (info ? personName(info.name) : null) ?? (f?.band ? (ENTITIES[f.band]?.displayTag ?? ENTITIES[f.band]?.name) : null);
   return pageMeta({
     title: who ? `${who} · 声优日常` : "声优日常",
-    description: "乐队成员与声优个人 X 账号的日常和告知，中文翻译，按时间倒序，像刷 X 一样往下翻。",
+    description: "乐队成员与声优的日常、感想与随手拍，中文翻译，按时间倒序。工作公告请看消息，纯转帖不在这里显示。",
     path: "/seiyuu",
     // 筛选页与翻页只是同一条时间线的切片，不单独收录。
     noindex: !!(f?.band || f?.account),
@@ -174,7 +174,7 @@ function SeiyuuPage() {
       <header className="pb-4 pt-3 lg:pt-1">
         <h1 data-page-title="" className="text-[24px] font-bold leading-[1.3] tracking-[-0.01em] text-ink lg:text-[26px]">声优日常</h1>
         <p className="mt-1.5 max-w-[760px] text-pretty text-[13.5px] leading-relaxed text-ink-3">
-          成员个人 X 账号的日常与告知，按时间倒序，日文帖子默认显示中文翻译。点头像只看这一个人。
+          成员个人的日常、感想与随手拍，日文帖子默认显示中文翻译。工作公告请看消息，纯转帖不在这里显示。点头像只看这一个人。
         </p>
       </header>
 

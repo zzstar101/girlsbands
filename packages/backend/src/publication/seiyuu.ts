@@ -69,11 +69,10 @@ async function cachedAvatars(handles: readonly string[]): Promise<Map<string, st
 
 /**
  * 时间线的时间：帖子在 X 上发出的时间，像 X 一样按它从近到远排（站主 2026-10-08：按入库时间排时，镜像每小时
- * 一批进来，同一批里新旧帖子会错开）。转推按转推的时刻算——镜像不给转推时间，用入库时间代替（最多晚一个
- * 抓取周期）；原帖时间早于它的转推不能沉到底下去。发帖时间晚于入库时间（时钟不准）时取入库时间。
+ * 一批进来，同一批里新旧帖子会错开）。纯转帖已由读取范围排除。
+ * 发帖时间晚于入库时间（时钟不准）时取入库时间。
  */
-const POSTED_AT = sql`(CASE WHEN jsonb_typeof(a.x_post->'retweetedBy') = 'object' THEN p.timeline_at
-  ELSE least(coalesce(p.published_at, p.timeline_at), p.timeline_at) END)`;
+const POSTED_AT = sql`least(coalesce(p.published_at, p.timeline_at), p.timeline_at)`;
 
 export async function loadSeiyuu(query: SeiyuuQuery): Promise<SeiyuuResponse> {
   const now = query.now ?? new Date();

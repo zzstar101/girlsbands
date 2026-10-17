@@ -95,8 +95,8 @@ export function decideTimeline(claimed: Date | null | undefined, discoveredAt: D
 /**
  * History rather than news: a backfill (a new source's first import, stale on discovery, flagged by
  * a report) whose source time is unknown or was already past the stale threshold when found. It is
- * archived and analysed like anything else, but waits behind live work and founds no event and adds
- * no heat (it stays out of the event graph). A new source's post from this morning is news.
+ * archived and analysed behind live work. Editorial history still needs a fact identity to deduplicate,
+ * but adds no heat or automatic cross-story/live repairs. A new source's post from this morning is news.
  */
 export function isHistorical(a: { backfill: boolean; published_at: Date | null; discovered_at: Date }): boolean {
   return a.backfill && (!a.published_at || a.discovered_at.getTime() - a.published_at.getTime() > STALE_ON_DISCOVERY_MS);

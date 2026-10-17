@@ -129,7 +129,49 @@ docker compose logs -f --tail 100 api worker web
 
 `TRUST_PROXY=true` 只在真的有一层反向代理时才设——设错了限流和封禁会按错的 IP 记。
 
-## 五、已知的边界
+## 五、反馈人机验证（Cloudflare Turnstile）
+
+反馈提交现在要求完成 Turnstile 验证；`packages/backend/src/operations/feedback-challenge.ts` 没有配置时一律拒绝（fail closed），不会退回无验证模式。`cloudflared` 只管 Tunnel，**创建不了 Turnstile 组件**，需要用 Cloudflare 控制台或带 `Account.Turnstile:Edit` 权限的 API Token。
+
+### 1. 创建组件（站主在控制台做）
+
+1. Cloudflare 控制台 → Turnstile → Add widget。
+2. Name 任意（例如 `girlsbands-feedback`），**Hostnames 填 `girlsbands.com`**，Widget Mode 选 **Managed**。
+3. 创建后记下 Site Key 和 Secret Key。Site Key 会公开给浏览器，Secret 只放服务器。
+
+组件绑定的是主机名：`SITE_URL` 的主机必须与 Hostnames 完全一致（`www` 与裸域算两个），否则提交全部失败。前端固定用 action `feedback`，组件不需要额外配置。
+
+### 2. 写入服务器密钥（不经过聊天）
+
+在服务器 `/opt/girlsbands/.env` 加两行（或放进 `auth.env`，但 `.env` 里不能同时留空的同名项——环境变量优先，空值会遮蔽 `auth.env`）：
+
+```bash
+TURNSTILE_SITE_KEY=<site key>
+TURNSTILE_SECRET_KEY=<secret key>
+```
+
+`init-env.ts` 生成的 `.env` 模板里这两项现在是注释，不会覆盖 `auth.env`。
+
+### 3. 顺序
+
+**先写密钥，再部署新代码，最后验证**。反过来会让线上反馈直接 503：新代码没有密钥就拒绝提交。
+
+```bash
+# 部署新镜像后
+curl -sS https://girlsbands.com/api/site/feedback/config     # 应返回 {"siteKey":"..."}，不是 {"siteKey":null}
+docker compose logs --tail 50 api                             # 不应出现 503 或 siteverify 错误
+```
+
+再做一次真实提交（浏览器打开 `/feedback`，完成挑战并提交一条测试反馈），确认组件渲染、token 提交和入库都正常。若返回 400，先核对主机名、action 与 Site Key 是否同属一个组件；若返回 503，核对 Secret 是否写进了 api 容器实际读到的配置。
+
+### 4. 站主还要确认的事
+
+- **隐私说明**：`industry/pages/privacy.md` 现在写的是「页面里没有第三方统计脚本」。接入 Turnstile 后，浏览器会连接 `challenges.cloudflare.com`，后端会把 token 和访客 IP 发给 Cloudflare 验证。**这句话必须由站主确认后再改**，建议补一句说明用途、数据与可选的联系邮箱。本次没有替站主改。
+- **CSP**：如果网关设了 CSP，需要放行 `https://challenges.cloudflare.com` 的 script 和 frame。
+- **国内可用性**：本机和服务器访问脚本正常，但挑战在主要读者网络上的端到端体验仍要实测；不可用时表单会提示重试或走联系邮箱。
+- **`TRUST_PROXY`**：反向代理后面要按 `docs/deploy.md` 设置并清理来路头，否则限流会把所有访客记成同一个代理 IP。
+
+## 六、已知的边界
 
 - **下架不是瞬时全站生效**，撤下会收敛：页面缓存最多 5 分钟（`apps/web/server.ts`），报告索引 60 秒 / 最多 10 分钟，sitemap 5 分钟 / 最多 1 小时，MCP 30 秒。已经投递出去的邮件和已经被抓走的副本收不回来。
 - **sitemap 里的报告 URL 只在该期还有至少一条可读引用时才提交**。引用条目被下架、或者条目在数据库里已经没有 `publications` 行（比导入窗口更早）时，这一期就不再进 sitemap，页面本身仍然可读。

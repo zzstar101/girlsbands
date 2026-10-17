@@ -4,12 +4,28 @@ import { after, test } from "node:test";
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { InvalidCursorError } from "@girlsbands/backend/lib/cursor";
 import { loadSeiyuu } from "@girlsbands/backend/publication/seiyuu";
+import { loadPool } from "@girlsbands/backend/publication/pool";
+import { loadTimeline } from "@girlsbands/backend/publication/timeline";
 import { ENTITIES } from "@girlsbands/industry/taxonomy";
 import { config } from "@girlsbands/backend/config";
 
 const T = `seiyuu-${tag()}`;
 const NOW = new Date('2026-10-05T03:00:00Z');
 after(closeDb);
+
+test('日常与工作消息互斥：工作公告和纯转帖不进入声优日常', async () => {
+  const work = await post({ band: 'poppin-party', daily: false, x_post: { handle: 'member', text: '明日12時チケット発売', media: [] } });
+  const personal = await post({ band: 'poppin-party', daily: true, x_post: { handle: 'member', text: 'ライブありがとう！楽しかった', media: [] } });
+  const repost = await post({ band: 'poppin-party', daily: true, x_post: { handle: 'official', text: 'チケット発売', media: [], retweetedBy: { handle: 'member' } } });
+  assert.deepEqual((await loadSeiyuu({ account: work.id, now: NOW })).posts, []);
+  assert.deepEqual((await loadSeiyuu({ account: repost.id, now: NOW })).posts, []);
+  assert.deepEqual((await loadSeiyuu({ account: personal.id, now: NOW })).posts.map(p => p.id), [personal.id]);
+  const pool = await loadPool({ subjects: ['poppin-party'], channel: 'all', category: null, tag: null, now: NOW });
+  assert.ok(pool.items.some(p => p.id === work.id));
+  assert.ok(!pool.items.some(p => p.id === personal.id || p.id === repost.id));
+  const legacyDailyPool = await loadPool({ subjects: ['poppin-party'], channel: 'all', category: 'daily', tag: null, now: NOW });
+  assert.equal(legacyDailyPool.items.length, 0, 'the all-news API must not offer a second daily lane');
+});
 let n = 0;
 
 interface Seed {
@@ -39,7 +55,8 @@ interface Row {
  * 一条帖子一行：自己的成员信源、文章、分析、publication。/seiyuu 只能按乐队和账号筛，所以本文件
  * 按顺序共享同一份库，每个测试都读自己那支乐队，别让兄弟测试的帖子混进来。
  */
-async function post(seed: Seed = {}): Promise<Row> {
+async function post(input: Seed = {}): Promise<Row> {
+  const seed = { daily: true, ...input };
   const id = `${T}-${++n}`;
   const handle = `m${n}`;
   const at = seed.at ?? NOW;
@@ -67,7 +84,25 @@ function proxyOf(avatarUrl: string | null, original: string) {
   return avatarUrl;
 }
 
-test('声优日常只收成员账号的帖子，池子和日常两个 lane 合流，时间倒序', async () => {
+test('旧投影的daily即使仍带精选入池标记也不能泄漏到消息列表', async () => {
+  const daily = await post({ band: 'bang-dream', daily: true, x_post: { handle: 'actor', text: '今日の私服', media: [] } });
+  await sql`UPDATE publications SET eligible=true, selected=true, seat=true WHERE article_id=${daily.id}`;
+  const filters = { subjects: ['bang-dream'], channel: 'all' as const, category: null, tag: null, now: NOW };
+  assert.ok(!(await loadPool(filters)).items.some(p => p.id === daily.id));
+  assert.ok(!(await loadTimeline(filters)).cards.some(c => c.item.id === daily.id));
+  assert.equal((await loadSeiyuu({ account: daily.id, now: NOW })).posts[0]?.id, daily.id);
+});
+
+test('企划关联的声优账号可按账号浏览日常，不冒充所属乐队', async () => {
+  const actor = await post({ band: 'bang-dream', config: { url: 'https://x.com/tanda_hazuki' }, x_post: { handle: 'tanda_hazuki', text: 'おはよう', media: [] } });
+  const feed = await loadSeiyuu({ account: actor.id, now: NOW });
+  assert.deepEqual(feed.posts.map(p => p.id), [actor.id]);
+  assert.equal(feed.accountInfo?.handle, 'tanda_hazuki');
+  assert.equal(feed.accountInfo?.band, 'bang-dream');
+  assert.ok(feed.bands.some(b => b.id === 'bang-dream'));
+});
+
+test('声优日常只收成员账号的日常帖子，时间倒序', async () => {
   const pooled = await post();
   const daily = await post({ daily: true, at: new Date('2026-10-05T02:00:00Z') });
   const older = await post({ at: new Date('2026-10-01T00:00:00Z') });
@@ -75,7 +110,7 @@ test('声优日常只收成员账号的帖子，池子和日常两个 lane 合�
   await post({ mode: 'hot_signal' });                // 撤了 editorial 参会的源
   await post({ visibility: 'withdrawn' });           // 单条下架
   await post({ daily: true, tags: ['官方'] });       // 官方的日常帖：既没进池子也不是成员
-  const feed = await loadSeiyuu({ now: NOW, limit: 40 });
+  const feed = await loadSeiyuu({ band: 'mygo', now: NOW, limit: 40 });
   assert.deepEqual(feed.posts.map((p) => p.id), [pooled.id, daily.id, older.id]);
   // 每个帖子都带着账号：名字经 publicSourceName（面向读者去掉「X：」前缀和 handle）、handle 从帖子认出来、band 是所属主体
   assert.deepEqual(feed.posts.map((p) => p.account.name), [pooled.id, daily.id, older.id]);
@@ -84,7 +119,7 @@ test('声优日常只收成员账号的帖子，池子和日常两个 lane 合�
   assert.equal(feed.posts[0]!.account.id, pooled.id);
   assert.equal(feed.posts[0]!.url, `https://x.com/${pooled.handle}/status/${pooled.id}`);
   assert.equal(feed.posts[1]!.category, 'daily');
-  assert.deepEqual(feed.filters, { band: null, account: null });
+  assert.deepEqual(feed.filters, { band: 'mygo', account: null });
 });
 
 test('x 帖子展开正文，头像从 x_profiles 缓存按 handle 补；没有原帖的旧数据不进时间线', async () => {
@@ -102,13 +137,10 @@ test('x 帖子展开正文，头像从 x_profiles 缓存按 handle 补；没有�
   // 账号就是信源：handle 认信源地址（转推时 x_post 是原作者的，不能拿来当账号）
   assert.equal(x.account.handle, withX.handle);
   proxyOf(x.account.avatarUrl, 'https://pbs.twimg.com/avatar-taka.jpg');
-  // 成员转推别人的帖子：账号仍是成员本人，头像也不拿原作者的
+  // 纯转帖不属于个人日常，即使旧分类把它标为 daily 也不能显示。
   const rt = await post({ band: 'canna-lily', x_post: { handle: 'taka_rr', authorName: '高松燈', text: '转推的', media: [], retweetedBy: { authorName: '成员', handle: 'whoever' } } });
   const again = await loadSeiyuu({ band: 'canna-lily', now: NOW, limit: 40 });
-  const r = again.posts.find((p) => p.id === rt.id)!;
-  assert.equal(r.account.handle, rt.handle);
-  assert.equal(r.x?.retweetedBy?.handle, 'whoever');
-  assert.equal(r.account.avatarUrl, null);
+  assert.ok(!again.posts.some((p) => p.id === rt.id));
 });
 
 test('乐队、账号筛选，以及账号卡片', async () => {
@@ -159,7 +191,7 @@ test('游标翻页：多带一条给出下一页，换了筛选条件就作废',
   await assert.rejects(() => loadSeiyuu({ band: 'bocchi-the-rock', now: NOW, limit: 1, cursor: filtered.nextCursor }), InvalidCursorError);
 });
 
-test('按在 X 上发出的时间排：同一批入库的帖子按发帖先后，转推按转推（入库）时刻', async () => {
+test('按在 X 上发出的时间排：同批入库按发帖先后，纯转帖不参与排序和分页', async () => {
   const batch = new Date('2026-09-20T13:00:00Z');   // 镜像同一小时抓进来的一批
   const band = 'roselia';
   const late = await post({ band, at: batch, published: new Date('2026-09-20T12:50:00Z') });
@@ -170,12 +202,12 @@ test('按在 X 上发出的时间排：同一批入库的帖子按发帖先后�
   // 上一批入库、但发帖比 early 还晚？不可能晚于入库时间——发帖时间晚于入库时取入库时间
   const prev = await post({ band, at: new Date('2026-09-20T12:00:00Z'), published: new Date('2026-09-20T12:30:00Z') });
   const feed = await loadSeiyuu({ band, now: NOW, limit: 40 });
-  assert.deepEqual(feed.posts.map((p) => p.id), [rt.id, late.id, early.id, prev.id]);
-  assert.equal(feed.posts[1]!.postedAt, '2026-09-20T12:50:00.000Z');
-  assert.equal(feed.posts[0]!.postedAt, batch.toISOString());
-  assert.equal(feed.posts[3]!.postedAt, '2026-09-20T12:00:00.000Z');
+  assert.deepEqual(feed.posts.map((p) => p.id), [late.id, early.id, prev.id]);
+  assert.ok(!feed.posts.some((p) => p.id === rt.id));
+  assert.equal(feed.posts[0]!.postedAt, '2026-09-20T12:50:00.000Z');
+  assert.equal(feed.posts[2]!.postedAt, '2026-09-20T12:00:00.000Z');
   // 游标按同一把尺子翻页
   const page1 = await loadSeiyuu({ band, now: NOW, limit: 2 });
   const page2 = await loadSeiyuu({ band, now: NOW, limit: 2, cursor: page1.nextCursor! });
-  assert.deepEqual([...page1.posts, ...page2.posts].map((p) => p.id), [rt.id, late.id, early.id, prev.id]);
+  assert.deepEqual([...page1.posts, ...page2.posts].map((p) => p.id), [late.id, early.id, prev.id]);
 });

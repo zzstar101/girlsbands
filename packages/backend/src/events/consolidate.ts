@@ -27,10 +27,11 @@ interface StoryRoot {
 async function storyRoot(storyId: number): Promise<StoryRoot | null> {
   const [row] = await sql<{
     subject: string | null; action: string | null; object: string | null; occurred_at: Date | null;
-    title: string; summary: string | null; source: string; first_party: boolean; at: Date; started_at: Date; roundup: boolean;
+    title: string; summary: string | null; source: string; first_party: boolean; at: Date; started_at: Date; roundup: boolean; source_text: string | null;
   }[]>`
     SELECT f.subject, f.action, f.object, f.occurred_at, p.title, p.summary, s.name AS source, (s.tier = 'T1') AS first_party,
            coalesce(p.published_at, p.discovered_at) AS at,
+           (SELECT left(a.body_text, 6000) FROM articles a WHERE a.id = p.article_id) AS source_text,
            (SELECT min(coalesce(q.published_at, q.discovered_at)) FROM fact_articles z JOIN publications q ON q.article_id = z.article_id
             WHERE z.fact_id = f.id AND z.role IN ('primary', 'report') AND NOT ${latestCompositeCondition(sql`z.article_id`)}) AS started_at,
            EXISTS (SELECT 1 FROM grouping_decisions d WHERE d.article_id = fa.article_id AND d.verdict = 'roundup') AS roundup
@@ -46,7 +47,7 @@ async function storyRoot(storyId: number): Promise<StoryRoot | null> {
   return {
     storyId, at: row.started_at, roundup: row.roundup,
     report: {
-      title: row.title, source: row.source, firstParty: row.first_party, at: row.at, summary: row.summary,
+      title: row.title, source: row.source, firstParty: row.first_party, at: row.at, summary: row.summary, sourceText: row.source_text,
       frame: { subject: row.subject, action: row.action, object: row.object, occurredAt: row.occurred_at ? beijingDate(row.occurred_at) : null },
     },
   };
