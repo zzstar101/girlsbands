@@ -29,6 +29,12 @@ test("a date that carries its zone keeps it", () => {
   assert.equal(iso("Sat, 26 Sep 2026 10:00:00 +0200", "-07:00"), "2026-09-26T08:00:00.000Z");
 });
 
+test("单页官网把年月日拼成一段（20261018）也认得，按来源时区", () => {
+  assert.equal(iso("20261018"), "2026-10-17T16:00:00.000Z");
+  assert.equal(iso("20261018", "+09:00"), "2026-10-17T15:00:00.000Z");
+  assert.equal(iso("20261318"), null, "13 月不是日期");
+});
+
 test("no date at all is null", () => {
   assert.equal(iso(""), null);
   assert.equal(iso("yesterday"), null);

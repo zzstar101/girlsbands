@@ -70,6 +70,33 @@
       "syndicate_fulltext": false
     },
     {
+      "id": "web-kuzumimizuku-official",
+      "name": "クズミミズク 官网 NEWS",
+      "kind": "web_list",
+      "config": {
+        "url": "https://kuzumimizuku-official.com/",
+        "preserveUrlFragment": true,
+        "itemSelector": "section#news article",
+        "titleSelector": "div.title h3",
+        "summarySelector": "div.detail",
+        "summaryIsBody": true,
+        "publishedAtSelector": "time",
+        "publishedAtUtcOffset": "+09:00",
+        "_girlsbands": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1",
+      "owner_entity_id": "kuzumimizuku",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "官方"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
       "id": "web-kessoku-band-info",
       "name": "結束バンド 官网 INFO",
       "kind": "web_list",

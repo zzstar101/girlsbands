@@ -108,6 +108,34 @@ test("anchors into the listing page itself are navigation, not posts", () => {
   assert.deepEqual(out.map((c) => c.url), ["https://example.org/blog/8th-one-man-live"]);
 });
 
+test("单页官网的新闻是带 id 的锚点段：没有链接，fragment 就是它的地址，正文用卡片本身", () => {
+  // クズミミズク 官网：NEWS 全在首页里，每条是一个 <article id="news261018">，没有自己的链接。
+  const html =
+    '<section id="news"><article id="news261018"><div class="title">' +
+    '<time><div class="year">2026</div><div class="date"><span>10</span><span>18</span></div></time>' +
+    '<h3>クズミミズク1st Digital Single「羽が生えた理由」リリース！</h3></div>' +
+    '<div class="detail"><p>デビュー曲がリリースされました。</p></div></article></section>';
+  const out = fromHtml(html, "https://kuzumimizuku-official.com/", source({
+    url: "https://kuzumimizuku-official.com/",
+    preserveUrlFragment: true,
+    itemSelector: "section#news article",
+    titleSelector: "div.title h3",
+    summarySelector: "div.detail",
+    summaryIsBody: true,
+    publishedAtSelector: "time",
+    publishedAtUtcOffset: "+09:00",
+  }));
+  assert.equal(out.length, 1);
+  assert.equal(out[0]!.url, "https://kuzumimizuku-official.com/#news261018");
+  assert.equal(out[0]!.title, "クズミミズク1st Digital Single「羽が生えた理由」リリース！");
+  assert.equal(out[0]!.publishedAt?.toISOString(), "2026-10-17T15:00:00.000Z");
+  assert.match(out[0]!.bodyText ?? "", /デビュー曲/);
+  // 没有 preserveUrlFragment 时，锚点段仍算「列表页自己」，不当成文章
+  assert.equal(fromHtml(html, "https://kuzumimizuku-official.com/", source({
+    itemSelector: "section#news article", titleSelector: "div.title h3",
+  })).length, 0);
+});
+
 test("posts addressed by a query on the listing's path are posts, its pages and filters are not", () => {
   // WordPress plain permalinks: every post is /?p=N on the listing's own path.
   const links: [string, string][] = [

@@ -32,6 +32,9 @@ export function parseLooseDate(value: string | null | undefined, utcOffset = "+0
     const direct = Date.parse(v);
     if (Number.isFinite(direct) && /\d{4}/.test(v)) return new Date(direct);
   }
+  // 20261018：单页官网的 <time> 把年、月、日分成几段再拼起来，没有分隔符。
+  const compact = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
+  if (compact) return atOffset(compact[1]!, compact[2]!, compact[3]!, 0, 0, 0, utcOffset);
   // 2026-09-26 / 2026/09/26 / 2026-09-26T10:00 / 2026年9月26日 (+ optional time), interpreted in the given offset.
   const m = /(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?(?:(?:T|\s*)(\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(v);
   if (m) {
@@ -177,7 +180,10 @@ export function fromHtml(html: string, base: string, source: SourceRow): Candida
   for (const node of nodes) {
     const el = $(node);
     const linkEl = c.linkSelector ? (el.is(c.linkSelector) ? el : el.find(c.linkSelector).first()) : el.is("a") ? el : el.find("a[href]").first();
-    const url = absolute(linkEl.attr("href"), base);
+    // 单页官网：新闻是页面里带 id 的锚点段（<article id="news261018">），本身没有链接；
+    // 这种来源的 fragment 就是文章的身份（preserveUrlFragment），正文从卡片本身取（summaryIsBody）。
+    const anchored = !linkEl.attr("href") && sectionsArePosts && el.attr("id") ? `${listing.replace(/#.*$/, "")}#${el.attr("id")}` : null;
+    const url = anchored ?? absolute(linkEl.attr("href"), base);
     if (!url || seen.has(url) || !allowed(url, source)) continue;
     if (!sectionsArePosts && listingItself(url, listing)) continue;
     const titleEl = c.titleSelector ? (el.is(c.titleSelector) ? el : el.find(c.titleSelector).first()) : linkEl;
