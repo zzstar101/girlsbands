@@ -85,6 +85,10 @@ function closes(d: { kind?: string | null; note?: string | null }): boolean {
  * timeline, the daily report nor a push. A notice posted after its own deadline (「受付終了」) is not
  * this case, nor is one whose announced date — the live, the release — is still to come.
  * A date without a clock closes at the end of that day on the source's clock.
+ * Listing pages and event data carry no publication time (the 国内排期类信源 have none by design), so
+ * there is no "posted before the deadline" to compare against: a closed deadline there means the list is
+ * still showing something over (a 2025 event hanging in a ticket list), and only its upcoming dates keep
+ * it alive. 发布时间缺失不等于「刚刚发布」.
  */
 export function expiredOnArrival(
   deadlines: readonly { kind?: string | null; at?: string | null; note?: string | null }[] | null | undefined,
@@ -92,7 +96,7 @@ export function expiredOnArrival(
   discoveredAt: Date,
   timezone: Timezone,
 ): boolean {
-  if (!publishedAt || !deadlines?.length) return false;
+  if (!deadlines?.length) return false;
   const found = discoveredAt.getTime();
   let closedInBetween = false;
   for (const d of deadlines) {
@@ -102,7 +106,7 @@ export function expiredOnArrival(
     if (!Number.isFinite(start)) continue;
     const instant = at.localTime ? start : start + 86_400_000;
     if (instant >= found) return false; // something it names is still ahead
-    if (closes(d) && instant >= publishedAt.getTime()) closedInBetween = true;
+    if (closes(d) && (publishedAt === null || instant >= publishedAt.getTime())) closedInBetween = true;
   }
   return closedInBetween;
 }

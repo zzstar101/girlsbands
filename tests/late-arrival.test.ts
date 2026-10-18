@@ -45,7 +45,13 @@ test("发帖时还没截止、抓到时已经截止的通知，算晚到", () =>
   // 开始类日期过了不算截止
   assert.equal(expiredOnArrival([{ kind: "sale_start", at: "2026-10-05T12:00" }], posted, late, "Asia/Tokyo"), false);
   assert.equal(expiredOnArrival([], posted, late, "Asia/Tokyo"), false);
-  assert.equal(expiredOnArrival(todayClose, null, late, "Asia/Tokyo"), false, "没有发帖时间无从判断");
+  // 没有原文发布时间（国内排期列表、活动接口）：抓到时点名的日期都过了，同样是晚到。
+  // 2025 年 3 月的快闪挂在会员购列表里，2026 年 10 月才被抓到，仍按「已结束」处理，不进精选。
+  assert.equal(expiredOnArrival([{ kind: "sale_end", at: "2025-04-19" }], null, late, "Asia/Tokyo"), true, "列表里的旧活动抓到即已结束");
+  assert.equal(expiredOnArrival(todayClose, null, late, "Asia/Tokyo"), true);
+  assert.equal(expiredOnArrival([...todayClose, { kind: "event", at: "2026-11-03T18:00" }], null, late, "Asia/Tokyo"), false, "还有将来的日期就仍是有用的消息");
+  assert.equal(expiredOnArrival([{ kind: "sale_start", at: "2026-10-04T12:00" }], null, late, "Asia/Tokyo"), false, "开始类日期过了不算截止");
+  assert.equal(expiredOnArrival([{ kind: "event", at: "2026-10-05T18:00" }], null, late, "Asia/Tokyo"), false, "演出日不算截止");
 });
 
 test("发帖日期按来源当地的日子算，并告诉写稿的模型", () => {
