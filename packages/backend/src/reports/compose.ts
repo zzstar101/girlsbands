@@ -35,6 +35,12 @@ export function dailyMetrics(main: EditionEntry[]) {
 
 type ReportKind = "daily" | "weekly" | "monthly";
 
+/**
+ * A window with nothing to carry. It is the one failure that cannot heal by being tried again, which
+ * is why the scheduled run can stop retrying it once it is old enough (composeDueReports).
+ */
+class EmptyWindowError extends Error {}
+
 /** How many events an issue already published carries; nothing when it does not exist yet. */
 async function savedReport(kind: ReportKind, key: string) {
   const [row] = await sql<{ entries: number }[]>`
@@ -78,7 +84,7 @@ export async function composeDaily(date: string, reason?: string): Promise<{ key
   const start = new Date(end.getTime() - 86400000);
   const edition = await dailyEdition(date, start, end);
   // An issue with nothing in it is a failure upstream, not a report: the run fails and is caught up later.
-  if (edition.entries.length === 0) throw new Error(`daily ${date}: no selected items in its window`);
+  if (edition.entries.length === 0) throw new EmptyWindowError(`daily ${date}: no selected items in its window`);
   const issue = arrangeDaily(edition.entries);
   const [lead, ...rest] = issue.main as [EditionEntry, ...EditionEntry[]];
   const content = {
@@ -181,7 +187,7 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
   const end = new Date(beijingMidnight(endDateInclusive).getTime() + 8 * 3600 * 1000);
   const { entries, issues } = await periodEntries(startDate, endDateInclusive);
   const top = entries.slice(0, PERIOD_EVENTS[kind]);
-  if (!top.length) throw new Error(`${kind} ${key}: no daily entries in the period`);
+  if (!top.length) throw new EmptyWindowError(`${kind} ${key}: no daily entries in the period`);
   const selected = await candidates(start, end);
   const groups = SECTION_ORDER
     .map((label) => ({ label, items: top.filter((e) => sectionOf(e.category) === label) }))
@@ -276,14 +282,26 @@ const nextMonth = (label: string) => {
 };
 
 /**
+ * How old a window has to be before an empty one is given up on instead of retried. An item released
+ * after a window's cutoff belongs to the issue that was still open (edition.ts attributes each item by
+ * the later of arrival and release), so a processor that was down for a day leaves that window empty
+ * for good: its backlog is written into a later one. A day of retries is enough to tell a dead window
+ * from a run that merely lost one round.
+ */
+const EMPTY_WINDOW_GIVE_UP_MS = 24 * 3600_000;
+
+/**
  * The scheduled run (every half hour): every issue due by `now` that does not exist yet, oldest first.
  * The newest one appears at the first run after it falls due (above); a long stop or an older gap is
  * filled too. A kind with no issue yet only gets its latest due one. An issue that fails does not hold
- * up the others; at most `limit` issues are written per run, the next run continues.
+ * up the others; at most `limit` issues are written per run, the next run continues. A window that
+ * closed more than a day ago and had nothing in it is skipped rather than failed — it can never fill —
+ * and the skip is said out loud in the run's own result.
  */
-export async function composeDueReports(now = new Date(), limit = 8): Promise<{ generated: string[]; failed: string[] }> {
+export async function composeDueReports(now = new Date(), limit = 8): Promise<{ generated: string[]; failed: string[]; skipped: string[] }> {
   const generated: string[] = [];
   const failed: string[] = [];
+  const skipped: string[] = [];
   const kinds: Array<{ kind: ReportKind; due: string; next: (k: string) => string; compose: (k: string) => Promise<unknown> }> = [
     { kind: "daily", due: dueDaily(now), next: (k) => addDays(k, 1), compose: composeDaily },
     { kind: "weekly", due: dueWeekly(now), next: nextWeek, compose: composeWeekly },
@@ -294,6 +312,8 @@ export async function composeDueReports(now = new Date(), limit = 8): Promise<{ 
   const [firstDaily] = await sql<{ key: string }[]>`SELECT min(key) AS key FROM reports WHERE kind = 'daily'`;
   const periodEnd = (kind: ReportKind, key: string) =>
     kind === "weekly" ? isoWeekRange(key)?.end ?? key : kind === "monthly" ? addDays(`${nextMonth(key)}-01`, -1) : key;
+  /** The instant a window closes: the 08:00 Beijing cutoff composeDaily and composePeriod end it at. */
+  const windowClose = (kind: ReportKind, key: string) => new Date(beijingMidnight(periodEnd(kind, key)).getTime() + 8 * 3600_000);
   kinds: for (const k of kinds) {
     const have = new Set((await sql<{ key: string }[]>`SELECT key FROM reports WHERE kind = ${k.kind}`).map((r) => r.key));
     const first = [...have].sort()[0] ?? k.due;
@@ -305,11 +325,19 @@ export async function composeDueReports(now = new Date(), limit = 8): Promise<{ 
         await k.compose(key);
         generated.push(`${k.kind}:${key}`);
       } catch (error) {
+        // 空窗口是上游的问题，但它也不会自己好：一扇关了一天还是空的窗口不会再长出条目，重试只是每半小时再失败一次。
+        // 其它失败照旧上报，等下一次运行接着试。
+        const closedAt = windowClose(k.kind, key);
+        if (error instanceof EmptyWindowError && now.getTime() - closedAt.getTime() > EMPTY_WINDOW_GIVE_UP_MS) {
+          skipped.push(`${k.kind}:${key}`);
+          console.error(JSON.stringify({ level: "error", msg: "report window can never fill; not retried", report: `${k.kind}:${key}`, windowEnd: closedAt.toISOString() }));
+          continue;
+        }
         failed.push(`${k.kind}:${key}`);
         console.error(JSON.stringify({ level: "error", msg: "report failed", report: `${k.kind}:${key}`, error: String(error).slice(0, 300) }));
       }
     }
   }
   if (failed.length) throw new Error(`reports: ${failed.join(", ")} failed${generated.length ? `; ${generated.join(", ")} written` : ""}`);
-  return { generated, failed };
+  return { generated, failed, skipped };
 }

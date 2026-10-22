@@ -73,16 +73,21 @@ test("report publication and its receipt commit together and recovery reuses the
   assert.equal((await sql`SELECT status FROM receipts WHERE subject = 'report:weekly:2024-W18'`)[0]!.status, "completed");
 });
 
-test("empty older gaps cannot starve a later daily, weekly or monthly, and failures remain visible", async () => {
+test("empty older gaps cannot starve a later daily, weekly or monthly; the gaps themselves are skipped", async () => {
   // An older issue carried an item; the days after it are empty. Weeklies and monthlies are compiled from dailies.
   const early = await item("2024-01-22T12:00:00Z");
   await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at)
     VALUES ('daily', '2024-01-23', now(), now(), ${sql.json({ sections: [{ label: "Live 与活动", items: [{ itemId: early, title: early }] }] })}, now())`;
   await item("2024-02-01T12:00:00Z");
-  await assert.rejects(composeDueReports(new Date("2024-02-02T03:00:00Z")), /reports:/);
+  // 2024-02-02 11:00 Beijing: the days from the 24th on closed empty, so they are skipped instead of
+  // failed; the day that does have an item, and the period issues made of the older daily, are still
+  // written — an empty gap never starves them.
+  const result = await composeDueReports(new Date("2024-02-02T03:00:00Z"));
   for (const [kind, key] of [["daily", "2024-02-02"], ["weekly", "2024-W04"], ["monthly", "2024-01"]]) {
     assert.ok(await report(kind!, key!), `${kind} ${key} was recovered past the empty gaps`);
   }
+  assert.deepEqual(result.failed, [], "a window that closed empty is a skip, not a failure");
+  assert.ok(result.skipped.includes("daily:2024-01-24"), "the empty days are named in the run's own result");
 });
 
 test("weeks and months that ended before the first daily issue are not due, so they do not fail every run", async () => {
@@ -95,4 +100,24 @@ test("weeks and months that ended before the first daily issue are not due, so t
   assert.deepEqual(result.failed, []);
   assert.equal(await report("weekly", "2024-W09"), undefined);
   assert.equal(await report("monthly", "2024-02"), undefined);
+});
+
+test("a daily window that stays empty more than a day past due stops being retried and is reported as skipped", async () => {
+  // Content processing was down for 46 hours: the 2024-06-02 window (06-01 08:00 – 06-02 08:00 Beijing)
+  // carries nothing, and what the catch-up releases afterwards is attributed to the window it was
+  // released in — so this one can never gain an item. A report written a day later fills normally.
+  await item("2024-06-03T12:00:00Z");
+  await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at)
+    VALUES ('daily', '2024-06-01', now(), now(), ${sql.json({ sections: [] })}, now())`;
+  // On the day it fell due the rule stands: an empty issue is a failure upstream, not a report.
+  await assert.rejects(composeDueReports(new Date("2024-06-02T04:00:00Z")), /reports:/);
+  assert.equal(await report("daily", "2024-06-02"), undefined);
+  // More than a day later the window is closed for good: skipped, said out loud, and not a failure.
+  const result = await composeDueReports(new Date("2024-06-04T04:00:00Z"));
+  assert.equal(await report("daily", "2024-06-02"), undefined, "a skip never writes an empty issue");
+  assert.ok(result.skipped.includes("daily:2024-06-02"), "the skip is visible in the run's own result");
+  assert.ok(result.skipped.includes("daily:2024-06-03"), "and so is the gap after it");
+  assert.deepEqual(result.failed, [], "a hopeless window is not a failure any more");
+  assert.ok(result.generated.includes("daily:2024-06-04"), "the day that does have items is still written");
+  assert.ok(await report("daily", "2024-06-04"));
 });
