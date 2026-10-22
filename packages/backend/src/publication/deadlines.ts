@@ -43,6 +43,31 @@ export function jstDate(instant: Date): string {
 }
 
 /**
+ * What one dated row can prove about being the same thing as another: the model's own identity first
+ * (the story, then the fact), then — for the rows the grouping step never reached — the object the
+ * announcement wrote down itself, and last the subjects plus the announcement's own clock. A row with
+ * none of those keeps its own identity, so it is listed once per item rather than merged with a
+ * neighbour it cannot prove.
+ */
+function rowIdentity(r: Row, subjects: string[], timezone: string): string {
+  if (r.story_id !== null) return `s${r.story_id}`;
+  if (r.fact_id !== null) return `f${r.fact_id}`;
+  const object = normalizedObject(r.object);
+  if (object) return `o${object}`;
+  if (subjects.length) return `t${[...subjects].sort().join(",")}@${timezone}`;
+  return `a${r.item_id}`;
+}
+
+/**
+ * The object text without what only differs by how a post was written: case, whitespace, punctuation,
+ * quotes and brackets — ASCII and full-width — go, letters, digits and CJK stay. 「Girl's UP!!! vol.421」
+ * and 「Girls UP!!! VOL.421」 are the same event; 「10/22 渋谷eggman 公演」 and 「10/23 …」 are not.
+ */
+function normalizedObject(text: string | null): string {
+  return (text ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+/**
  * 情报变更（W14）落在雷达上的那句话：取消的演出不该再挂着等人抢票；延期或改期的演出只按最新一次
  * 公告的日期算，否则旧公告里的原定日期会跟新日期一起列出来。两个窗口查询（按天、按月份）共用这组
  * CTE 与下面两个条件，免得两边各写一份慢慢走散。
@@ -99,6 +124,8 @@ interface Row {
   kind: string | null;
   at: string | null;
   note: string | null;
+  /** 公告自己写下的「这是什么」（`analyses.output.fact.object`）：没有事实身份的行靠它认同一件事。 */
+  object: string | null;
   /** 轮次那一支的列（公告那一支全是 null）：哪一种受理、是四个日期槽位里的哪一个。 */
   round_kind: string | null;
   round_slot: string | null;
@@ -130,7 +157,7 @@ async function deadlineWindow(
     WITH ${changeWindow(now)}, dated AS (
       SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at, p.story_id, p.fact_id,
              s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
-             d.value->>'kind' AS kind, d.value->>'at' AS at, d.value->>'note' AS note,
+             d.value->>'kind' AS kind, d.value->>'at' AS at, d.value->>'note' AS note, an.output->'fact'->>'object' AS object,
              NULL::text AS round_kind, NULL::text AS round_slot, NULL::text AS round_timezone, NULL::text AS platform,
              ${organizerColumn()} AS organizer
       FROM publications p
@@ -159,7 +186,7 @@ async function deadlineWindow(
       UNION ALL
       SELECT p.article_id AS item_id, p.title, p.url, p.category, p.tags, p.selected, p.published_at, p.story_id, p.fact_id,
              s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
-             NULL::text AS kind, e.slot_at AS at, NULL::text AS note,
+             NULL::text AS kind, e.slot_at AS at, NULL::text AS note, an.output->'fact'->>'object' AS object,
              tr.kind AS round_kind, e.slot AS round_slot, tr.timezone AS round_timezone, tr.platform AS platform,
              ${organizerColumn()} AS organizer
       FROM ticket_rounds tr
@@ -183,7 +210,9 @@ async function deadlineWindow(
   const days = new Map<string, DeadlineView[]>();
   let total = 0;
   // 同一件事、同一种节点、同一天只列一条（站主 2026-10-07）：几家都报了同一场开售，读者只需要看到一次。
-  // 行已按「精选在前、发得早的在前」排好，先到的那条留下。
+  // 认「同一件事」的顺序是 rowIdentity：事实或故事优先，其次是公告自己写的对象（2026-10 补齐的那些条目没进
+  // 归组，只有文字可认），再退到「主体集 + 公告自己的钟」。三样都没有的行按条目各列一条——宁可多一条，
+  // 也不把两场不同的演出并成一场。行已按「精选在前、发得早的在前」排好，先到的那条留下。
   const seen = new Set<string>();
   for (const r of rows) {
     if (!hasItemPage({ visibility: "public", sourceMode: r.source_mode })) continue;
@@ -215,7 +244,7 @@ async function deadlineWindow(
       // 已经过去的时刻还留在今天的格子里，但不再算「48 小时内」。
       soon: isSoon(deadlineInstant(day, split.localTime, timezone) - now.getTime()),
     };
-    const event = r.story_id !== null ? `s${r.story_id}` : r.fact_id !== null ? `f${r.fact_id}` : `a${r.item_id}`;
+    const event = rowIdentity(r, view.subjects, timezone);
     const key = `${event}|${view.kind}|${day}`;
     if (seen.has(key)) continue;
     seen.add(key);

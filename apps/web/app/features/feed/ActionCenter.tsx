@@ -26,9 +26,11 @@ function Row({ d, from }: { d: DeadlineView; from: string }) {
 
 function Group({ title, items, from, max }: { title: string; items: DeadlineView[]; from: string; max: number }) {
   if (items.length === 0) return null;
+  // 标题写这一组真的印出来几条：截断时（今天有 11 条只印 5 张）写成「5 / 11」，别让人以为下面还有 6 张。
+  const shown = Math.min(items.length, max);
   return <div className="mt-3.5 first:mt-0">
-    <h3 className="text-[12px] font-extrabold tracking-[.04em] text-ink-3">{title}<span className="ml-1.5 font-normal text-ink-4">{items.length}</span></h3>
-    <ol className="radar">{items.slice(0, max).map((d, i) => <Row key={`${d.itemId}-${d.at}-${i}`} d={d} from={from} />)}</ol>
+    <h3 className="text-[12px] font-extrabold tracking-[.04em] text-ink-3">{title}<span className="ml-1.5 font-normal text-ink-4">{items.length > max ? `${shown} / ${items.length}` : items.length}</span></h3>
+    <ol className="radar">{items.slice(0, shown).map((d, i) => <Row key={`${d.itemId}-${d.at}-${i}`} d={d} from={from} />)}</ol>
   </div>;
 }
 

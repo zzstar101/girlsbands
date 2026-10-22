@@ -86,7 +86,7 @@ test("the four places that name a kind of dated point read one list", () => {
 
 /** One dated report from a source whose config names the zone. Mirrors tests/calendar.test.ts. */
 let n = 0;
-async function report(at: string, timezone: string | null, kind = "event") {
+async function report(at: string, timezone: string | null, kind = "event", subject = "kessoku-band") {
   n += 1;
   const id = `${T}-a${n}`;
   const sourceId = `${T}-s${n}`;
@@ -99,7 +99,7 @@ async function report(at: string, timezone: string | null, kind = "event") {
   const [analysis] = await sql`INSERT INTO analyses (article_id, input_revision, origin, output)
     VALUES (${id}, 1, 'model', ${sql.json({ scope: "single", fact: { deadlines: [{ kind, at, note: null, text: at, quote: at }] } } as never)}) RETURNING id`;
   await sql`INSERT INTO publications (article_id, analysis_id, revision, visibility, eligible, selected, title, source_id, channel, first_party, url, published_at, visible_after, discovered_at, timeline_at, body_mode, sort_at, tags)
-    VALUES (${id}, ${analysis!.id}, 1, 'public', true, false, ${`公告 ${n}`}, ${sourceId}, 'news', false, ${`https://example.org/${id}`}, ${created}, ${created}, ${created}, ${created}, 'summary', ${created}, ARRAY['entity:kessoku-band'])`;
+    VALUES (${id}, ${analysis!.id}, 1, 'public', true, false, ${`公告 ${n}`}, ${sourceId}, 'news', false, ${`https://example.org/${id}`}, ${created}, ${created}, ${created}, ${created}, 'summary', ${created}, ${[`entity:${subject}`]}::text[])`;
   return id;
 }
 
@@ -132,7 +132,9 @@ test("the 48-hour flag counts the announcement's own clock, not Japan's", async 
 });
 
 test("the export names each event's own zone instead of leaving the time floating", async () => {
-  const mainland = await report("2026-10-20T23:30", "Asia/Shanghai");
+  // Another band's show, so this file's other mainland 23:30 row is not read as the same event: without
+  // a fact or a story, same subject + same kind + same day + same clock is one event to the radar.
+  const mainland = await report("2026-10-20T23:30", "Asia/Shanghai", "event", "mygo");
   const japanese = await report("2026-10-21T15:30", null);
   const allDay = await report("2026-10-22", "Asia/Shanghai");
 

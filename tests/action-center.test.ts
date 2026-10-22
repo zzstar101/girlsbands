@@ -5,11 +5,13 @@
 // which dates exist, and the API filters drifting away from the page's.
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
 import type { DeadlineView } from "@girlsbands/contracts/site";
 import { addDays, timezoneDate } from "@girlsbands/contracts/time";
 import { closeDb, sql } from "@girlsbands/backend/db";
 import { actionCenter, deadlineRange, upcomingDeadlines } from "@girlsbands/backend/publication/deadlines";
+import { calendarPage } from "@girlsbands/backend/publication/calendar";
 import { deadlineData } from "@girlsbands/backend/subscriptions/content";
 import { buildApp } from "../apps/api/src/app.ts";
 
@@ -27,8 +29,17 @@ const MIDNIGHT = new Date("2026-10-01T15:30:00Z");
 const T = `act-${tag()}`;
 
 let n = 0;
-/** One dated report, read back through the radar exactly like a stored one (mirrors tests/deadlines-time.test.ts). */
-async function report(kind: string, at: string, opts: { timezone?: "Asia/Shanghai"; subject?: string } = {}) {
+/**
+ * One dated report, read back through the radar exactly like a stored one (mirrors
+ * tests/deadlines-time.test.ts). `object` is what the structure step wrote down as the thing the
+ * announcement is about; `storyId` and `factId` are the identity the grouping step gives a row it
+ * did reach, which the rows of an ungrouped backfill do not have.
+ */
+async function report(
+  kind: string,
+  at: string,
+  opts: { timezone?: "Asia/Shanghai"; subject?: string; object?: string; selected?: boolean; storyId?: number; factId?: number } = {},
+) {
   n += 1;
   const id = `${T}-a${n}`;
   const sourceId = `${T}-s${n}`;
@@ -39,16 +50,32 @@ async function report(kind: string, at: string, opts: { timezone?: "Asia/Shangha
             VALUES (${sourceId}, ${`媒体 ${n}`}, 'rss', 'T1', 'editorial', ${sql.json(config as never)}, ${created}, '2100-01-01')`;
   await sql`INSERT INTO articles (id, source_id, identity_key, url, title, discovered_at, timeline_at)
             VALUES (${id}, ${sourceId}, ${id}, ${`https://example.org/${id}`}, ${`公告 ${n}`}, ${created}, ${created})`;
+  const fact = { object: opts.object ?? null, deadlines: [{ kind, at, note: null, text: at, quote: at }] };
   const [analysis] = await sql`INSERT INTO analyses (article_id, input_revision, origin, output)
-    VALUES (${id}, 1, 'model', ${sql.json({ scope: "single", fact: { deadlines: [{ kind, at, note: null, text: at, quote: at }] } } as never)}) RETURNING id`;
-  await sql`INSERT INTO publications (article_id, analysis_id, revision, visibility, eligible, selected, title, source_id, channel, first_party, url, published_at, visible_after, discovered_at, timeline_at, body_mode, sort_at, tags)
-    VALUES (${id}, ${analysis!.id}, 1, 'public', true, false, ${`公告 ${n}`}, ${sourceId}, 'news', false, ${`https://example.org/${id}`}, ${created}, ${created}, ${created}, ${created}, 'summary', ${created}, ${[`entity:${subject}`]}::text[])`;
+    VALUES (${id}, 1, 'model', ${sql.json({ scope: "single", fact } as never)}) RETURNING id`;
+  await sql`INSERT INTO publications (article_id, analysis_id, revision, visibility, eligible, selected, title, source_id, channel, first_party, url, published_at, visible_after, discovered_at, timeline_at, body_mode, sort_at, tags, story_id, fact_id)
+    VALUES (${id}, ${analysis!.id}, 1, 'public', true, ${opts.selected ?? false}, ${`公告 ${n}`}, ${sourceId}, 'news', false, ${`https://example.org/${id}`}, ${created}, ${created}, ${created}, ${created}, 'summary', ${created}, ${[`entity:${subject}`]}::text[], ${opts.storyId ?? null}, ${opts.factId ?? null})`;
   return id;
+}
+
+/** One real event and the facts under it, for the rows whose identity comes from the grouping step. */
+async function eventRow() {
+  const [story] = await sql`INSERT INTO stories (public_id, title) VALUES (${randomUUID()}, ${`活动 ${T}`}) RETURNING id`;
+  return story!.id as number;
+}
+async function factRow(storyId: number, title: string) {
+  n += 1;
+  const [fact] = await sql`INSERT INTO facts (public_id, story_id, title) VALUES (${`${T}-f${n}`}, ${storyId}, ${title}) RETURNING id`;
+  return fact!.id as number;
 }
 
 /** Only this file's rows: the clone also holds whatever previous tests left behind. */
 const mine = (rows: DeadlineView[]) => rows.filter((r) => r.itemId.startsWith(T));
 const ids = (rows: DeadlineView[]) => new Set(mine(rows).map((r) => r.itemId));
+/** This file's rows the action center prints for one day, in whatever bucket they landed. */
+const onDay = (center: { liveToday: DeadlineView[]; dueToday: DeadlineView[]; onSale: DeadlineView[]; upcoming: DeadlineView[] }, day: string) =>
+  mine([...center.liveToday, ...center.dueToday, ...center.onSale, ...center.upcoming]).filter((r) => r.day === day);
+
 
 test("every dated row lands in exactly one bucket, and the buckets add up to the window", async () => {
   const live = await report("event", "2026-10-01T18:00");
@@ -184,6 +211,10 @@ test("the center, the radar, the calendar and the reminder mail read one set of 
   const band = "mygo";
   await report("lottery_end", "2026-10-02T23:59", { subject: band }); // inside the 48-hour mail window
   await report("sale_start", "2026-10-06", { subject: band });
+  // 两个成员号各发一条、都没有事实身份，但写的是同一条对象文字：四个出口都只该印出一条。
+  await report("sale_start", "2026-10-07", { subject: band, object: "Girl's UP!!! vol.421（渋谷eggman 对盘活动）" });
+  await report("sale_start", "2026-10-07", { subject: band, object: "Girls UP!!! VOL.421 渋谷eggman 对盘活动" });
+  const twinDay = "2026-10-07";
 
   const center = await actionCenter(NOW, { subject: band });
   const buckets = [...center.liveToday, ...center.dueToday, ...center.onSale, ...center.upcoming];
@@ -202,4 +233,72 @@ test("the center, the radar, the calendar and the reminder mail read one set of 
   assert.deepEqual(keys(radar.days.flatMap((d) => d.items)), expected, "the radar's rows are the same rows");
   assert.deepEqual(keys(calendar), expected, "so are the calendar's");
   assert.deepEqual(keys(mail.days.flatMap((d) => d.items)), expected, "and so are the reminder mail's");
+
+  // Each exit prints the duplicated pair once — the invariant is guarded here rather than by "we happen
+  // to call one function": every one of the four reads the same window, and that window merged the pair.
+  const sameDay = (rows: Array<{ day: string; itemId: string }>) => rows.filter((r) => r.day === twinDay && r.itemId.startsWith(T));
+  assert.equal(sameDay(buckets).length, 1, "the center");
+  assert.equal(sameDay(radar.days.flatMap((d) => d.items)).length, 1, "the radar");
+  assert.equal(sameDay(calendar).length, 1, "the calendar and the .ics export");
+  // 邮件不带条目 id，只印日期和标题，所以按日期数：这一天也只该有一条。
+  assert.equal(mail.days.flatMap((d) => d.items).filter((r) => r.at.startsWith(twinDay)).length, 1, "the reminder mail");
+  // … and the month query behind the calendar page agrees with them about that day.
+  const month = await calendarPage(NOW, null, band);
+  assert.ok(month);
+  assert.equal(sameDay(month.days.flatMap((d) => d.items)).length, 1, "the calendar month");
+});
+
+test("同一场活动被几个账号各发一条、都没有事实身份时，只列一条", async () => {
+  // 生产里「今天有活动」的 9 条是同一场对盘活动：官方号与 5 个成员号各写一句，对象文字只差引号、
+  // 大小写、全角括号和空格。这批 2026-10-06/10-11 的补齐条目没进归组（fact_id 为空），文字是唯一的凭据。
+  const first = await report("event", "2026-10-14T19:00", { object: "Girl's UP!!! vol.421（渋谷eggman 对盘活动）" });
+  const kept = await report("event", "2026-10-14T19:00", { object: "Girls UP!!! VOL.421 渋谷eggman 对盘活动", selected: true });
+  const third = await report("event", "2026-10-14T19:00", { object: "Girl's UP!!! vol.421(渋谷eggman 对盘活动)" });
+
+  const center = await actionCenter(NOW);
+  const rows = onDay(center, "2026-10-14");
+  assert.equal(rows.length, 1, "三条写的是同一场活动，读者只该看到一次");
+  assert.equal(rows[0]!.itemId, kept, "留下的那条是排序保住的那条：精选先生效");
+  assert.equal(new Set([first, kept, third]).size, 3, "三条确实是三个账号的三篇公告");
+});
+
+test("同主体、同 kind、同一天，但对象文字不同的两条各自成条", async () => {
+  // 一般贩售 A 与 B 是两场不同的受理：没有事实身份时文字就是唯一的凭据，不能因为同一天就并掉。
+  const a = await report("lottery_end", "2026-10-15T23:59", { object: "一般贩售 A" });
+  const b = await report("lottery_end", "2026-10-15T23:59", { object: "一般贩售 B" });
+
+  const rows = onDay(await actionCenter(NOW), "2026-10-15");
+  assert.deepEqual(rows.map((r) => r.itemId).sort(), [a, b].sort(), "两条都留着");
+});
+
+test("没有对象文字时，同主体集、同 kind、同一天、同一时区算一条；时区不同则各算一条", async () => {
+  const tokyoA = await report("sale_start", "2026-10-10");
+  const tokyoB = await report("sale_start", "2026-10-10");
+  const beijing = await report("sale_start", "2026-10-10", { timezone: "Asia/Shanghai" });
+
+  const rows = onDay(await actionCenter(NOW), "2026-10-10");
+  assert.equal(rows.length, 2, "日本时间的一条 + 北京时间的一条");
+  assert.equal(rows.filter((r) => r.timezone === "Asia/Tokyo").length, 1);
+  assert.equal(rows.filter((r) => r.timezone === "Asia/Shanghai").length, 1);
+  assert.equal(rows.find((r) => r.timezone === "Asia/Tokyo")!.itemId, [tokyoA, tokyoB].sort()[0], "留下的那条是排序保住的那条");
+  assert.equal(rows.find((r) => r.timezone === "Asia/Shanghai")!.itemId, beijing);
+});
+
+test("有事实身份的行还是按事实合并，不按文字合并", async () => {
+  const story = await eventRow();
+  const other = await eventRow();
+  const factB = await factRow(other, "第二条事实");
+  const factC = await factRow(other, "第三条事实");
+  // 同一件事的两次公告（story_id 相同）：文字不同也只列一条。
+  const one = await report("event", "2026-10-13", { storyId: story });
+  const two = await report("event", "2026-10-13", { storyId: story, object: "完全另一段文字" });
+  // 同一场活动下的两条不同事实（fact_id 不同）：同一天也各列一条。
+  const three = await report("event", "2026-10-13", { factId: factB });
+  const four = await report("event", "2026-10-13", { factId: factC });
+
+  const rows = onDay(await actionCenter(NOW), "2026-10-13");
+  assert.equal(rows.length, 3, "一条故事 + 两条各自的事实");
+  assert.equal(rows.filter((r) => r.itemId === one || r.itemId === two).length, 1, "同一故事的两条公告合成一条");
+  assert.deepEqual(rows.filter((r) => r.itemId !== one && r.itemId !== two).map((r) => r.itemId).sort(), [three, four].sort(), "不同的事实各留一条");
+  assert.equal(rows.find((r) => r.itemId === one || r.itemId === two)!.itemId, [one, two].sort()[0], "被并掉的是同一故事里排序靠后的那条");
 });
