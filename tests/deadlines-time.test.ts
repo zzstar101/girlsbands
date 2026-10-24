@@ -9,6 +9,7 @@ import { after, test } from "node:test";
 import {
   DEADLINE_KINDS,
   DEADLINE_LABELS,
+  TIMEZONE_LABELS,
   TIMEZONE_OFFSETS,
   TIMEZONES,
   type DeadlineKind,
@@ -18,7 +19,8 @@ import { closeDb, sql } from "@girlsbands/backend/db";
 import { config } from "@girlsbands/backend/config";
 import { calendarIcs } from "@girlsbands/backend/publication/calendar";
 import { upcomingDeadlines } from "@girlsbands/backend/publication/deadlines";
-import { DEFAULT_TIMEZONE, deadlineInstant, isTimezone, splitDeadlineAt, timezoneOf } from "@girlsbands/backend/sources/timezone";
+import { DEFAULT_TIMEZONE, deadlineInstant, isTimezone, splitDeadlineAt, statedTimezone, timezoneOf } from "@girlsbands/backend/sources/timezone";
+import { venueTimezone } from "@girlsbands/industry/glossary";
 
 const NOW = new Date("2026-10-01T03:00:00Z");
 const T = `dlt-${tag()}`;
@@ -64,13 +66,44 @@ test("a source's clock comes from its config and defaults to Japan", () => {
   assert.equal(DEFAULT_TIMEZONE, "Asia/Tokyo");
   assert.equal(timezoneOf({ timezone: "Asia/Shanghai" }), "Asia/Shanghai");
   assert.equal(timezoneOf({ timezone: "Asia/Tokyo" }), "Asia/Tokyo");
-  for (const absent of [null, undefined, {}, { timezone: null }, { timezone: 8 }, { timezone: "Asia/Seoul" }, { timezone: "asia/shanghai" }]) {
+  for (const absent of [null, undefined, {}, { timezone: null }, { timezone: 8 }, { timezone: "America/New_York" }, { timezone: "asia/shanghai" }]) {
     assert.equal(timezoneOf(absent), "Asia/Tokyo", `${JSON.stringify(absent)} is not a zone we know`);
   }
   assert.equal(isTimezone("Asia/Shanghai"), true);
-  assert.equal(isTimezone("Asia/Seoul"), false);
-  assert.deepEqual([...TIMEZONES], ["Asia/Tokyo", "Asia/Shanghai"]);
-  assert.deepEqual(TIMEZONE_OFFSETS, { "Asia/Tokyo": "+09:00", "Asia/Shanghai": "+08:00" });
+  assert.equal(isTimezone("Asia/Hong_Kong"), true);
+  assert.equal(isTimezone("America/New_York"), false);
+});
+
+test("every zone is a fixed offset the runtime agrees with, and is worded", () => {
+  assert.deepEqual(TIMEZONES.slice(0, 2), ["Asia/Tokyo", "Asia/Shanghai"]);
+  for (const zone of TIMEZONES) {
+    // No DST and no offset change since 1991: January and July give the same offset, and it is ours.
+    for (const at of ["2001-01-15T00:00:00Z", "2026-07-15T00:00:00Z", "2027-01-15T00:00:00Z"]) {
+      const name = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longOffset" }).formatToParts(new Date(at)).find((p) => p.type === "timeZoneName")?.value;
+      assert.equal(name, `GMT${TIMEZONE_OFFSETS[zone]}`, `${zone} at ${at}`);
+    }
+    assert.ok(TIMEZONE_LABELS[zone], `${zone} has a label`);
+  }
+  assert.equal(TIMEZONE_LABELS["Asia/Tokyo"], "日本时间");
+  assert.equal(TIMEZONE_LABELS["Asia/Hong_Kong"], "当地时间（香港）");
+});
+
+test("a time switches clock only when its own wording names one", () => {
+  assert.equal(statedTimezone("11月4日12:00（現地時間）より", "Asia/Hong_Kong"), "Asia/Hong_Kong");
+  assert.equal(statedTimezone("当地时间 19:00 开演", "Asia/Taipei"), "Asia/Taipei");
+  assert.equal(statedTimezone("11月4日12:00（現地時間）より", null), null, "local to nowhere is no clock");
+  assert.equal(statedTimezone("12:00（香港時間）", null), "Asia/Hong_Kong", "a named clock needs no show");
+  assert.equal(statedTimezone("18:00（日本時間）より配信", "Asia/Hong_Kong"), "Asia/Tokyo", "a named clock wins over the show's");
+  assert.equal(statedTimezone("一般発売 11月10日18:00", "Asia/Hong_Kong"), null, "nothing said, nothing guessed");
+  assert.equal(statedTimezone("19:00（日本時間）/ 18:00（香港時間）", "Asia/Hong_Kong"), null, "two clocks in one line is not one");
+});
+
+test("a venue abroad in the glossary knows its zone; a Japanese or unlisted one does not say", () => {
+  assert.equal(venueTimezone("AsiaWorld-Arena"), "Asia/Hong_Kong");
+  assert.equal(venueTimezone("Zepp New Taipei"), "Asia/Taipei");
+  assert.equal(venueTimezone("宛平剧院"), "Asia/Shanghai");
+  assert.equal(venueTimezone("日本武道館"), null, "a Japanese venue leaves the source's clock alone");
+  assert.equal(venueTimezone("どこかのライブハウス"), null);
 });
 
 test("the four places that name a kind of dated point read one list", () => {

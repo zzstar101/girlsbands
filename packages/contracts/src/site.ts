@@ -351,21 +351,62 @@ export interface HotResponse {
 
 /**
  * The clock a stated time is on. A Japanese announcement states Japan time, a mainland one Beijing
- * time; the site never converts one into the other, so a deadline that closes at 23:59 local still
- * reads as that day.
+ * time, and a show abroad (香港公演、台北公演) is announced on the clock of the place it is held in
+ * (「現地時間」); the site never converts one into another, so a deadline that closes at 23:59 local
+ * still reads as that day.
  */
-export type Timezone = "Asia/Tokyo" | "Asia/Shanghai";
+export type Timezone =
+  | "Asia/Tokyo"
+  | "Asia/Shanghai"
+  | "Asia/Hong_Kong"
+  | "Asia/Taipei"
+  | "Asia/Seoul"
+  | "Asia/Singapore"
+  | "Asia/Kuala_Lumpur"
+  | "Asia/Bangkok"
+  | "Asia/Jakarta"
+  | "Asia/Manila";
 
-export const TIMEZONES: readonly Timezone[] = ["Asia/Tokyo", "Asia/Shanghai"];
+export const TIMEZONES: readonly Timezone[] = [
+  "Asia/Tokyo", "Asia/Shanghai", "Asia/Hong_Kong", "Asia/Taipei", "Asia/Seoul",
+  "Asia/Singapore", "Asia/Kuala_Lumpur", "Asia/Bangkok", "Asia/Jakarta", "Asia/Manila",
+];
 
 /**
- * The fixed offset of each zone. Neither has observed daylight saving since 1991 and no date the site
- * carries reaches back that far, so a constant offset is exact — no timezone database is needed.
+ * The fixed offset of each zone. None has observed daylight saving or changed its offset since 1991
+ * and no date the site carries reaches back that far, so a constant offset is exact — no timezone
+ * database is needed. A zone that does observe it (Sydney, Los Angeles) cannot join this list as is.
  */
-export const TIMEZONE_OFFSETS: Record<Timezone, string> = { "Asia/Tokyo": "+09:00", "Asia/Shanghai": "+08:00" };
+export const TIMEZONE_OFFSETS: Record<Timezone, string> = {
+  "Asia/Tokyo": "+09:00",
+  "Asia/Shanghai": "+08:00",
+  "Asia/Hong_Kong": "+08:00",
+  "Asia/Taipei": "+08:00",
+  "Asia/Seoul": "+09:00",
+  "Asia/Singapore": "+08:00",
+  "Asia/Kuala_Lumpur": "+08:00",
+  "Asia/Bangkok": "+07:00",
+  "Asia/Jakarta": "+07:00",
+  "Asia/Manila": "+08:00",
+};
 
-/** How a clock is named in the reader's language; printed next to every stated time. */
-export const TIMEZONE_LABELS: Record<Timezone, string> = { "Asia/Tokyo": "日本时间", "Asia/Shanghai": "北京时间" };
+/**
+ * How a clock is named in the reader's language; printed next to every stated time. The two clocks
+ * readers already think in keep their names; a show abroad reads 「当地时间（香港）」, which is how the
+ * announcement itself says it, rather than a converted Beijing or Japan time.
+ */
+export const TIMEZONE_LABELS: Record<Timezone, string> = {
+  "Asia/Tokyo": "日本时间",
+  "Asia/Shanghai": "北京时间",
+  "Asia/Hong_Kong": "当地时间（香港）",
+  "Asia/Taipei": "当地时间（台北）",
+  "Asia/Seoul": "当地时间（首尔）",
+  "Asia/Singapore": "当地时间（新加坡）",
+  "Asia/Kuala_Lumpur": "当地时间（吉隆坡）",
+  "Asia/Bangkok": "当地时间（曼谷）",
+  "Asia/Jakarta": "当地时间（雅加达）",
+  "Asia/Manila": "当地时间（马尼拉）",
+};
 
 /**
  * 一场有日期的活动是谁办的。只有两档：官方（乐队本尊、唱片公司、正规主办，也包括第三方对盘与
@@ -429,7 +470,7 @@ export interface DeadlineView {
   day: string;
   /** The `HH:mm` half of `at`, on the announcement's own clock; null when it stated only a day. */
   localTime: string | null;
-  /** The clock `localTime` is on: Japan for a Japanese source, Beijing for a mainland one. */
+  /** The clock `localTime` is on: Japan for a Japanese source, Beijing for a mainland one, the show's own place for a show abroad where the announcement says so. */
   timezone: Timezone;
   kind: DeadlineKind;
   /** The short label the extraction gave it ("FC先行", "二次先行", "一般発売"), else null. */

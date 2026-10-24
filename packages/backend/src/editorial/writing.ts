@@ -8,7 +8,7 @@ import { onlyXArticleLink } from "../sources/x.ts";
 import type { AnalyzeInputArticle } from "./input.ts";
 import { promptText } from "./prompts.ts";
 import { DEFAULT_TIMEZONE } from "../sources/timezone.ts";
-import type { Timezone } from "@girlsbands/contracts/site";
+import { TIMEZONE_LABELS, type Timezone } from "@girlsbands/contracts/site";
 
 const WEEKDAY_ZH = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
@@ -23,7 +23,7 @@ export function postedDayLabel(d: Date | null | undefined, timezone: Timezone = 
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   const day = `${get("year")}-${get("month")}-${get("day")}`;
   const weekday = WEEKDAY_ZH[new Date(`${day}T00:00:00Z`).getUTCDay()];
-  return `${day}（${weekday}，${timezone === "Asia/Shanghai" ? "北京时间" : "日本时间"}）`;
+  return `${day}（${weekday}，${TIMEZONE_LABELS[timezone]}）`;
 }
 
 export const PREFILTER_SYSTEM = promptText("prefilter");

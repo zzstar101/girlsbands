@@ -3,7 +3,8 @@
 // entry only exists when the original wording it quotes was found verbatim in that report.
 //
 // `at` is the wall clock the announcement itself gives, and `timezone` says which clock that is: a
-// Japanese source states Japan time, a mainland one Beijing time (sources/timezone.ts). The day buckets
+// Japanese source states Japan time, a mainland one Beijing time (sources/timezone.ts), and a show abroad
+// its own place's time where the announcement says so (「現地時間」, see `datedZone`). The day buckets
 // are the announcement's own calendar rather than the Beijing one the rest of the site uses, because a
 // deadline that closes at 23:59 local is a thing the reader must act on that day, and converting it to
 // another calendar would move it to the day before.
@@ -11,11 +12,11 @@
 // Scope: the listed set (public, pool eligible, released) rather than the selected set. A lottery closing
 // is something the reader cannot miss even when the announcement that carried it was not worth pushing as
 // news; the reports that did clear the bar carry `selected` and sort first within their day.
-import type { ActionCenterResponse, DeadlineKind, DeadlinesResponse, DeadlineView } from "@girlsbands/contracts/site";
+import type { ActionCenterResponse, DeadlineKind, DeadlinesResponse, DeadlineView, Timezone } from "@girlsbands/contracts/site";
 import { DEADLINE_KINDS, TICKET_ROUND_KINDS, type TicketRoundKind } from "@girlsbands/contracts/site";
 import { timezoneDate } from "@girlsbands/contracts/time";
 import { sql } from "../db.ts";
-import { deadlineInstant, isTimezone, splitDeadlineAt, timezoneOf } from "../sources/timezone.ts";
+import { deadlineInstant, isTimezone, splitDeadlineAt, statedTimezone, timezoneOf } from "../sources/timezone.ts";
 import { entityIds, entityTags, organizerColumn, organizerOf, publicSourceName, hasItemPage } from "./rules.ts";
 import { evidenceCondition, listedCondition } from "./scope.ts";
 import { roundNote, roundSlotKind, type RoundSlot } from "./tickets.ts";
@@ -133,6 +134,24 @@ interface Row {
   platform: string | null;
   /** 谁办的这场活动，`official` / `fan` / null；来源身份与抽取判定已经在 SQL 里合成一列。 */
   organizer: string | null;
+  /** 公告那一支：抽出这个日期的原句，与它挂着的演出（没挂就是 null）的钟和日子。 */
+  quote: string | null;
+  live_zone: string | null;
+  live_starts_on: string | null;
+  live_ends_on: string | null;
+}
+
+/**
+ * 公告那一支的一个日期按哪个钟读，null 就是来源那一地的钟。演出当天（开演日到最后一天）按演出所在地
+ * 的钟 —— 香港公演的开演时刻是香港的钟；别的日期（抽选、发售）只有原句写明「現地時間」或点名了钟
+ * 才换（sources/timezone.ts 的 `statedTimezone`），没写就不猜。
+ */
+function datedZone(r: Row, day: string): Timezone | null {
+  const live = isTimezone(r.live_zone) ? r.live_zone : null;
+  if (live && r.kind === "event" && r.live_starts_on !== null && day >= r.live_starts_on && day <= (r.live_ends_on ?? r.live_starts_on)) {
+    return live;
+  }
+  return statedTimezone(`${r.quote ?? ""}\n${r.note ?? ""}`, live);
 }
 
 /**
@@ -159,11 +178,14 @@ async function deadlineWindow(
              s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
              d.value->>'kind' AS kind, d.value->>'at' AS at, d.value->>'note' AS note, an.output->'fact'->>'object' AS object,
              NULL::text AS round_kind, NULL::text AS round_slot, NULL::text AS round_timezone, NULL::text AS platform,
+             d.value->>'quote' AS quote, le.timezone AS live_zone,
+             le.starts_on::text AS live_starts_on, le.ends_on::text AS live_ends_on,
              ${organizerColumn()} AS organizer
       FROM publications p
       JOIN sources s ON s.id = p.source_id
       JOIN analyses an ON an.id = p.analysis_id
       LEFT JOIN facts f ON f.id = p.fact_id
+      LEFT JOIN live_events le ON le.id = f.live_event_id
       CROSS JOIN LATERAL jsonb_array_elements(an.output->'fact'->'deadlines') AS d(value)
       WHERE ${listedCondition(now)}
         AND jsonb_typeof(an.output->'fact'->'deadlines') = 'array'
@@ -188,6 +210,7 @@ async function deadlineWindow(
              s.name AS source_name, s.participation_mode AS source_mode, s.config AS source_config,
              NULL::text AS kind, e.slot_at AS at, NULL::text AS note, an.output->'fact'->>'object' AS object,
              tr.kind AS round_kind, e.slot AS round_slot, tr.timezone AS round_timezone, tr.platform AS platform,
+             NULL::text AS quote, NULL::text AS live_zone, NULL::text AS live_starts_on, NULL::text AS live_ends_on,
              ${organizerColumn()} AS organizer
       FROM ticket_rounds tr
       JOIN publications p ON p.article_id = tr.first_article_id
@@ -221,7 +244,7 @@ async function deadlineWindow(
     // is the last gate before the page prints a date someone might plan around.
     const split = at === null ? null : splitDeadlineAt(at);
     if (!at || !split) continue;
-    const timezone = r.round_timezone !== null && isTimezone(r.round_timezone) ? r.round_timezone : timezoneOf(r.source_config);
+    const timezone = isTimezone(r.round_timezone) ? r.round_timezone : (datedZone(r, split.day) ?? timezoneOf(r.source_config));
     const roundKind = r.round_kind !== null && ROUND_KINDS.has(r.round_kind) ? (r.round_kind as TicketRoundKind) : null;
     const slot = SLOTS.has(r.round_slot ?? "") ? (r.round_slot as RoundSlot) : null;
     const day = split.day;

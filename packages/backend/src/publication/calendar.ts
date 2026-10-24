@@ -4,7 +4,7 @@
 // The calendar belongs to a subject — a project or a band, whose series dates come along — because that
 // is what a reader plans around. The export is offered whole-site as well.
 import type { CalendarResponse, DeadlineView, Timezone } from "@girlsbands/contracts/site";
-import { FAN_EVENT_LABEL, isFanEvent } from "@girlsbands/contracts/site";
+import { FAN_EVENT_LABEL, isFanEvent, TIMEZONE_OFFSETS } from "@girlsbands/contracts/site";
 import { SITE } from "@girlsbands/industry/site";
 import { config } from "../config.ts";
 import { addDays, deadlineMonths, deadlineRange, jstDate } from "./deadlines.ts";
@@ -132,23 +132,34 @@ function event(v: DeadlineView, now: Date, host: string): string[] {
   ];
 }
 
-/**
- * The zone definitions a file needs, written out rather than referenced: neither zone has observed
- * daylight saving since 1991 and no date the site carries reaches back that far, so each is one constant
- * observance. A client that does not know the IANA database still reads the times correctly.
- */
-const VTIMEZONE: Record<Timezone, string[]> = {
-  "Asia/Tokyo": [
-    "BEGIN:VTIMEZONE", "TZID:Asia/Tokyo", "X-LIC-LOCATION:Asia/Tokyo",
-    "BEGIN:STANDARD", "DTSTART:19700101T000000", "TZOFFSETFROM:+0900", "TZOFFSETTO:+0900", "TZNAME:JST", "END:STANDARD",
-    "END:VTIMEZONE",
-  ],
-  "Asia/Shanghai": [
-    "BEGIN:VTIMEZONE", "TZID:Asia/Shanghai", "X-LIC-LOCATION:Asia/Shanghai",
-    "BEGIN:STANDARD", "DTSTART:19700101T000000", "TZOFFSETFROM:+0800", "TZOFFSETTO:+0800", "TZNAME:CST", "END:STANDARD",
-    "END:VTIMEZONE",
-  ],
+/** The abbreviation each zone is shown with; a zone with no common one uses its offset, as tzdata does. */
+const TZNAMES: Record<Timezone, string> = {
+  "Asia/Tokyo": "JST",
+  "Asia/Shanghai": "CST",
+  "Asia/Hong_Kong": "HKT",
+  "Asia/Taipei": "CST",
+  "Asia/Seoul": "KST",
+  "Asia/Singapore": "+08",
+  "Asia/Kuala_Lumpur": "+08",
+  "Asia/Bangkok": "+07",
+  "Asia/Jakarta": "WIB",
+  "Asia/Manila": "PHT",
 };
+
+/**
+ * The zone definition a file needs, written out rather than referenced: no zone the site carries has
+ * observed daylight saving or changed its offset since 1991 and no date reaches back that far, so each
+ * is one constant observance. A client that does not know the IANA database still reads the times
+ * correctly.
+ */
+function vtimezone(zone: Timezone): string[] {
+  const offset = TIMEZONE_OFFSETS[zone].replace(":", "");
+  return [
+    "BEGIN:VTIMEZONE", `TZID:${zone}`, `X-LIC-LOCATION:${zone}`,
+    "BEGIN:STANDARD", "DTSTART:19700101T000000", `TZOFFSETFROM:${offset}`, `TZOFFSETTO:${offset}`, `TZNAME:${TZNAMES[zone]}`, "END:STANDARD",
+    "END:VTIMEZONE",
+  ];
+}
 
 /** The whole site's dates, or one subject's, as an iCalendar file. */
 export async function calendarIcs(now: Date, subject?: string): Promise<string> {
@@ -178,7 +189,7 @@ export async function calendarIcs(now: Date, subject?: string): Promise<string> 
     "X-WR-TIMEZONE:Asia/Tokyo",
     "REFRESH-INTERVAL;VALUE=DURATION:PT6H",
     "X-PUBLISHED-TTL:PT6H",
-    ...zones.flatMap((zone) => VTIMEZONE[zone]),
+    ...zones.flatMap(vtimezone),
     ...items.flatMap((v) => event(v, now, host)),
     "END:VCALENDAR",
   ];

@@ -28,6 +28,11 @@ export interface GlossaryEntry {
    * **第一个是本站倾向使用的写法**，提示词里让模型优先用它；其余写法只要出现，就当同一个名字。
    */
   forms: readonly string[];
+  /**
+   * 只有会场有：它所在地的钟（IANA 名，取值见 `packages/contracts/src/site.ts` 的 `TIMEZONES`）。
+   * 没写就是日本。不进 `GLOSSARY` 与 `GLOSSARY_VERSION` —— 它不是写法，改它不必让译文失效。
+   */
+  timezone?: string;
 }
 
 const KIND_LABELS: Record<GlossaryKind, string> = {
@@ -148,6 +153,20 @@ export function glossaryHits(text: string, kinds?: readonly GlossaryKind[]): Glo
   const hay = fold(text);
   if (!hay) return [];
   return GLOSSARY.filter((entry) => (!kinds || kinds.includes(entry.kind)) && entry.forms.some((form) => contains(hay, form)));
+}
+
+/**
+ * 一个会场名所在地的钟，只有词表里写了 `timezone` 的会场（中国大陆、香港、台湾……）才表态；日本的
+ * 会场不写，交给来源的钟 —— 国内来源转述日本公演时可能已经写成北京时间，不能替它改。命中的会场
+ * 都在同一个钟上才作数，一个都没命中或者命中了不同地方的会场就是 null：认不出来时宁可不说。
+ */
+export function venueTimezone(venue: string): string | null {
+  const hay = fold(venue);
+  if (!hay) return null;
+  const zones = new Set(VENUES
+    .filter((entry) => entry.timezone && entry.forms.some((form) => usable(form) && contains(hay, form)))
+    .map((entry) => entry.timezone));
+  return zones.size === 1 ? [...zones][0]! : null;
 }
 
 /**

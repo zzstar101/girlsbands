@@ -8,7 +8,7 @@
 import { TICKET_ROUND_KINDS, type TicketRoundKind, type Timezone } from "@girlsbands/contracts/site";
 import type { Db } from "../db.ts";
 import { newShortId } from "../lib/ids.ts";
-import { splitDeadlineAt, timezoneOf } from "../sources/timezone.ts";
+import { isTimezone, splitDeadlineAt, statedTimezone, timezoneOf } from "../sources/timezone.ts";
 
 const KINDS: ReadonlySet<string> = new Set<string>(TICKET_ROUND_KINDS);
 
@@ -51,6 +51,7 @@ async function writeRound(
   articleId: string,
   round: StoredRound,
   timezone: Timezone,
+  zoneStated: boolean,
   observedAt: Date,
 ): Promise<void> {
   const [saved] = await db<{ id: string }[]>`
@@ -61,6 +62,8 @@ async function writeRound(
             ${observedAt}, ${observedAt})
     ON CONFLICT (live_event_id, kind, COALESCE(substring(apply_start_at FROM 1 FOR 10), '')) DO UPDATE SET
       platform = COALESCE(ticket_rounds.platform, EXCLUDED.platform),
+      -- 公告点名了钟（「現地時間」）才改；只有来源的钟时不动已经存下的。
+      timezone = CASE WHEN ${zoneStated} THEN EXCLUDED.timezone ELSE ticket_rounds.timezone END,
       -- 唯一会被后一条报告改掉的日期：原先只写到日、新的写明了时刻。那是精度变好，不是改期。
       apply_start_at = CASE
         WHEN ticket_rounds.apply_start_at LIKE '____-__-__' AND EXCLUDED.apply_start_at LIKE '____-__-__T%'
@@ -100,8 +103,9 @@ export async function syncFactTicketRounds(
   articleId: string,
   observedAt = new Date(),
 ): Promise<number> {
-  const rows = await db<{ config: Record<string, unknown> | null; rounds: unknown }[]>`
-    SELECT s.config, an.output->'live'->'rounds' AS rounds
+  const rows = await db<{ config: Record<string, unknown> | null; rounds: unknown; live_zone: string | null }[]>`
+    SELECT s.config, an.output->'live'->'rounds' AS rounds,
+           (SELECT timezone FROM live_events WHERE id = ${liveEventId}) AS live_zone
     FROM articles a
     JOIN sources s ON s.id = a.source_id
     LEFT JOIN LATERAL (
@@ -110,9 +114,14 @@ export async function syncFactTicketRounds(
     WHERE a.id = ${articleId}`;
   const row = rows[0];
   if (!row) return 0;
-  const timezone = timezoneOf(row.config);
+  const sourceZone = timezoneOf(row.config);
+  const liveZone = isTimezone(row.live_zone) ? row.live_zone : null;
   const stored = Array.isArray(row.rounds) ? row.rounds : [];
   const rounds = stored.map(roundOf).filter((r): r is StoredRound => r !== null).slice(0, 6);
-  for (const round of rounds) await writeRound(db, liveEventId, factId, articleId, round, timezone, observedAt);
+  for (const round of rounds) {
+    // 一轮受理的时刻只在它自己那句话写明「現地時間」或点名了钟时才换钟，否则还是来源那一地的钟。
+    const stated = round.quote ? statedTimezone(round.quote, liveZone) : null;
+    await writeRound(db, liveEventId, factId, articleId, round, stated ?? sourceZone, stated !== null, observedAt);
+  }
   return rounds.length;
 }

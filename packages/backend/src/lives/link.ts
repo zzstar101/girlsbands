@@ -21,16 +21,22 @@
 // 条目，才认它是演出（dev 库实测：6 个候选里 `stream`/`collab` 三条是误建）。同一事实可能同时挂着
 // `notice` 与 `ticket` 两篇，所以判据是「有」，不是「那一条」。
 import type { LiveStatus, Timezone } from "@girlsbands/contracts/site";
-import { glossaryHits } from "@girlsbands/industry/glossary";
+import { glossaryHits, venueTimezone } from "@girlsbands/industry/glossary";
 import { ENTITIES, LIVE_CATEGORIES } from "@girlsbands/industry/taxonomy";
 import type { Db } from "../db.ts";
 import { newShortId } from "../lib/ids.ts";
-import { splitDeadlineAt, timezoneOf } from "../sources/timezone.ts";
+import { isTimezone, splitDeadlineAt, timezoneOf } from "../sources/timezone.ts";
 
 export interface LiveKey {
   subjectEntity: string;
   venue: string | null;
+  /**
+   * The clock of the place the show is held in: the venue's (glossary), else the place the live step
+   * read out of the text, else the source's own clock. `zoneStated` says whether it came from the show
+   * itself rather than the source — only then may it replace a zone already stored.
+   */
   timezone: Timezone;
+  zoneStated: boolean;
   /** `YYYY-MM-DD` on the announcement's own calendar. */
   startsOn: string;
   startsTime: string | null;
@@ -109,10 +115,15 @@ export function deriveLiveKey(material: LiveMaterial, timezone: Timezone): LiveK
   const live = material.live ?? {};
   // 模型读到的会场先过一遍词表：同一场演出在不同公告里的写法要落成一个键。
   const stated = text(live.venue);
+  const venue = (stated ? (knownVenue(stated) ?? stated) : null) ?? venueOf(`${material.title}\n${material.text}`);
+  // 演出所在地的钟：词表里的会场最可靠，其次是模型从原文里读到的地点（analyze.ts 已验过地点在原文里）。
+  const byVenue = venue ? venueTimezone(venue) : null;
+  const shown = isTimezone(byVenue) ? byVenue : isTimezone(live.timezone) ? live.timezone : null;
   return {
     subjectEntity,
-    venue: (stated ? (knownVenue(stated) ?? stated) : null) ?? venueOf(`${material.title}\n${material.text}`),
-    timezone,
+    venue,
+    timezone: shown ?? timezone,
+    zoneStated: shown !== null,
     startsOn: split.day,
     startsTime: clock(live.startsTime) ?? split.localTime,
     endsOn: date(live.endsOn),
@@ -149,6 +160,8 @@ export async function upsertLiveEvent(
     )
     ON CONFLICT (subject_entity, COALESCE(venue, ''), starts_on, COALESCE(starts_time, '')) DO UPDATE SET
       updated_at = EXCLUDED.updated_at,
+      -- 演出自己说了在哪里办才改钟；只有来源那一地的钟时不动已经存下的。
+      timezone = CASE WHEN ${key.zoneStated} THEN EXCLUDED.timezone ELSE live_events.timezone END,
       ends_on = COALESCE(live_events.ends_on, EXCLUDED.ends_on),
       story_id = COALESCE(live_events.story_id, EXCLUDED.story_id),
       status = CASE WHEN live_events.status = 'scheduled' THEN EXCLUDED.status ELSE live_events.status END
@@ -176,6 +189,7 @@ export async function patchLiveEvent(
       UPDATE live_events SET
         title = COALESCE(${modelTitle}, live_events.title),
         venue = COALESCE(live_events.venue, ${key.venue}),
+        timezone = CASE WHEN ${key.zoneStated} THEN ${key.timezone} ELSE live_events.timezone END,
         starts_time = COALESCE(live_events.starts_time, ${key.startsTime}),
         ends_on = COALESCE(live_events.ends_on, ${key.endsOn}),
         story_id = COALESCE(live_events.story_id, ${storyId}),
@@ -207,7 +221,7 @@ interface MaterialRow {
   subjects: string[] | null;
   output: {
     fact?: { deadlines?: { kind?: string; at?: string }[] } | null;
-    live?: { title?: string; venue?: string; startsTime?: string; endsOn?: string; status?: string } | null;
+    live?: { title?: string; venue?: string; startsTime?: string; endsOn?: string; status?: string; place?: string; timezone?: string } | null;
   } | null;
 }
 
@@ -267,11 +281,12 @@ function keysOf(rows: MaterialRow[]): LiveKey[] {
 /** 同一场的几篇报告里信息最全的那篇说了算：会场、开演时刻、最后一天。 */
 const richness = (key: LiveKey) => (key.venue ? 1 : 0) + (key.startsTime ? 1 : 0) + (key.endsOn ? 1 : 0);
 
-/** 同一场（主体与开演日一致）的几篇报告合成一条键；状态取最严重的那条公告。 */
+/** 同一场（主体与开演日一致）的几篇报告合成一条键；状态取最严重的那条公告，钟取说了演出在哪里的那篇。 */
 function mergeKeys(same: LiveKey[]): LiveKey {
   const best = same.reduce((a, b) => (richness(b) > richness(a) ? b : a));
   const status = same.find((k) => k.status !== "scheduled")?.status ?? best.status;
-  return { ...best, status };
+  const zone = best.zoneStated ? best : (same.find((k) => k.zoneStated) ?? best);
+  return { ...best, status, timezone: zone.timezone, zoneStated: zone.zoneStated };
 }
 
 /** 阶段 B 写的演出名；没有就 null。 */

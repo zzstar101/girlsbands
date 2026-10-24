@@ -17,7 +17,11 @@
 
 五、status：`scheduled`、`cancelled`、`postponed` 三选一。只有原文明确说中止、延期、振替、見送り时才写后两个，其余一律 `scheduled`。
 
-六、rounds：这条资料在讲票务受理时，把**每一轮受理**读成一条。一轮 = 一次开始与截止都相同的机会，不是一篇公告：同一篇同时写了 FC 先行与一般贩售就是两条。资料只讲演出本身、只讲周边或配信、或没说任何受理日期时给空数组 `[]`。
+六、place 与 timezone：这场演出在哪一座城市或地区办，以及那里用哪一个钟。
+- place：原文里写演出地点的那几个字，照抄（「香港」「台北」「ソウル」「上海」「横浜」）；原文写了会场、没写城市时照抄会场名。原文没写地点、或写了多个地点（巡演各站）时给 null。
+- timezone：place 所在地的时区，十选一：`Asia/Tokyo`（日本）、`Asia/Shanghai`（中国大陆）、`Asia/Hong_Kong`（香港、澳门）、`Asia/Taipei`（台湾）、`Asia/Seoul`（韩国）、`Asia/Singapore`（新加坡）、`Asia/Kuala_Lumpur`（马来西亚）、`Asia/Bangkok`（泰国）、`Asia/Jakarta`（印度尼西亚雅加达）、`Asia/Manila`（菲律宾）。place 是 null、或地点不在这十个时区里时给 null。**只看演出在哪里办**，不看公告是哪国发的。
+
+七、rounds：这条资料在讲票务受理时，把**每一轮受理**读成一条。一轮 = 一次开始与截止都相同的机会，不是一篇公告：同一篇同时写了 FC 先行与一般贩售就是两条。资料只讲演出本身、只讲周边或配信、或没说任何受理日期时给空数组 `[]`。
 
 每条轮次的字段：
 - kind：九选一。`fc`（FC / 粉丝俱乐部先行）、`official`（官方先行、オフィシャル先行）、`cd_serial`（CD / 商品序列号先行）、`playguide`（售票平台先行：e+ 先行、ぴあ先行、ローチケ先行）、`general`（一般贩售）、`additional_seat`（追加席）、`day_of`（当日券）、`resale`（转售、リセール）、`streaming`（配信票、视听券）。原文没说清是哪一种时用 `general`。
@@ -26,9 +30,9 @@
 - applyEnd：受理截止的那一天，同上格式。原文只写「受付中」没写截止日时给 null。
 - resultOn：当落发表日，`YYYY-MM-DD`。
 - paymentDueOn：缴款截止日，`YYYY-MM-DD`。原文写的是「入金期限」「支払期限」时才给。
-- quote：原文里写这一轮受理的那句话，照抄，不改写、不缩写、不拼接两处。四个日期与 platform 都必须能在这一句里找到；找不到就把那个字段改成 null。
+- quote：原文里写这一轮受理的那句话，照抄，不改写、不缩写、不拼接两处。四个日期与 platform 都必须能在这一句里找到；找不到就把那个字段改成 null。时刻后面跟着「（現地時間）」「日本時間」这类说明时，把说明一起抄进来。
 
 一条轮次的四个日期与 platform 全是 null 时，不要这一条。日期只写月日（「11月15日」）时按本条原文的发布年份补齐。
 
-只输出一个 JSON 对象，字段：title, venue, startsTime, endsOn, status, rounds。
+只输出一个 JSON 对象，字段：title, venue, startsTime, endsOn, status, place, timezone, rounds。
 rounds 是数组，每项的字段：kind, platform, applyStart, applyEnd, resultOn, paymentDueOn, quote。

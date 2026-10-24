@@ -58,6 +58,7 @@ export default function LiveRoute() {
   const back = subject ? { to: `/topics/${subject.id}`, label: subject.label } : { to: "/", label: "首页" };
   const date = live.endsOn && live.endsOn !== live.startsOn ? `${monthDay(live.startsOn)} – ${monthDay(live.endsOn)}` : monthDay(live.startsOn);
   const name = dayName(live.startsOn, today);
+  const portrait = live.cover?.width != null && live.cover.height != null && live.cover.height > live.cover.width;
   return (
     <div className="mx-auto max-w-[var(--page-max-reading)] pb-10">
       <PhoneBar back={back} title={live.title} />
@@ -65,35 +66,49 @@ export default function LiveRoute() {
         <IconArrowLeft size={14} /> 返回{back.label}
       </Link>
 
-      {/* 演出的主视觉通常是横幅：有就摆在页面最上面，没有就整页还是纯文字。 */}
-      <CoverImage cover={live.cover} className="mt-3 h-auto w-full rounded-lg shadow-sm lg:mt-1" priority />
-
-      <header className="pb-5 pt-3 lg:pt-1">
-        <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.1em] text-band">
-          <span aria-hidden="true" className="h-[2px] w-6 flex-none rounded-full bg-band" />
-          演出
-        </p>
-        <h1 data-page-title="" className="mt-1.5 text-[24px] font-bold leading-[1.3] tracking-[-0.01em] text-ink lg:text-[26px]">{live.title}</h1>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <Badge tone={stage.tone} dot>{stage.label}</Badge>
-          <ArtistLine subjects={subjects} />
-          {live.venue && <span className="text-[13px] text-ink-3">{live.venue}</span>}
-        </div>
-        <p className="mt-2.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13.5px] text-ink-3">
-          <span className="num text-ink">
-            {date}（{weekdayShort(live.startsOn)}）{live.startsTime ? ` ${live.startsTime}` : ""}
-          </span>
-          <span className="text-[12.5px] text-ink-4">{clockText(live.startsTime, live.timezone)}</span>
-          {openStage(live.stage) && (
-            <span className="text-[12.5px] text-ink-4">
-              {name ? `${name} · ` : ""}D-{daysAway(live.startsOn, today)}
+      {/*
+        主视觉按图的形状摆：竖版海报（宽小于高）像发售页的 jacket 一样放在标题左边，限宽 280px；横幅
+        占满整栏但不高过 420px，免得一张图占掉一整屏、把票务挤到下面去。量不出尺寸的按横幅处理。
+        没有图就整页还是纯文字。
+      */}
+      <div className={portrait ? "flex flex-col gap-4 pb-5 pt-3 lg:flex-row lg:items-start lg:gap-7 lg:pt-1" : undefined}>
+        <CoverImage
+          cover={live.cover}
+          sizes={portrait ? "(min-width: 1024px) 280px, calc(100vw - 32px)" : undefined}
+          className={
+            portrait
+              ? "h-auto max-h-[60vh] w-auto max-w-full rounded-lg shadow-sm lg:max-h-none lg:w-[280px]"
+              : "mt-3 h-auto max-h-[420px] w-auto max-w-full rounded-lg shadow-sm lg:mt-1"
+          }
+          priority
+        />
+        <header className={portrait ? "min-w-0 flex-1" : "pb-5 pt-3 lg:pt-1"}>
+          <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.1em] text-band">
+            <span aria-hidden="true" className="h-[2px] w-6 flex-none rounded-full bg-band" />
+            演出
+          </p>
+          <h1 data-page-title="" className="mt-1.5 text-[24px] font-bold leading-[1.3] tracking-[-0.01em] text-ink lg:text-[26px]">{live.title}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <Badge tone={stage.tone} dot>{stage.label}</Badge>
+            <ArtistLine subjects={subjects} />
+            {live.venue && <span className="text-[13px] text-ink-3">{live.venue}</span>}
+          </div>
+          <p className="mt-2.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13.5px] text-ink-3">
+            <span className="num text-ink">
+              {date}（{weekdayShort(live.startsOn)}）{live.startsTime ? ` ${live.startsTime}` : ""}
             </span>
+            <span className="text-[12.5px] text-ink-4">{clockText(live.startsTime, live.timezone)}</span>
+            {openStage(live.stage) && (
+              <span className="text-[12.5px] text-ink-4">
+                {name ? `${name} · ` : ""}D-{daysAway(live.startsOn, today)}
+              </span>
+            )}
+          </p>
+          {live.startsTime && openStage(live.stage) && (
+            <p className="mt-1.5 text-[12.5px] text-ink-4"><Countdown at={`${live.startsOn}T${live.startsTime}`} timezone={live.timezone} from={today} /></p>
           )}
-        </p>
-        {live.startsTime && openStage(live.stage) && (
-          <p className="mt-1.5 text-[12.5px] text-ink-4"><Countdown at={`${live.startsOn}T${live.startsTime}`} timezone={live.timezone} from={today} /></p>
-        )}
-      </header>
+        </header>
+      </div>
 
       <section className="card p-5 lg:p-6">
         <div className="flex items-start justify-between gap-3">
@@ -101,8 +116,8 @@ export default function LiveRoute() {
             <h2 className="text-[17px] font-[650] leading-[1.5] text-ink">票务与日程</h2>
             <p className="mt-0.5 text-[12.5px] text-ink-4">
               {live.rounds.length > 0
-                ? "每一轮受理的开放与截止，以及公告里写明的其它日期，都按公告那一地的时间，不做换算"
-                : "公告里写明的日期与时刻，按公告那一地的时间，不做换算"}
+                ? "每一轮受理的开放与截止，以及公告里写明的其它日期，都按公告写明的那一地的时间，不做换算"
+                : "公告里写明的日期与时刻，按公告写明的那一地的时间，不做换算"}
             </p>
           </div>
           <a href={`/calendar/${live.subject}.ics`} title="订阅这支乐队的日历（.ics）" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-[12.5px] text-ink-3 transition-colors hover:border-band hover:text-band">

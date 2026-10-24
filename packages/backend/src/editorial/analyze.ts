@@ -19,8 +19,9 @@ import { z } from "zod";
 import { CATEGORY_KEYS } from "@girlsbands/contracts/taxonomy";
 import {
   DEADLINE_KINDS, ORGANIZER_KINDS, RELEASE_EDITION_KINDS, RELEASE_KINDS, RELEASE_SERIAL_KINDS, TICKET_ROUND_KINDS,
-  type LiveStatus, type ReleaseEditionKind, type ReleaseKind, type ReleaseSerialKind, type TicketRoundKind,
+  type LiveStatus, type ReleaseEditionKind, type ReleaseKind, type ReleaseSerialKind, type TicketRoundKind, type Timezone,
 } from "@girlsbands/contracts/site";
+import { isTimezone } from "../sources/timezone.ts";
 import { glossaryHits } from "@girlsbands/industry/glossary";
 import { CATEGORIES, LANE_CATEGORIES, LIVE_CATEGORIES } from "@girlsbands/industry/taxonomy";
 import { MUST_SEE_KINDS, NEEDS_IMAGE_KINDS, SELECTION, type MustSeeKind } from "@girlsbands/industry/selection";
@@ -190,6 +191,10 @@ const LiveSchema = z.object({
   startsTime: z.string().trim().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).nullable().catch(null),
   endsOn: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().catch(null),
   status: z.enum(["scheduled", "cancelled", "postponed"]).catch("scheduled"),
+  // Where the show is held, as the text writes it, and that place's clock: a show abroad announces its
+  // times on the local clock (「現地時間」), which the source's own zone cannot tell.
+  place: z.string().trim().max(40).nullable().catch(null),
+  timezone: z.string().trim().max(40).nullable().catch(null),
   rounds: z.array(z.object({
     kind: z.enum(TICKET_ROUND_KINDS).catch("general"),
     platform: z.string().trim().max(60).nullable().catch(null),
@@ -329,6 +334,9 @@ export interface LiveRead {
   startsTime: string | null;
   endsOn: string | null;
   status: LiveStatus;
+  /** Where the show is held, verbatim from the text, and that place's clock; both null unless stated. */
+  place: string | null;
+  timezone: Timezone | null;
   rounds: LiveRound[];
 }
 
@@ -468,7 +476,13 @@ export function normalizeLive(data: z.infer<typeof LiveSchema>, a: AnalyzeInputA
   // Only an announcement that says so can cancel or postpone a show.
   const status = data.status === "scheduled" || /中止|延期|振替|見送|キャンセル|cancel|取消|推迟/i.test(text) ? data.status : "scheduled";
   const rounds = normalizeRounds(data.rounds, text);
-  return title || venue || startsTime || endsOn || rounds.length > 0 ? { title, venue, startsTime, endsOn, status, rounds } : null;
+  // A clock only comes with a place the text really names: the model "knowing" where a tour goes is not
+  // the announcement saying so.
+  const place = data.place && text.includes(collapseWhitespace(data.place)) ? collapseWhitespace(data.place) : null;
+  const timezone = place && isTimezone(data.timezone) ? data.timezone : null;
+  return title || venue || startsTime || endsOn || rounds.length > 0
+    ? { title, venue, startsTime, endsOn, status, place, timezone, rounds }
+    : null;
 }
 
 /**
@@ -1018,7 +1032,7 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
     ...(run.live ? {
       live: {
         title: run.live.title, venue: run.live.venue, startsTime: run.live.startsTime, endsOn: run.live.endsOn,
-        status: run.live.status, rounds: run.live.rounds,
+        status: run.live.status, place: run.live.place, timezone: run.live.timezone, rounds: run.live.rounds,
       },
     } : {}),
     // What the release is (release and merch material only); releases/derive.ts reads it back into the

@@ -304,3 +304,71 @@ test("Live 板块：月历按月给出演出，列表从今天起排，乐队筛
   const gone = await liveCalendar(NOW, { month: "2026-11" });
   assert.ok(!gone.lives.some((l) => l.publicId === publicId) && !gone.upcoming.some((l) => l.publicId === publicId), "报告下架了，Live 板块也不再列它");
 });
+
+// 日本来源公告的香港公演：演出当天与写明「現地時間」的时刻是香港的钟，没写的仍是来源（日本）的钟。
+// 原先全按来源的钟，香港 12:00 开始的抽选被写成日本时间 12:00，早了一个小时。
+test("海外公演按演出所在地的钟：会场词表认得出就用会场的，否则用 live 步骤读到的地点", async () => {
+  const title = `BanG Dream! ASIA TOUR 香港公演 ${T}`;
+  const { factId, articleId } = await liveFact({
+    category: "live",
+    subjects: ["mygo"],
+    title,
+    text: "2027年1月3日 香港公演。抽選受付：11月4日12:00（現地時間）より。一般発売 11月10日18:00",
+    deadlines: [
+      { kind: "event", at: "2027-01-03T18:00", note: "香港公演当天", quote: "2027年1月3日 香港公演" },
+      { kind: "lottery_start", at: "2026-11-04T12:00", note: "抽选受付开始（現地時間）", quote: "抽選受付：11月4日12:00（現地時間）より" },
+      { kind: "sale_start", at: "2026-11-10T18:00", note: "一般发售", quote: "一般発売 11月10日18:00" },
+    ],
+    live: { title, venue: null, startsTime: "18:00", place: "香港", timezone: "Asia/Hong_Kong", rounds: [] },
+  });
+  // 投影时写下的 publications.fact_id：雷达靠它找到这条报告挂着的演出。
+  await sql`UPDATE publications SET fact_id = ${factId} WHERE article_id = ${articleId}`;
+  const id = await linkLiveEvent(factId, articleId);
+  assert.ok(id !== null);
+  const [row] = await sql<{ public_id: string; timezone: string }[]>`SELECT public_id::text AS public_id, timezone FROM live_events WHERE id = ${id}`;
+  assert.equal(row!.timezone, "Asia/Hong_Kong", "地点由 live 步骤读出，演出的钟跟着地点走");
+
+  const live = await loadLive(row!.public_id, NOW);
+  assert.equal(live?.timezone, "Asia/Hong_Kong");
+  const zoneOf = (kind: string) => live?.dates.find((d) => d.kind === kind)?.timezone;
+  assert.equal(zoneOf("event"), "Asia/Hong_Kong", "开演时刻是香港的钟");
+  assert.equal(zoneOf("lottery_start"), "Asia/Hong_Kong", "写明了「現地時間」");
+  assert.equal(zoneOf("sale_start"), "Asia/Tokyo", "没写是哪里的钟就不猜，仍按来源");
+  assert.equal(live?.dates.find((d) => d.kind === "lottery_start")?.localTime, "12:00", "不换算");
+
+  // 会场在词表里（带着时区）时不需要模型读地点；轮次只有自己那句话写了「現地時間」才换钟。
+  const arena = `AsiaWorld-Arena 公演 ${T}`;
+  const second = await liveFact({
+    category: "live",
+    subjects: ["ave-mujica"],
+    title: arena,
+    text: "2027年2月6日 AsiaWorld-Arena。FC先行 11月1日12:00（現地時間）〜。一般 11月20日10:00〜",
+    deadlines: [{ kind: "event", at: "2027-02-06", quote: "2027年2月6日 AsiaWorld-Arena" }],
+    live: {
+      title: arena,
+      venue: "AsiaWorld-Arena",
+      rounds: [
+        { kind: "fc", platform: null, applyStart: "2026-11-01T12:00", applyEnd: null, resultOn: null, paymentDueOn: null, quote: "FC先行 11月1日12:00（現地時間）〜" },
+        { kind: "general", platform: null, applyStart: "2026-11-20T10:00", applyEnd: null, resultOn: null, paymentDueOn: null, quote: "一般 11月20日10:00〜" },
+      ],
+    },
+  });
+  const secondId = await linkLiveEvent(second.factId, second.articleId);
+  const rounds = await sql<{ kind: string; timezone: string }[]>`SELECT kind, timezone FROM ticket_rounds WHERE live_event_id = ${secondId} ORDER BY kind`;
+  assert.deepEqual([...rounds], [{ kind: "fc", timezone: "Asia/Hong_Kong" }, { kind: "general", timezone: "Asia/Tokyo" }]);
+  const [zone] = await sql<{ timezone: string }[]>`SELECT timezone FROM live_events WHERE id = ${secondId}`;
+  assert.equal(zone!.timezone, "Asia/Hong_Kong", "会场词表给的钟");
+
+  // 同一场演出后来一篇没说地点的报告挂进来，不能把钟改回日本。
+  const later = await liveFact({
+    category: "live",
+    subjects: ["mygo"],
+    title,
+    text: "2027年1月3日 香港公演 グッズ情報",
+    deadlines: [{ kind: "event", at: "2027-01-03T18:00", quote: "2027年1月3日 香港公演" }],
+    live: { title, startsTime: "18:00" },
+  });
+  assert.equal(await linkLiveEvent(later.factId, later.articleId), id);
+  const [kept] = await sql<{ timezone: string }[]>`SELECT timezone FROM live_events WHERE id = ${id}`;
+  assert.equal(kept!.timezone, "Asia/Hong_Kong");
+});
