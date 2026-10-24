@@ -137,7 +137,7 @@ test("a Live or ticket announcement with a start date reads the show itself, and
   const res = await analyzeArticle(id);
   assert.deepEqual(calls("SHOWGOOD").sort(), ["live", "prefilter", "score", "score", "structure", "understand"]);
   const r = await row(id);
-  assert.deepEqual(r.output.live, { title: "演出名 SHOWGOOD", venue: "ぴあアリーナMM", startsTime: "18:30", endsOn: null, status: "scheduled", rounds: [] }, "一条没有票务的演出公告照样成页");
+  assert.deepEqual(r.output.live, { title: "演出名 SHOWGOOD", venue: "ぴあアリーナMM", startsTime: "18:30", endsOn: null, status: "scheduled", place: null, timezone: null, rounds: [] }, "一条没有票务的演出公告照样成页");
   assert.equal(r.receipt_ids.length, 6, "这一步的回执也记在这条分析上");
   assert.equal(res!.reused, false);
   const live = requests.find((q) => q.marker === "SHOWGOOD" && q.step === "live")!;
@@ -147,7 +147,7 @@ test("a Live or ticket announcement with a start date reads the show itself, and
   // A venue and a time the announcement never states are dropped, the name is not; 中止是原文说的才算。
   const bad = await article("SHOWBAD", { bodyText: `SHOWBAD: ${LONG} この公演は中止となりました (${T})` });
   await analyzeArticle(bad);
-  assert.deepEqual((await row(bad)).output.live, { title: "演出名 SHOWBAD", venue: null, startsTime: null, endsOn: null, status: "cancelled", rounds: [] });
+  assert.deepEqual((await row(bad)).output.live, { title: "演出名 SHOWBAD", venue: null, startsTime: null, endsOn: null, status: "cancelled", place: null, timezone: null, rounds: [] });
 
   // A stream is not a show: the start date alone does not earn the step.
   const stream = await article("STREAMSHOW", { bodyText: `STREAMSHOW: ${LONG} 会場：ぴあアリーナMM 18:30 開演 (${T})` });
