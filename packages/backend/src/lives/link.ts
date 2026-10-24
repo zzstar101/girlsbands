@@ -184,21 +184,33 @@ export async function patchLiveEvent(
   modelTitle: string | null = null,
   storyId: number | null = null,
 ): Promise<void> {
-  try {
-    await db`
-      UPDATE live_events SET
-        title = COALESCE(${modelTitle}, live_events.title),
-        venue = COALESCE(live_events.venue, ${key.venue}),
-        timezone = CASE WHEN ${key.zoneStated} THEN ${key.timezone} ELSE live_events.timezone END,
-        starts_time = COALESCE(live_events.starts_time, ${key.startsTime}),
-        ends_on = COALESCE(live_events.ends_on, ${key.endsOn}),
-        story_id = COALESCE(live_events.story_id, ${storyId}),
-        status = CASE WHEN live_events.status = 'scheduled' THEN ${key.status} ELSE live_events.status END,
-        updated_at = ${at}
-      WHERE id = ${id}`;
-  } catch (error) {
-    if ((error as { code?: string }).code !== "23505") throw error;
-  }
+  const [row] = await db<{ subject_entity: string; starts_on: string; venue: string | null; starts_time: string | null }[]>`
+    SELECT subject_entity, starts_on::text AS starts_on, venue, starts_time::text AS starts_time
+    FROM live_events WHERE id = ${id}`;
+  if (!row) return;
+  // 补空之后这一行的键。唯一索引不认 null（`COALESCE(venue, '')`、`COALESCE(starts_time, '')`），
+  // 同一场演出已经被另一行占住时，补会场或补时刻都会 23505：调用方都包着事务，一句失败整笔都废掉，
+  // 连 `facts.live_event_id` 一起回滚。所以撞车的两项留着不补，别的照样补 —— 补不上空比丢掉一条
+  // 已经挂上的事实轻（那种键撞车本身是同一场裂成了两行，归 scripts/backfill-live-timezones.ts
+  // 这类重挂脚本之外的另一件事）。
+  const venue = row.venue ?? key.venue;
+  const startsTime = row.starts_time ?? key.startsTime;
+  const taken = await db<{ id: string }[]>`
+    SELECT id FROM live_events
+    WHERE id <> ${id} AND subject_entity = ${row.subject_entity} AND starts_on = ${row.starts_on}
+      AND COALESCE(venue, '') = ${venue ?? ''} AND COALESCE(starts_time, '') = ${startsTime ?? ''}
+    LIMIT 1`;
+  await db`
+    UPDATE live_events SET
+      title = COALESCE(${modelTitle}, live_events.title),
+      venue = COALESCE(live_events.venue, ${taken.length > 0 ? null : key.venue}),
+      timezone = CASE WHEN ${key.zoneStated} THEN ${key.timezone} ELSE live_events.timezone END,
+      starts_time = COALESCE(live_events.starts_time, ${taken.length > 0 ? null : key.startsTime}),
+      ends_on = COALESCE(live_events.ends_on, ${key.endsOn}),
+      story_id = COALESCE(live_events.story_id, ${storyId}),
+      status = CASE WHEN live_events.status = 'scheduled' THEN ${key.status} ELSE live_events.status END,
+      updated_at = ${at}
+    WHERE id = ${id}`;
 }
 
 interface FactRow {

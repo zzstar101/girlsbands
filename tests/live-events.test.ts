@@ -372,3 +372,48 @@ test("海外公演按演出所在地的钟：会场词表认得出就用会场�
   const [kept] = await sql<{ timezone: string }[]>`SELECT timezone FROM live_events WHERE id = ${id}`;
   assert.equal(kept!.timezone, "Asia/Hong_Kong");
 });
+
+// 同一场演出已经裂成两行（一行写了会场、一行会场是 null）时，重挂那行 null 的会把会场补到别人
+// 已经占住的键上：唯一索引 `live_events_identity` 报 23505，而调用方都包着事务，整笔都废掉，
+// 连 `facts.live_event_id` 一起回滚。线上 backfill-live-timezones.ts 就是这么死的。
+test("补空补到别人占住的键上时留着不补，事实仍然挂着", async () => {
+  const day = "2026-11-21";
+  const blank = await liveFact({
+    category: "ticket",
+    subjects: ["raise-a-suilen"],
+    title: `都内某所 ${T}`,
+    deadlines: [{ kind: "event", at: day }],
+    text: "11月21日(土) 📍都内某所",
+  });
+  const nullId = await linkLiveEvent(blank.factId, blank.articleId);
+  assert.notEqual(nullId, null);
+  const [blankRow] = await sql<{ venue: string | null }[]>`SELECT venue FROM live_events WHERE id = ${nullId}`;
+  assert.equal(blankRow!.venue, null, "只写「都内某所」的公告认不出具体场馆");
+
+  // 同一主体、同一天，另一份报告写出了具体场馆：键不同（venue 一空一实），于是另起一行。
+  const named = await liveFact({
+    category: "ticket",
+    subjects: ["raise-a-suilen"],
+    title: `某场馆 ${T}`,
+    deadlines: [{ kind: "event", at: day }],
+    text: "11月21日(土) 会場：TACHIKAWA STAGE GARDEN",
+  });
+  const namedId = await linkLiveEvent(named.factId, named.articleId);
+  assert.notEqual(namedId, null);
+  assert.notEqual(namedId, nullId, "会场一实一空，索引不认 null 相等 ⇒ 两行");
+  const [namedRow] = await sql<{ venue: string | null; timezone: string }[]>`SELECT venue, timezone FROM live_events WHERE id = ${namedId}`;
+  assert.equal(namedRow!.venue, "TACHIKAWA STAGE GARDEN");
+
+  // 重挂那条 null 的：模型这次读到了地点（甚至改了钟），补会场会撞上 namedId 那一行。
+  await sql`UPDATE analyses SET output = ${sql.json({
+    scope: "single",
+    fact: { deadlines: [{ kind: "event", at: day }] },
+    live: { title: `都内某所 ${T}`, venue: "TACHIKAWA STAGE GARDEN", place: "香港", timezone: "Asia/Hong_Kong", rounds: [] },
+  } as never)} WHERE article_id = ${blank.articleId}`;
+  assert.equal(await linkLiveEvent(blank.factId, blank.articleId), nullId, "撞键也不能把这条事实挂丢");
+  const [after] = await sql<{ venue: string | null; timezone: string }[]>`SELECT venue, timezone FROM live_events WHERE id = ${nullId}`;
+  assert.equal(after!.venue, null, "别人占住的键补不上");
+  assert.equal(after!.timezone, "Asia/Hong_Kong", "模型读到的地点照样改钟，会场填不填是另一件事");
+  const [linked] = await sql<{ live_event_id: string }[]>`SELECT live_event_id FROM facts WHERE id = ${blank.factId}`;
+  assert.equal(Number(linked!.live_event_id), nullId);
+});
