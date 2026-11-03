@@ -237,12 +237,15 @@ test("演出页列出轮次，被轮次接管的日期不再重复列；公告�
 test("公开接口把轮次一起答出来", async () => {
   const app = await buildApp();
   try {
+    // 接口用真实时间算轮次状态（受理中 / 等结果）：日期写死会过期，过了受理开始那天必然变成 awaiting_result。
+    const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+    const applyStart = inDays(7);
     const { factId, articleId } = await liveFact({
       category: "live",
-      deadlines: [{ kind: "event", at: "2026-12-20" }],
+      deadlines: [{ kind: "event", at: inDays(48) }],
       subjects: ["mygo"],
       title: `MyGO 12月 ${T}`,
-      live: { title: `MyGO 12月公演 ${T}`, rounds: [round({ kind: "official", platform: "チケットぴあ", applyStart: "2026-11-01", resultOn: "2026-11-20" })] },
+      live: { title: `MyGO 12月公演 ${T}`, rounds: [round({ kind: "official", platform: "チケットぴあ", applyStart, resultOn: inDays(26) })] },
     });
     const id = await linkLiveEvent(factId, articleId);
     const [live] = await sql<{ public_id: string }[]>`SELECT public_id FROM live_events WHERE id = ${id}`;
@@ -252,7 +255,7 @@ test("公开接口把轮次一起答出来", async () => {
     const body = res.json();
     assert.equal(body.rounds.length, 1);
     assert.equal(body.rounds[0].kind, "official");
-    assert.deepEqual(body.rounds[0].applyStart, { at: "2026-11-01", day: "2026-11-01", localTime: null });
+    assert.deepEqual(body.rounds[0].applyStart, { at: applyStart, day: applyStart, localTime: null });
     assert.equal(body.rounds[0].status, "announced");
   } finally {
     await app.close();
