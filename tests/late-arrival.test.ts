@@ -25,6 +25,25 @@ test("晚到一天的帖子在时间线上排在它自己发出的时间，不�
   assert.equal(decideTimeline(null, found).timelineAt.getTime(), found.getTime());
 });
 
+test("来源只印日期：时间线按看到它的时间排，不占当天的 00:00", () => {
+  // 官网列表写的是「2026.11.03」，解析成 11/3 00:00 JST，也就是北京时间 11/2 23:00。
+  const midnight = new Date("2026-11-02T15:00:00Z");
+  const found = new Date("2026-11-03T12:39:00Z"); // 11/3 21:39 JST 才抓到
+  const t = decideTimeline(midnight, found, null, true);
+  assert.equal(t.publishedAt?.getTime(), midnight.getTime(), "日期仍按来源写的那天");
+  assert.equal(t.timelineAt.getTime(), found.getTime(), "排序改成看到它的时间");
+
+  // 补录的旧公告：不晚过来源写的那天的结束，也不会跳到今天
+  const lateFound = new Date("2026-11-10T00:00:00Z");
+  const old = decideTimeline(new Date("2026-10-01T15:00:00Z"), lateFound, null, true);
+  assert.equal(old.timelineAt.toISOString(), "2026-10-02T14:59:00.000Z");
+  assert.equal(old.backfill, true, "仍然算补录");
+
+  // 有精确时刻的来源不受影响
+  const exact = new Date("2026-11-03T12:30:00Z");
+  assert.equal(decideTimeline(exact, found, null, false).timelineAt.getTime(), exact.getTime());
+});
+
 test("发帖时还没截止、抓到时已经截止的通知，算晚到", () => {
   const posted = new Date("2026-10-05T01:00:00Z"); // 10/5 10:00 JST
   const late = new Date("2026-10-06T20:00:00Z"); // 10/7 05:00 JST

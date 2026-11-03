@@ -38,6 +38,8 @@ export interface MaterialInput {
   author?: string | null;
   language?: string | null;
   publishedAt?: Date | null;
+  /** The source printed only a date, so `publishedAt` is that day's midnight rather than when it spoke. */
+  publishedAtDayOnly?: boolean;
   sourceUpdatedAt?: Date | null;
   excerpt?: string | null;
   bodyHtml?: string | null;
@@ -68,6 +70,7 @@ export interface MaterialResult {
 export const STALE_ON_DISCOVERY_MS = 48 * 3600 * 1000;
 // Source times more than an hour in the future are not trusted.
 export const FUTURE_TOLERANCE_MS = 3600 * 1000;
+const DAY_MS = 86_400_000;
 
 export interface TimelineDecision {
   publishedAt: Date | null;
@@ -77,7 +80,7 @@ export interface TimelineDecision {
 }
 
 /** The one timeline rule shared by every entrance. */
-export function decideTimeline(claimed: Date | null | undefined, discoveredAt: Date, explicitBackfill?: string | null): TimelineDecision {
+export function decideTimeline(claimed: Date | null | undefined, discoveredAt: Date, explicitBackfill?: string | null, dayOnly = false): TimelineDecision {
   let publishedAt: Date | null = claimed && Number.isFinite(claimed.getTime()) ? claimed : null;
   if (publishedAt && publishedAt.getTime() > discoveredAt.getTime() + FUTURE_TOLERANCE_MS) publishedAt = null;
   let backfillReason: string | null = null;
@@ -88,7 +91,15 @@ export function decideTimeline(claimed: Date | null | undefined, discoveredAt: D
   // reached us a day late (a mirror catching up) sits at its own time, not among today's news. A source
   // time slightly ahead of discovery (within the tolerance) is clamped so nothing sorts above "now";
   // material without a source time can only be placed by discovery.
-  const timelineAt = publishedAt && publishedAt.getTime() < discoveredAt.getTime() ? publishedAt : discoveredAt;
+  //
+  // A source that prints only a date never named a moment: its midnight sorts above everything else that
+  // day said — in Beijing, above the whole previous evening — and because a fact anchors at its earliest
+  // report it drags every later report of the same event back with it. Such an item is placed where we
+  // first saw it, and never later than the end of the day the source named.
+  let timelineAt: Date;
+  if (publishedAt && publishedAt.getTime() < discoveredAt.getTime() && !dayOnly) timelineAt = publishedAt;
+  else if (publishedAt && dayOnly) timelineAt = new Date(Math.min(discoveredAt.getTime(), publishedAt.getTime() + DAY_MS - 60_000));
+  else timelineAt = discoveredAt;
   return { publishedAt, timelineAt, backfill, backfillReason };
 }
 
@@ -148,7 +159,7 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
   const discoveredAt = m.discoveredAt ?? new Date();
   const title = collapseWhitespace(m.title).slice(0, 1000) || m.url;
 
-  const t = decideTimeline(m.publishedAt, discoveredAt, m.backfill);
+  const t = decideTimeline(m.publishedAt, discoveredAt, m.backfill, m.publishedAtDayOnly === true);
   const newId = m.id ?? newArticleId();
   const hash = contentHash({ title, bodyText: m.bodyText, excerpt: m.excerpt });
   const [inserted] = await db<{ id: string }[]>`

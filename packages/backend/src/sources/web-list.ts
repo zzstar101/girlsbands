@@ -48,6 +48,19 @@ export function parseLooseDate(value: string | null | undefined, utcOffset = "+0
   return atOffset(local.getFullYear(), local.getMonth() + 1, local.getDate(), local.getHours(), local.getMinutes(), local.getSeconds(), utcOffset);
 }
 
+/**
+ * A published value that names a day but no clock time: "2026.11.03", "2026-11-03", "2026年11月3日",
+ * "20261018", "Sep 26, 2026". Such a value parses to that day's midnight, which is not the moment the
+ * source spoke — a date is all a press release's own list usually prints.
+ */
+export function isDayOnlyDate(value: string | null | undefined): boolean {
+  const v = value?.trim();
+  if (!v || /\d{1,2}:\d{2}/.test(v) || EXPLICIT_ZONE.test(v)) return false;
+  if (/^\d{8}$/.test(v)) return true;
+  if (/\d{4}[-/.年]\d{1,2}[-/.月]\d{1,2}日?/.test(v)) return true;
+  return /[A-Za-z]{3,}\.?\s+\d{1,2},?\s+\d{4}/.test(v);
+}
+
 /** The datePublished of the page's structured data (JSON-LD, also inside @graph or embedded app state). */
 export function jsonLdPublished($: cheerio.CheerioAPI, html: string): string | null {
   const find = (v: unknown, depth = 0): string | null => {
@@ -198,16 +211,20 @@ export function fromHtml(html: string, base: string, source: SourceRow): Candida
       excerpt = text.length ? text.join("｜").slice(0, 2000) : null;
     }
     let publishedAt: Date | null = null;
+    let publishedAtDayOnly = false;
     if (c.publishedAtSelector) {
       const dateEl = el.find(c.publishedAtSelector).first();
-      publishedAt = parseLooseDate(dateEl.attr("datetime") ?? dateEl.attr("title") ?? dateEl.text(), c.publishedAtUtcOffset);
+      const raw = dateEl.attr("datetime") ?? dateEl.attr("title") ?? dateEl.text();
+      publishedAt = parseLooseDate(raw, c.publishedAtUtcOffset);
+      publishedAtDayOnly = isDayOnlyDate(raw);
     }
     if (!publishedAt && c.publishedAtRegex) {
       const m = new RegExp(c.publishedAtRegex).exec($.html(el));
       publishedAt = parseLooseDate(m?.[1], c.publishedAtUtcOffset);
+      publishedAtDayOnly = isDayOnlyDate(m?.[1]);
     }
     seen.add(url);
-    const candidate: Candidate = { url, title, publishedAt };
+    const candidate: Candidate = { url, title, publishedAt, ...(publishedAt && publishedAtDayOnly ? { publishedAtDayOnly: true } : {}) };
     const image = el.find("img").toArray().map((img) => {
       const imageEl = $(img);
       return [imageEl.attr("src"), imageEl.attr("data-src")].map((value) => value ? usableImageUrl(value, base) : null).find(Boolean);
@@ -263,6 +280,7 @@ function fromDocusaurusChangelog(html: string, base: string, source: SourceRow):
       identityKey: `url:${url}`,
       title,
       publishedAt: parseLooseDate(title) ?? sectionDate ?? parseLooseDate(stripTags(bodyHtml).slice(0, 80)),
+      ...(sectionDate !== null || isDayOnlyDate(title) ? { publishedAtDayOnly: true } : {}),
       bodyHtml,
       bodyText: stripTags(bodyHtml),
       bodyStatus: "ok",
@@ -367,7 +385,7 @@ export interface DetailNeed {
  * text ("Published Time: …", "# Heading"), so that paid rendering is bought only when such a rule is
  * needed; selectors and page metadata read the page's own HTML.
  */
-export async function fetchDetail(url: string, source: SourceRow, need: DetailNeed): Promise<{ publishedAt: Date | null; title: string | null; summary: string | null; body: ExtractedBody | null }> {
+export async function fetchDetail(url: string, source: SourceRow, need: DetailNeed): Promise<{ publishedAt: Date | null; publishedAtDayOnly: boolean; title: string | null; summary: string | null; body: ExtractedBody | null }> {
   const d = source.config.detail ?? {};
   const jinaListing = String(source.config.url ?? "").startsWith(JINA_PREFIX);
   const dateInJina = need.date && jinaListing && !!d.publishedAtRegex;
@@ -388,13 +406,20 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
   const $ = html === null ? null : cheerio.load(html);
 
   let publishedAt: Date | null = null;
+  let publishedAtDayOnly = false;
   const dateText = dateInJina ? jina : html;
   if (need.date && dateText !== null) {
     if ($ && !dateInJina && d.publishedAtSelector) {
       const el = $(d.publishedAtSelector).first();
-      publishedAt = parseLooseDate(el.attr("datetime") ?? el.attr("title") ?? el.text(), d.publishedAtUtcOffset);
+      const raw = el.attr("datetime") ?? el.attr("title") ?? el.text();
+      publishedAt = parseLooseDate(raw, d.publishedAtUtcOffset);
+      publishedAtDayOnly = isDayOnlyDate(raw);
     }
-    if (!publishedAt && d.publishedAtRegex) publishedAt = parseLooseDate(new RegExp(d.publishedAtRegex).exec(dateText)?.[1], d.publishedAtUtcOffset);
+    if (!publishedAt && d.publishedAtRegex) {
+      const raw = new RegExp(d.publishedAtRegex).exec(dateText)?.[1];
+      publishedAt = parseLooseDate(raw, d.publishedAtUtcOffset);
+      publishedAtDayOnly = isDayOnlyDate(raw);
+    }
     // An authoritative rule is the only source of the date: when its byline is missing, no other
     // timestamp on the page (an update time, a related post) stands in for it.
     const authoritative = d.publishedAtAuthoritative === true && !!(d.publishedAtSelector || d.publishedAtRegex);
@@ -416,5 +441,5 @@ export async function fetchDetail(url: string, source: SourceRow, need: DetailNe
     const el = $(d.summarySelector).first();
     summary = collapseWhitespace(el.attr("content") ?? el.text()) || null;
   }
-  return { publishedAt, title, summary, body };
+  return { publishedAt, publishedAtDayOnly, title, summary, body };
 }

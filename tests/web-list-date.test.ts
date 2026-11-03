@@ -2,7 +2,7 @@
 // the server runs in (Docker runs in UTC; run this file with TZ=UTC and TZ=Asia/Shanghai to see both).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseLooseDate } from "@girlsbands/backend/sources/web-list";
+import { isDayOnlyDate, parseLooseDate } from "@girlsbands/backend/sources/web-list";
 
 const iso = (v: string, offset?: string) => parseLooseDate(v, offset)?.toISOString() ?? null;
 
@@ -38,4 +38,11 @@ test("单页官网把年月日拼成一段（20261018）也认得，按来源时
 test("no date at all is null", () => {
   assert.equal(iso(""), null);
   assert.equal(iso("yesterday"), null);
+});
+
+test("只印日期的发布时间认得出来：它落在当天 00:00，但那不是说话的时刻", () => {
+  for (const v of ["2026.11.03", "2026-11-03", "2026/11/03", "2026年11月3日", "20261018", "Nov 3, 2026", "2026.11.03 "])
+    assert.equal(isDayOnlyDate(v), true, v);
+  for (const v of ["2026-11-03T21:30:00+09:00", "2026.11.03 21:30", "2026年11月3日 21:30", "2026-11-03 10:00:00 GMT", "", "刚刚"])
+    assert.equal(isDayOnlyDate(v), false, v);
 });

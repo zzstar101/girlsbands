@@ -274,8 +274,12 @@ export async function collectSource(sourceId: string, opts: { force?: boolean } 
           c.bodyStatus = "ok";
           if (!c.media?.length) c.media = got.body.images;
         }
-        // A date-only listing value gives way to the detail page's time on the same day.
-        if (got.publishedAt && (!c.publishedAt || Math.abs(got.publishedAt.getTime() - c.publishedAt.getTime()) < DAY_MS)) c.publishedAt = got.publishedAt;
+        // A date-only listing value gives way to the detail page's time on the same day — and the detail
+        // page decides whether what it gave is a time or only another date.
+        if (got.publishedAt && (!c.publishedAt || Math.abs(got.publishedAt.getTime() - c.publishedAt.getTime()) < DAY_MS)) {
+          c.publishedAt = got.publishedAt;
+          c.publishedAtDayOnly = got.publishedAtDayOnly;
+        }
       } catch {
         // detail is best effort
       }
